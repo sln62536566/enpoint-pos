@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>恩點 POS v39（改菜單）</title>
+
+<link rel="stylesheet" href="style.css">
+
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+<style>
+body{font-family:Arial;padding:10px;}
+.card{background:#fff;border:1px solid #ddd;padding:10px;margin:10px 0;}
+input,select,button{margin:5px 0;}
+</style>
+</head>
+
+<body>
+
+<h2>🔧 改菜單 v39</h2>
+
+<div id="menuEditor"></div>
+
+<script src="firebase.js"></script>
+<script src="config.js"></script>
+
+<script>
+const storeId = "test";
+let menu = [];
+
+async function loadMenu() {
+  const res = await fetch(API + "/menu?storeId=" + storeId);
+  menu = await res.json() || [];
+  renderMenuEditor();
+}
+
+function renderMenuEditor() {
+  const box = document.getElementById("menuEditor");
+  box.innerHTML = "";
+
+  box.innerHTML += `
+    <div class="card">
+      <b>✨ 基本設定</b>
+      <div>商店名稱：<input id="storeName" value="${storeId}"></div>
+      <button onclick="addCategory()">＋ 新增分類</button>
+      <button onclick="saveMenu()">💾 儲存所有變更</button>
+    </div>
+  `;
+
+  menu.forEach((cat, catIdx) => {
+    box.innerHTML += `
+      <div class="card">
+        <b>分類 ${catIdx + 1}：${cat.type}</b>
+        <div>名稱：<input type="text" value="${cat.type}" onchange="cat.type = this.value"></div>
+        <button onclick="addMenuItem(${catIdx})">＋ 新增餐點</button>
+        <button onclick="menu.splice(${catIdx}, 1);renderMenuEditor()">🗑️ 刪除此分類</button>
+      </div>
+    `;
+
+    cat.items.forEach((item, itemIdx) => {
+      box.innerHTML += `
+        <div class="card" style="background:#f9f9f9;">
+          <b>餐點：${item.name}</b>
+          <div>名稱：<input type="text" value="${item.name}" onchange="item.name = this.value"></div>
+          <div>售價：<input type="number" value="${item.price}" onchange="item.price = +this.value"></div>
+          <div>照片URL：<input type="text" value="${item.photo || ''}" onchange="item.photo = this.value"></div>
+          <button onclick="item.mods = item.mods || []; addModifier(${catIdx},${itemIdx})">＋ 新增加料</button>
+          <div id="mods-${catIdx}-${itemIdx}"></div>
+          <button onclick="cat.items.splice(${itemIdx}, 1);renderMenuEditor()">🗑️ 刪除此餐點</button>
+        </div>
+      `;
+    });
+  });
+}
+
+function addCategory() {
+  menu.push({
+    type: "新分類",
+    items: []
+  });
+  renderMenuEditor();
+}
+
+function addMenuItem(catIdx) {
+  menu[catIdx].items.push({
+    name: "新餐點",
+    price: 0,
+    photo: ""
+  });
+  renderMenuEditor();
+}
+
+function addModifier(catIdx, itemIdx) {
+  const item = menu[catIdx].items[itemIdx];
+  item.mods = item.mods || [];
+  item.mods.push({
+    name: "新加料",
+    price: 0
+  });
+  renderMenuEditor();
+}
+
+async function saveMenu() {
+  const storeName = document.getElementById("storeName").value;
+  const res = await fetch(API + "/update-menu", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      storeId: storeName,
+      menu: menu
+    })
+  });
+
+  const data = await res.json();
+  if (data.ok) {
+    alert("菜單已儲存，前台會立即同步");
+  }
+  else {
+    alert("儲存失敗");
+  }
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+  loadMenu();
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>KDS 廚房系統</title>
+</head>
+<body>
+
+<h1>🍳 廚房系統（CONFIRMED）</h1>
+
+<div id="list"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFirestore, collection, onSnapshot }
+from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBz5ixYBa6q6yB4uObJNdUVqDuL8X4uyw0",
+  authDomain: "enpoint-pos.firebaseapp.com",
+  databaseURL: "https://enpoint-pos-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "enpoint-pos",
+  storageBucket: "enpoint-pos.firebasestorage.app",
+  messagingSenderId: "1085275616655",
+  appId: "1:1085275616655:web:96a86e2d6bf89d2717c7fa",
+  measurementId: "G-1GJ8G60MHP"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// 🍳 即時監聽訂單（只保留一個）
+onSnapshot(collection(db, "orders"), (snap) => {
+  const list = document.getElementById("list");
+  list.innerHTML = "";
+
+  let orders = [];
+
+  snap.forEach(doc => {
+    orders.push(doc.data());
+  });
+
+  // 🔥 最新在上面
+  orders.sort((a, b) => b.createdAt - a.createdAt);
+
+  orders.forEach(d => {
+
+    // 🔥 只顯示 CONFIRMED
+    if (d.status !== "CONFIRMED") return;
+
+    list.innerHTML += `
+      <div style="border:2px solid #000;margin:10px;padding:10px;font-size:18px;">
+        <h2>🧾 #${d.id}</h2>
+        <p>👤 名字：${d.name}</p>
+        <p>🍜 餐點：${d.items}</p>
+        <p>📌 狀態：${d.status}</p>
+        <p>💰 付款：${d.paid ? "已付款" : "未付款"}</p>
+      </div>
+    `;
+  });
+});
+</script>
+
+</body>
+</html>

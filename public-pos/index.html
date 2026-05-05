@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>POS 櫃檯系統</title>
+</head>
+<body>
+
+<h1>🧑‍💼 POS 櫃檯</h1>
+
+<h2>➕ 建立訂單</h2>
+
+<input id="name" placeholder="客人名字"><br><br>
+<input id="items" placeholder="餐點"><br><br>
+
+<select id="type">
+  <option value="DINE_IN">內用</option>
+  <option value="TAKEOUT">外帶</option>
+</select><br><br>
+
+<button onclick="create()">建立訂單</button>
+
+<hr>
+
+<h2>📋 待確認訂單</h2>
+<div id="list"></div>
+
+<script>
+const API = "http://localhost:3000";
+
+// 🔥 建立訂單
+async function create() {
+  const res = await fetch(API + "/createOrder", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({
+      name: name.value,
+      items: items.value,
+      type: type.value
+    })
+  });
+
+  const data = await res.json();
+  alert("已建立：" + data.id);
+
+  loadOrders();
+}
+
+// 🔥 取得訂單（簡化版：直接Firebase不做即時）
+async function loadOrders() {
+  const res = await fetch(API + "/getOrders");
+  const data = await res.json();
+
+  const list = document.getElementById("list");
+  list.innerHTML = "";
+
+  data.forEach(o => {
+    list.innerHTML += `
+      <div style="border:1px solid #000;margin:10px;padding:10px;">
+        <h3>#${o.id}</h3>
+        <p>${o.items}</p>
+        <p>狀態：${o.status}</p>
+
+        ${o.status === "PENDING" ? `
+          <button onclick="confirmOrder('${o.id}')">確認送廚房</button>
+        ` : ""}
+      </div>
+    `;
+  });
+}
+
+// 🔥 確認送廚房
+async function confirmOrder(id) {
+  await fetch(API + "/confirm", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({
+      id,
+      paid: false
+    })
+  });
+
+  alert("已送廚房");
+  loadOrders();
+}
+
+loadOrders();
+</script>
+
+</body>
+</html>

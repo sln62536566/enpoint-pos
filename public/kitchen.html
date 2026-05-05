@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>廚房 v40</title>
+
+<style>
+body{background:#111;color:#fff;font-family:Arial}
+.card{margin:10px;padding:10px;background:#222}
+.pending{border-left:6px solid orange}
+.cooking{border-left:6px solid dodgerblue}
+.done{border-left:6px solid green;opacity:0.6}
+
+.call{
+background:#333;
+border:2px solid yellow;
+padding:10px;
+margin:10px;
+font-size:18px;
+}
+button{
+padding:6px 10px;
+margin:5px;
+cursor:pointer;
+}
+</style>
+</head>
+
+<body>
+
+<h2>🍳 廚房 v40</h2>
+
+<div id="callBox"></div>
+<div id="list"></div>
+
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+<script>
+
+const API = "https://enpoint-api.onrender.com";
+const storeId = "test";
+
+/* ================= Firebase ================= */
+firebase.initializeApp({
+  databaseURL:"https://enpoint-pos-default-rtdb.asia-southeast1.firebasedatabase.app/"
+});
+
+firebase.database()
+.ref("orders/"+storeId)
+.on("value", snap=>{
+
+  const data = snap.val() || {};
+
+  let html = "";
+  let call = "";
+
+  Object.values(data).forEach(o=>{
+
+    if(o.status === "done"){
+      call += `
+        <div class="call">
+          🔔 ${o.table || "外帶"}<br>
+          ${o.id}
+        </div>
+      `;
+    }
+
+    html += `
+      <div class="card ${o.status}">
+        <b>${o.table || "外帶"}</b><br>
+        ${o.id}<br>
+        ${o.total}元<br>
+        ${o.status}<br>
+
+        ${(o.items||[]).map(i=>`🍜 ${i.name} x${i.qty}`).join("<br>")}
+
+        <div>
+          <button onclick="setStatus('${o.id}','cooking')">製作中</button>
+          <button onclick="setStatus('${o.id}','done')">完成</button>
+        </div>
+      </div>
+    `;
+  });
+
+  document.getElementById("list").innerHTML = html;
+  document.getElementById("callBox").innerHTML = call;
+});
+
+/* =================🔥 修正版 PATCH API ================= */
+async function setStatus(id, status){
+
+  try{
+    const res = await fetch(`${API}/api/orders/${id}`, {
+      method: "PATCH",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ status })
+    });
+
+    const result = await res.json();
+
+    console.log("🔥 status update:", result);
+
+    if(!res.ok){
+      throw new Error(result.error || "update failed");
+    }
+
+  }catch(err){
+    console.error("❌ update error:", err);
+    alert("更新失敗：" + err.message);
+  }
+}
+
+</script>
+
+</body>
+</html>

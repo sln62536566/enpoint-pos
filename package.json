@@ -1,0 +1,15 @@
+{
+  "name": "enpoint-server",
+  "version": "1.0.0",
+  "description": "POS system",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "firebase-admin": "^13.8.0"
+  }
+}
