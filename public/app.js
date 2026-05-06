@@ -1,30 +1,25 @@
-import { db, ref, push, onValue, update } from './firebase.js';
+import { db, ref, push, onValue, update, get, set } from './firebase.js';
 
 // ==========================
-// 📦 Firebase refs
+// 📦 refs
 // ==========================
 const ordersRef = ref(db, 'orders');
 const counterRef = ref(db, 'counter/order');
 
 // ==========================
-// 🔢 生成訂單號（安全版）
+// 🔢 安全訂單號（已修復）
 // ==========================
 async function generateOrderNumber() {
-  return new Promise((resolve) => {
-    onValue(counterRef, (snap) => {
-      let num = snap.val()?.order || 0;
-      num++;
+  const snap = await get(counterRef);
+  let num = snap.exists() ? snap.val().order : 0;
 
-      // ✔ 一定要是 object
-      update(counterRef, {
-        order: num
-      });
+  num++;
 
-      const orderNo = "A" + String(num).padStart(3, '0');
-      resolve(orderNo);
-
-    }, { onlyOnce: true });
+  await set(counterRef, {
+    order: num
   });
+
+  return "A" + String(num).padStart(3, '0');
 }
 
 // ==========================
@@ -33,40 +28,42 @@ async function generateOrderNumber() {
 async function createOrder(items, table = "外帶") {
   const orderNumber = await generateOrderNumber();
 
-  const order = {
+  await push(ordersRef, {
     items,
     table,
     orderNumber,
     status: "pending",
     createdAt: Date.now()
-  };
-
-  push(ordersRef, order);
+  });
 }
 
 // ==========================
-// 📡 廚房監聽訂單
+// 📡 廚房監聽
 // ==========================
 function listenOrders(callback) {
   onValue(ordersRef, (snapshot) => {
     const data = snapshot.val() || {};
 
-    let list = Object.entries(data).map(([id, val]) => ({
+    const list = Object.entries(data).map(([id, val]) => ({
       id,
       ...val
     }));
 
-    list.sort((a, b) => b.createdAt - a.createdAt);
+    list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
     callback(list);
   });
 }
 
 // ==========================
-// 🔧 更新狀態
+// 🔧 更新狀態（防呆版）
 // ==========================
-function updateStatus(id, status) {
-  update(ref(db, `orders/${id}`), { status });
+async function updateStatus(id, status) {
+  if (!id) return;
+
+  await update(ref(db, `orders/${id}`), {
+    status
+  });
 }
 
 // ==========================
