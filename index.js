@@ -4,7 +4,7 @@ const admin = require("firebase-admin");
 const cors = require("cors");
 
 // ==========================
-// 🔥 Firebase（完全沒有 JSON）
+// 🔥 Firebase（env版）
 // ==========================
 admin.initializeApp({
   credential: admin.credential.cert({
@@ -18,15 +18,23 @@ admin.initializeApp({
 const db = admin.database();
 
 // ==========================
+// ⚙️ middleware
+// ==========================
 app.use(cors());
 app.use(express.json());
-app.use(express.static(__dirname));
 
+// 🔥 重點：前端在 public 資料夾
+app.use(express.static("public"));
+
+// ==========================
+// 🧪 測試
 // ==========================
 app.get("/ping", (req, res) => {
   res.send("POS API OK");
 });
 
+// ==========================
+// 📦 訂單 API
 // ==========================
 app.get("/orders", async (req, res) => {
   const snapshot = await db.ref("orders").once("value");
@@ -51,6 +59,8 @@ app.put("/orders/:id", async (req, res) => {
   res.json({ success: true });
 });
 
+// ==========================
+// 🚀 啟動
 // ==========================
 const PORT = process.env.PORT || 10000;
 
