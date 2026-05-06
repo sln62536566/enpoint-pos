@@ -2,49 +2,32 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<title>訂單查詢</title>
-
-<style>
-body { font-family: sans-serif; padding: 20px; }
-.box { border: 1px solid #ccc; padding: 10px; margin-top: 10px; }
-</style>
+<title>查詢訂單</title>
 </head>
 
 <body>
 
-<h2>🔍 查詢訂單</h2>
-
-<input id="orderId" placeholder="輸入訂單號（先做簡版）">
-<button onclick="search()">查詢</button>
+<h2>查訂單</h2>
+<input id="id">
+<button onclick="search()">查</button>
 
 <div id="result"></div>
 
-<script>
-const API = "https://enpoint-api.onrender.com";
+<script type="module">
+import { db, ref, onValue } from './firebase.js';
 
-async function search() {
-  const id = document.getElementById("orderId").value;
-  const result = document.getElementById("result");
+window.search = () => {
+  const id = document.getElementById("id").value;
 
-  const res = await fetch(API + "/orders");
-  const data = await res.json();
+  onValue(ref(db, "orders"), (snap) => {
+    const data = snap.val() || {};
 
-  let found = Object.values(data || {}).find(o => o.orderNumber === id);
+    const found = Object.values(data).find(o => o.orderNumber === id);
 
-  if (!found) {
-    result.innerHTML = "❌ 查無訂單";
-    return;
-  }
-
-  result.innerHTML = `
-    <div class="box">
-      <div>📢 訂單：${found.orderNumber}</div>
-      <div>桌號：${found.table}</div>
-      <div>🍜 ${found.items.join(", ")}</div>
-      <div>狀態：${found.status}</div>
-    </div>
-  `;
-}
+    document.getElementById("result").innerHTML =
+      found ? JSON.stringify(found) : "找不到";
+  }, { onlyOnce: true });
+};
 </script>
 
 </body>

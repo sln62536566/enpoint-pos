@@ -1,18 +1,14 @@
 import { db, ref, push, onValue, update, get, set } from './firebase.js';
 
 // ==========================
-// 🌐 API（未來擴充用，可不用）
-// ==========================
-const API = "https://enpoint-api.onrender.com";
-
-// ==========================
 // 📦 refs
 // ==========================
 const ordersRef = ref(db, 'orders');
 const counterRef = ref(db, 'counter/order');
+const menuRef = ref(db, 'menu/default');
 
 // ==========================
-// 🔢 訂單號（穩定版）
+// 🔢 訂單號
 // ==========================
 async function generateOrderNumber() {
   const snap = await get(counterRef);
@@ -26,29 +22,22 @@ async function generateOrderNumber() {
 }
 
 // ==========================
-// 🧾 建立訂單（🔥唯一入口）
+// 🧾 建立訂單
 // ==========================
 async function createOrder(items, table = "外帶") {
-  try {
-    const orderNumber = await generateOrderNumber();
+  const orderNumber = await generateOrderNumber();
 
-    await push(ordersRef, {
-      items,
-      table,
-      orderNumber,
-      status: "pending",
-      createdAt: Date.now()
-    });
-
-    return true;
-  } catch (err) {
-    console.error("❌ createOrder error:", err);
-    return false;
-  }
+  await push(ordersRef, {
+    items,
+    table,
+    orderNumber,
+    status: "pending",
+    createdAt: Date.now()
+  });
 }
 
 // ==========================
-// 📡 廚房監聽
+// 📡 訂單監聽
 // ==========================
 function listenOrders(callback) {
   onValue(ordersRef, (snapshot) => {
@@ -69,16 +58,26 @@ function listenOrders(callback) {
 // 🔧 更新狀態
 // ==========================
 async function updateStatus(id, status) {
-  if (!id) return;
-
   await update(ref(db, `orders/${id}`), { status });
 }
 
 // ==========================
-// 📤 export
+// 🍜 取得菜單
+// ==========================
+function listenMenu(callback) {
+  onValue(menuRef, (snap) => {
+    const data = snap.val() || {};
+    const menu = Object.values(data);
+    callback(menu);
+  });
+}
+
+// ==========================
+// export
 // ==========================
 export {
   createOrder,
   listenOrders,
-  updateStatus
+  updateStatus,
+  listenMenu
 };

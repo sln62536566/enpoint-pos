@@ -2,97 +2,56 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<title>廚房系統</title>
+<title>廚房</title>
 
 <style>
-body {
-  font-family: sans-serif;
-  background: #111;
-  color: white;
-  margin: 0;
-}
-
-.header {
-  background: #ff6600;
-  padding: 15px;
-  font-size: 24px;
-  text-align: center;
-}
-
-.container {
-  padding: 10px;
-}
+body { font-family:sans-serif; background:#111; color:white; }
 
 .order {
-  border: 2px solid #444;
-  margin-bottom: 10px;
-  padding: 10px;
-  border-radius: 10px;
+  border:1px solid #444;
+  margin:10px;
+  padding:10px;
 }
 
-.pending { border-color: #888; }
+.pending { border-color: gray; }
 .cooking { border-color: yellow; }
-.done { border-color: lime; opacity: 0.5; }
-
-button {
-  margin: 5px;
-  padding: 8px 12px;
-  font-size: 16px;
-}
+.done { border-color: lime; opacity:0.5; }
 </style>
 </head>
 
 <body>
 
-<div class="header">🔥 廚房訂單</div>
-<div class="container" id="orders"></div>
+<h2>🔥 廚房</h2>
+<div id="orders"></div>
 
-<script>
-const API = "https://enpoint-api.onrender.com";
+<script type="module">
+import { listenOrders, updateStatus } from './app.js';
 
-const container = document.getElementById("orders");
+const box = document.getElementById("orders");
 
-async function loadOrders() {
-  const res = await fetch(API + "/orders");
-  const data = await res.json();
+listenOrders((orders) => {
+  box.innerHTML = "";
 
-  render(Object.values(data || {}));
-}
-
-function render(orders) {
-  container.innerHTML = "";
-
-  orders.forEach(order => {
+  orders.forEach(o => {
     const div = document.createElement("div");
-
-    div.className = `order ${order.status}`;
+    div.className = "order " + o.status;
 
     div.innerHTML = `
-      <div>📢 訂單號：${order.orderNumber || ""}</div>
-      <div>桌號：${order.table}</div>
-      <div>🍜 ${order.items.join(", ")}</div>
-      <div>狀態：${order.status}</div>
+      <div>訂單：${o.orderNumber}</div>
+      <div>桌號：${o.table}</div>
+      <div>${o.items.join(", ")}</div>
+      <div>${o.status}</div>
 
-      <button onclick="update('${order.id}','cooking')">開始做</button>
-      <button onclick="update('${order.id}','done')">完成</button>
+      <button onclick="cook('${o.id}')">開始</button>
+      <button onclick="done('${o.id}')">完成</button>
     `;
 
-    container.appendChild(div);
+    box.appendChild(div);
   });
-}
+});
 
-async function update(id, status) {
-  await fetch(API + "/orders/" + id, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status })
-  });
-
-  loadOrders();
-}
-
-loadOrders();
-setInterval(loadOrders, 3000);
+window.cook = (id) => updateStatus(id, "cooking");
+window.done = (id) => updateStatus(id, "done");
 </script>
 
 </body>

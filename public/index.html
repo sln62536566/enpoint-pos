@@ -14,15 +14,10 @@ body { font-family: sans-serif; padding:20px; }
   border-radius:10px;
 }
 
-button {
-  padding:8px 12px;
-  margin-top:5px;
-}
-
 #cart {
   margin-top:20px;
-  padding:10px;
   border:2px solid #333;
+  padding:10px;
 }
 </style>
 </head>
@@ -31,10 +26,8 @@ button {
 
 <h1>🍜 點餐系統</h1>
 
-<!-- 📦 菜單 -->
 <div id="menu"></div>
 
-<!-- 🛒 購物車 -->
 <div id="cart">
   <h3>🛒 購物車</h3>
   <div id="cartItems"></div>
@@ -42,45 +35,19 @@ button {
 </div>
 
 <script type="module">
-import { db, ref, onValue } from './firebase.js';
-import { createOrder } from './app.js';
+import { listenMenu, createOrder } from './app.js';
 
-// ==========================
-// 📦 DOM
-// ==========================
 const menuDiv = document.getElementById("menu");
-
 let cart = [];
 
 // ==========================
-// 📡 Firebase menu
+// 🍜 menu
 // ==========================
-const menuRef = ref(db, "menu/default");
-
-onValue(menuRef, (snap) => {
-  const data = snap.val();
-
-  let menu = [];
-
-  if (data) {
-    if (Array.isArray(data)) {
-      menu = data;
-    } else {
-      menu = Object.values(data);
-    }
-  }
-
-  renderMenu(menu);
-});
-
-// ==========================
-// 📦 render menu
-// ==========================
-function renderMenu(menu) {
+listenMenu((menu) => {
   menuDiv.innerHTML = "";
 
   if (!menu.length) {
-    menuDiv.innerHTML = "<p>⚠️ 尚未設定菜單</p>";
+    menuDiv.innerHTML = "⚠️ 沒有菜單";
     return;
   }
 
@@ -89,46 +56,35 @@ function renderMenu(menu) {
     div.className = "item";
 
     div.innerHTML = `
-      <h3>${item.name || "未命名"}</h3>
-      <p>$${item.price || 0}</p>
-      <button onclick="addToCart('${item.name}')">加入</button>
+      <h3>${item.name}</h3>
+      <p>$${item.price}</p>
+      <button onclick="add('${item.name}')">加入</button>
     `;
 
     menuDiv.appendChild(div);
   });
-}
+});
 
 // ==========================
-// 🛒 加入購物車
+// 🛒 cart
 // ==========================
-window.addToCart = (name) => {
+window.add = (name) => {
   cart.push(name);
-  renderCart();
+  document.getElementById("cartItems").innerHTML = cart.join("<br>");
 };
 
-function renderCart() {
-  const cartDiv = document.getElementById("cartItems");
-  cartDiv.innerHTML = cart.join("<br>");
-}
-
 // ==========================
-// 📤 送出訂單（🔥 Firebase版）
+// 📤 submit
 // ==========================
 window.submitOrder = async () => {
-  if (cart.length === 0) {
-    alert("請先選擇餐點");
-    return;
-  }
-
-  const urlParams = new URLSearchParams(window.location.search);
-  const table = urlParams.get("table") || "外帶";
+  const table = new URLSearchParams(location.search).get("table") || "外帶";
 
   await createOrder(cart, table);
 
-  alert("✅ 訂單已送出");
+  alert("✅ 已送出");
 
   cart = [];
-  renderCart();
+  document.getElementById("cartItems").innerHTML = "";
 };
 </script>
 
