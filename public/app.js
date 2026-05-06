@@ -1,13 +1,18 @@
 import { db, ref, push, onValue, update, get, set } from './firebase.js';
 
 // ==========================
+// 🌐 API（未來擴充用，可不用）
+// ==========================
+const API = "https://enpoint-api.onrender.com";
+
+// ==========================
 // 📦 refs
 // ==========================
 const ordersRef = ref(db, 'orders');
 const counterRef = ref(db, 'counter/order');
 
 // ==========================
-// 🔢 安全訂單號（已修復）
+// 🔢 訂單號（穩定版）
 // ==========================
 async function generateOrderNumber() {
   const snap = await get(counterRef);
@@ -15,26 +20,31 @@ async function generateOrderNumber() {
 
   num++;
 
-  await set(counterRef, {
-    order: num
-  });
+  await set(counterRef, { order: num });
 
   return "A" + String(num).padStart(3, '0');
 }
 
 // ==========================
-// 🧾 建立訂單
+// 🧾 建立訂單（🔥唯一入口）
 // ==========================
 async function createOrder(items, table = "外帶") {
-  const orderNumber = await generateOrderNumber();
+  try {
+    const orderNumber = await generateOrderNumber();
 
-  await push(ordersRef, {
-    items,
-    table,
-    orderNumber,
-    status: "pending",
-    createdAt: Date.now()
-  });
+    await push(ordersRef, {
+      items,
+      table,
+      orderNumber,
+      status: "pending",
+      createdAt: Date.now()
+    });
+
+    return true;
+  } catch (err) {
+    console.error("❌ createOrder error:", err);
+    return false;
+  }
 }
 
 // ==========================
@@ -56,14 +66,12 @@ function listenOrders(callback) {
 }
 
 // ==========================
-// 🔧 更新狀態（防呆版）
+// 🔧 更新狀態
 // ==========================
 async function updateStatus(id, status) {
   if (!id) return;
 
-  await update(ref(db, `orders/${id}`), {
-    status
-  });
+  await update(ref(db, `orders/${id}`), { status });
 }
 
 // ==========================
