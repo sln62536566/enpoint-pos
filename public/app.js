@@ -1,25 +1,35 @@
 import { db, ref, push, onValue, update } from './firebase.js';
 
+// ==========================
+// 📦 Firebase refs
+// ==========================
 const ordersRef = ref(db, 'orders');
 const counterRef = ref(db, 'counter/order');
 
-// 🔥 取得 + 更新訂單號（正確版）
+// ==========================
+// 🔢 生成訂單號（安全版）
+// ==========================
 async function generateOrderNumber() {
   return new Promise((resolve) => {
     onValue(counterRef, (snap) => {
-      let num = snap.val() || 0;
+      let num = snap.val()?.order || 0;
       num++;
 
-      // ⚠️ 只更新一次（避免狂跳）
-      update(counterRef, num);
+      // ✔ 一定要是 object
+      update(counterRef, {
+        order: num
+      });
 
       const orderNo = "A" + String(num).padStart(3, '0');
       resolve(orderNo);
+
     }, { onlyOnce: true });
   });
 }
 
-// 🔥 建立訂單
+// ==========================
+// 🧾 建立訂單
+// ==========================
 async function createOrder(items, table = "外帶") {
   const orderNumber = await generateOrderNumber();
 
@@ -34,7 +44,9 @@ async function createOrder(items, table = "外帶") {
   push(ordersRef, order);
 }
 
-// 🔥 監聽訂單（廚房用）
+// ==========================
+// 📡 廚房監聽訂單
+// ==========================
 function listenOrders(callback) {
   onValue(ordersRef, (snapshot) => {
     const data = snapshot.val() || {};
@@ -50,9 +62,18 @@ function listenOrders(callback) {
   });
 }
 
-// 🔥 更新狀態
+// ==========================
+// 🔧 更新狀態
+// ==========================
 function updateStatus(id, status) {
   update(ref(db, `orders/${id}`), { status });
 }
 
-export { createOrder, listenOrders, updateStatus };
+// ==========================
+// 📤 export
+// ==========================
+export {
+  createOrder,
+  listenOrders,
+  updateStatus
+};
