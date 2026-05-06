@@ -2,17 +2,28 @@ import { db, ref, push, onValue, update, remove } from './firebase.js';
 
 const ordersRef = ref(db, 'orders');
 
-// 🔥 建立訂單
-function createOrder(items) {
+// 🔢 訂單號生成（簡單版）
+let orderCounter = 1;
+
+function generateOrderNumber() {
+  const num = String(orderCounter).padStart(3, '0');
+  orderCounter++;
+  return "A" + num;
+}
+
+// 🔥 建立訂單（升級版）
+function createOrder(items, table = "外帶") {
   const order = {
     items,
+    table,
+    orderNumber: generateOrderNumber(),
     status: "pending",
     createdAt: Date.now()
   };
   push(ordersRef, order);
 }
 
-// 🔥 監聽訂單（給廚房）
+// 🔥 監聽訂單
 function listenOrders(callback) {
   onValue(ordersRef, (snapshot) => {
     const data = snapshot.val() || {};
@@ -21,7 +32,6 @@ function listenOrders(callback) {
       ...val
     }));
 
-    // 最新在上面
     list.sort((a, b) => b.createdAt - a.createdAt);
 
     callback(list);
@@ -33,7 +43,7 @@ function updateStatus(id, status) {
   update(ref(db, `orders/${id}`), { status });
 }
 
-// 🔥 自動清除完成訂單（30分鐘）
+// 🔥 自動清除
 function autoClean() {
   onValue(ordersRef, (snapshot) => {
     const data = snapshot.val() || {};

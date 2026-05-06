@@ -59,11 +59,14 @@ function render(orders) {
     const div = document.createElement('div');
     div.className = `order ${order.status}`;
 
+    // 🔥 這就是你剛剛那段，我已經幫你放好
     div.innerHTML = `
+      <div>📢 訂單號：${order.orderNumber}</div>
+      <div>桌號：${order.table}</div>
       <div>🕒 ${new Date(order.createdAt).toLocaleTimeString()}</div>
       <div>🍜 ${order.items.join(", ")}</div>
       <div>狀態：${order.status}</div>
-      
+
       <button onclick="setCooking('${order.id}')">開始做</button>
       <button onclick="setDone('${order.id}')">完成</button>
     `;
