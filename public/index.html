@@ -36,9 +36,10 @@ button {
   <button onclick="submitOrder()">送出訂單</button>
 </div>
 
-<script>
-const API = "https://enpoint-api.onrender.com";
+<script type="module">
+import { createOrder } from './app.js';
 
+// 👉 菜單
 const menu = [
   { name: "鍋燒意麵", price: 100 },
   { name: "鍋燒雞絲麵", price: 100 },
@@ -49,6 +50,9 @@ const menu = [
 
 let cart = [];
 
+// ==========================
+// 📦 顯示菜單
+// ==========================
 const menuDiv = document.getElementById("menu");
 
 menu.forEach(item => {
@@ -64,31 +68,38 @@ menu.forEach(item => {
   menuDiv.appendChild(div);
 });
 
-function addToCart(name) {
+// ==========================
+// 🛒 購物車
+// ==========================
+window.addToCart = (name) => {
   cart.push(name);
   renderCart();
-}
+};
 
 function renderCart() {
-  document.getElementById("cartItems").innerHTML = cart.join("<br>");
+  const cartDiv = document.getElementById("cartItems");
+  cartDiv.innerHTML = cart.join("<br>");
 }
 
-async function submitOrder() {
-  if (cart.length === 0) return alert("請選擇餐點");
+// ==========================
+// 📤 送出訂單（🔥 Firebase版）
+// ==========================
+window.submitOrder = async () => {
+  if (cart.length === 0) {
+    alert("請先選擇餐點");
+    return;
+  }
 
-  const table = new URLSearchParams(location.search).get("table") || "外帶";
+  const urlParams = new URLSearchParams(window.location.search);
+  const table = urlParams.get("table") || "外帶";
 
-  await fetch(API + "/orders", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ items: cart, table, status: "pending" })
-  });
+  await createOrder(cart, table);
 
-  alert("已送出");
+  alert("✅ 訂單已送出");
 
   cart = [];
   renderCart();
-}
+};
 </script>
 
 </body>
