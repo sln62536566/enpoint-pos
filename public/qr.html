@@ -18,7 +18,7 @@ body {
 }
 </style>
 
-<!-- QR library -->
+<!-- QR code library -->
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs/qrcode.min.js"></script>
 </head>
 
@@ -29,9 +29,10 @@ body {
 <div id="list"></div>
 
 <script>
-const baseUrl = window.location.origin + "/index.html?table=";
+// 🔥 已改成你的 Render 正式網址
+const baseUrl = "https://enpoint-api.onrender.com/index.html?table=";
 
-const tables = 10; // 👉 你可以改桌數
+const tables = 10; // 桌數（可改）
 
 const list = document.getElementById("list");
 
