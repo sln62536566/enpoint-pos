@@ -23,8 +23,11 @@ const db = admin.database();
 app.use(cors());
 app.use(express.json());
 
-// 🔥 重點：前端在 public 資料夾
-app.use(express.static("public"));
+// 🔥 debug（確認 Render 有抓到 public）
+console.log("PUBLIC PATH:", __dirname + "/public");
+
+// 🔥 靜態檔案（修正版，最穩）
+app.use(express.static(__dirname + "/public"));
 
 // ==========================
 // 🧪 測試
