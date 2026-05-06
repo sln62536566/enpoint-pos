@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<title>訂單查詢</title>
+
+<style>
+body { font-family: sans-serif; padding: 20px; }
+.box { border: 1px solid #ccc; padding: 10px; margin-top: 10px; }
+</style>
+</head>
+
+<body>
+
+<h2>🔍 查詢訂單</h2>
+
+<input id="orderId" placeholder="輸入訂單號（先做簡版）">
+<button onclick="search()">查詢</button>
+
+<div id="result"></div>
+
+<script type="module">
+import { db, ref, onValue } from './firebase.js';
+
+window.search = () => {
+  const id = document.getElementById("orderId").value;
+  const result = document.getElementById("result");
+
+  onValue(ref(db, "orders"), (snap) => {
+    const data = snap.val() || {};
+
+    let found = null;
+
+    Object.values(data).forEach(order => {
+      if (order.orderNumber === id) {
+        found = order;
+      }
+    });
+
+    if (!found) {
+      result.innerHTML = "❌ 查無訂單";
+      return;
+    }
+
+    result.innerHTML = `
+      <div class="box">
+        <div>📢 訂單：${found.orderNumber}</div>
+        <div>桌號：${found.table}</div>
+        <div>🍜 ${found.items.join(", ")}</div>
+        <div>狀態：${found.status}</div>
+      </div>
+    `;
+  });
+};
+</script>
+
+</body>
+</html>
