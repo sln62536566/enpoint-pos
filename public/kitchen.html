@@ -1,116 +1,87 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<title>廚房 v40</title>
+<title>廚房訂單系統</title>
 
 <style>
-body{background:#111;color:#fff;font-family:Arial}
-.card{margin:10px;padding:10px;background:#222}
-.pending{border-left:6px solid orange}
-.cooking{border-left:6px solid dodgerblue}
-.done{border-left:6px solid green;opacity:0.6}
-
-.call{
-background:#333;
-border:2px solid yellow;
-padding:10px;
-margin:10px;
-font-size:18px;
+body {
+  font-family: sans-serif;
+  background: #111;
+  color: #fff;
+  margin: 0;
 }
-button{
-padding:6px 10px;
-margin:5px;
-cursor:pointer;
+
+.header {
+  background: #ff6600;
+  padding: 15px;
+  font-size: 24px;
+  text-align: center;
+}
+
+.container {
+  padding: 10px;
+}
+
+.order {
+  border: 2px solid #444;
+  margin-bottom: 10px;
+  padding: 10px;
+  border-radius: 10px;
+}
+
+.pending { border-color: #888; }
+.cooking { border-color: yellow; }
+.done { border-color: lime; opacity: 0.5; }
+
+button {
+  margin: 5px;
+  padding: 8px 12px;
+  font-size: 16px;
 }
 </style>
 </head>
 
 <body>
 
-<h2>🍳 廚房 v40</h2>
+<div class="header">🔥 廚房訂單</div>
+<div class="container" id="orders"></div>
 
-<div id="callBox"></div>
-<div id="list"></div>
+<script type="module">
+import { listenOrders, updateStatus, autoClean } from './app.js';
 
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+const container = document.getElementById('orders');
 
-<script>
+function render(orders) {
+  container.innerHTML = "";
 
-const API = "https://enpoint-api.onrender.com";
-const storeId = "test";
+  orders.forEach(order => {
+    const div = document.createElement('div');
+    div.className = `order ${order.status}`;
 
-/* ================= Firebase ================= */
-firebase.initializeApp({
-  databaseURL:"https://enpoint-pos-default-rtdb.asia-southeast1.firebasedatabase.app/"
-});
-
-firebase.database()
-.ref("orders/"+storeId)
-.on("value", snap=>{
-
-  const data = snap.val() || {};
-
-  let html = "";
-  let call = "";
-
-  Object.values(data).forEach(o=>{
-
-    if(o.status === "done"){
-      call += `
-        <div class="call">
-          🔔 ${o.table || "外帶"}<br>
-          ${o.id}
-        </div>
-      `;
-    }
-
-    html += `
-      <div class="card ${o.status}">
-        <b>${o.table || "外帶"}</b><br>
-        ${o.id}<br>
-        ${o.total}元<br>
-        ${o.status}<br>
-
-        ${(o.items||[]).map(i=>`🍜 ${i.name} x${i.qty}`).join("<br>")}
-
-        <div>
-          <button onclick="setStatus('${o.id}','cooking')">製作中</button>
-          <button onclick="setStatus('${o.id}','done')">完成</button>
-        </div>
-      </div>
+    div.innerHTML = `
+      <div>🕒 ${new Date(order.createdAt).toLocaleTimeString()}</div>
+      <div>🍜 ${order.items.join(", ")}</div>
+      <div>狀態：${order.status}</div>
+      
+      <button onclick="setCooking('${order.id}')">開始做</button>
+      <button onclick="setDone('${order.id}')">完成</button>
     `;
+
+    container.appendChild(div);
   });
-
-  document.getElementById("list").innerHTML = html;
-  document.getElementById("callBox").innerHTML = call;
-});
-
-/* =================🔥 修正版 PATCH API ================= */
-async function setStatus(id, status){
-
-  try{
-    const res = await fetch(`${API}/api/orders/${id}`, {
-      method: "PATCH",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ status })
-    });
-
-    const result = await res.json();
-
-    console.log("🔥 status update:", result);
-
-    if(!res.ok){
-      throw new Error(result.error || "update failed");
-    }
-
-  }catch(err){
-    console.error("❌ update error:", err);
-    alert("更新失敗：" + err.message);
-  }
 }
 
+window.setCooking = (id) => {
+  updateStatus(id, "cooking");
+};
+
+window.setDone = (id) => {
+  updateStatus(id, "done");
+};
+
+listenOrders(render);
+autoClean();
 </script>
 
 </body>
