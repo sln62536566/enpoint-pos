@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<title>QR桌位管理</title>
+
+<style>
+body {
+  font-family: sans-serif;
+  padding: 20px;
+}
+
+.table {
+  border: 1px solid #ddd;
+  padding: 15px;
+  margin-bottom: 15px;
+  border-radius: 10px;
+}
+</style>
+
+<!-- QR library -->
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs/qrcode.min.js"></script>
+</head>
+
+<body>
+
+<h1>📱 桌位 QR Code 產生器</h1>
+
+<div id="list"></div>
+
+<script>
+const baseUrl = window.location.origin + "/index.html?table=";
+
+const tables = 10; // 👉 你可以改桌數
+
+const list = document.getElementById("list");
+
+for (let i = 1; i <= tables; i++) {
+
+  const div = document.createElement("div");
+  div.className = "table";
+
+  div.innerHTML = `
+    <h3>桌號 ${i}</h3>
+    <div id="qrcode${i}"></div>
+    <p>${baseUrl}${i}</p>
+  `;
+
+  list.appendChild(div);
+
+  new QRCode(document.getElementById(`qrcode${i}`), {
+    text: baseUrl + i,
+    width: 150,
+    height: 150
+  });
+}
+</script>
+
+</body>
+</html>
