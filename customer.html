@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>恩點系統｜客人點餐</title>
+
+<style>
+
+body{
+  margin:0;
+  font-family:sans-serif;
+  background:#f7f7f7;
+}
+
+header{
+  background:#222;
+  color:white;
+  padding:16px;
+  font-size:20px;
+}
+
+.container{
+  padding:15px;
+}
+
+.menu-item{
+  background:white;
+  padding:15px;
+  margin-bottom:10px;
+  border-radius:10px;
+  box-shadow:0 2px 6px rgba(0,0,0,0.08);
+}
+
+.title{
+  font-size:18px;
+  font-weight:bold;
+}
+
+.info{
+  color:#666;
+  margin-top:5px;
+}
+
+button{
+  margin-top:10px;
+  padding:10px;
+  width:100%;
+  border:none;
+  background:#222;
+  color:white;
+  border-radius:8px;
+  font-size:16px;
+}
+
+.cart{
+  background:white;
+  padding:15px;
+  margin-top:20px;
+  border-radius:10px;
+  box-shadow:0 2px 6px rgba(0,0,0,0.08);
+}
+
+</style>
+
+</head>
+
+<body>
+
+<header>
+🍜 客人點餐
+</header>
+
+<div class="container">
+
+  <!-- 菜單 -->
+  <div id="menuBox">載入中...</div>
+
+  <!-- 購物車（獨立，不會被清掉） -->
+  <div class="cart">
+
+    <h3>🧾 購物車</h3>
+
+    <div id="cartBox"></div>
+
+    <button id="checkoutBtn">
+      送出訂單
+    </button>
+
+  </div>
+
+</div>
+
+
+<script type="module">
+
+import { listenMenus } from "./src/services/menuService.js";
+import { createOrder } from "./src/services/orderService.js";
+
+let cart = [];
+
+const menuBox = document.getElementById("menuBox");
+const cartBox = document.getElementById("cartBox");
+const checkoutBtn = document.getElementById("checkoutBtn");
+
+
+// ========================
+// render cart
+// ========================
+function renderCart(){
+
+  cartBox.innerHTML = "";
+
+  let total = 0;
+
+  cart.forEach((item, index) => {
+
+    total += item.price * item.qty;
+
+    const div = document.createElement("div");
+
+    div.innerHTML = `
+      ${item.name} x ${item.qty} - $${item.price * item.qty}
+      <button data-index="${index}">刪除</button>
+    `;
+
+    div.querySelector("button").addEventListener("click", () => {
+
+      cart.splice(index, 1);
+
+      renderCart();
+
+    });
+
+    cartBox.appendChild(div);
+
+  });
+
+  const totalDiv = document.createElement("div");
+
+  totalDiv.innerHTML = `<b>總金額：$${total}</b>`;
+
+  cartBox.appendChild(totalDiv);
+
+}
+
+
+// ========================
+// 載入菜單
+// ========================
+function loadCustomerMenu(){
+
+  listenMenus((menus) => {
+
+    menuBox.innerHTML = "";
+
+    const keys = Object.keys(menus || {});
+
+    if(keys.length === 0){
+
+      menuBox.innerHTML = "目前沒有餐點";
+
+      return;
+    }
+
+    keys.forEach(id => {
+
+      const item = menus[id];
+
+      if(!item.enabled) return;
+
+      const div = document.createElement("div");
+
+      div.className = "menu-item";
+
+      div.innerHTML = `
+        <div class="title">${item.name}</div>
+        <div class="info">分類：${item.category}</div>
+        <div class="info">價格：$${item.price}</div>
+
+        <button>
+          加入購物車
+        </button>
+      `;
+
+      const btn = div.querySelector("button");
+
+      btn.addEventListener("click", () => {
+
+        cart.push({
+          id,
+          name: item.name,
+          price: item.price,
+          qty: 1
+        });
+
+        renderCart();
+
+        alert(`已加入：${item.name}`);
+
+      });
+
+      menuBox.appendChild(div);
+
+    });
+
+  });
+
+}
+
+
+// ========================
+// 送出訂單（只綁一次！）
+// ========================
+checkoutBtn.addEventListener("click", async () => {
+
+  if(cart.length === 0){
+    alert("購物車是空的");
+    return;
+  }
+
+  let total = 0;
+
+  cart.forEach(item => {
+    total += item.price * item.qty;
+  });
+
+  const res = await createOrder({
+    items: cart,
+    total
+  });
+
+  if(res.success){
+
+    alert("訂單已送出！");
+
+    cart = [];
+
+    renderCart();
+
+  } else {
+
+    alert("送出失敗");
+
+  }
+
+});
+
+
+// 啟動
+loadCustomerMenu();
+
+</script>
+
+</body>
+</html>

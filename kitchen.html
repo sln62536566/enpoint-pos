@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>恩點系統｜廚房看單</title>
+
+<style>
+body{margin:0;font-family:sans-serif;background:#111;color:white;}
+header{background:#000;padding:16px;font-size:20px;font-weight:bold;}
+.container{padding:15px;}
+.order{background:#222;padding:15px;margin-bottom:12px;border-radius:10px;}
+.status{font-weight:bold;margin-bottom:8px;}
+.item{font-size:16px;color:#ddd;margin:4px 0;}
+button{margin-top:8px;padding:10px;width:100%;border:none;border-radius:6px;cursor:pointer;color:white;font-size:16px;}
+.pending{background:#ff9800;}
+.cooking{background:#2196f3;}
+.done{background:#4caf50;}
+</style>
+</head>
+
+<body>
+
+<header>👨‍🍳 廚房看單系統</header>
+
+<div class="container" id="orderBox">載入中...</div>
+
+<script type="module">
+import { db } from "./src/firebase/firebase.js";
+
+import {
+  ref,
+  onValue,
+  update
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+const orderBox = document.getElementById("orderBox");
+
+function statusText(status){
+  if(status === "pending") return "待製作";
+  if(status === "cooking") return "製作中";
+  if(status === "done") return "完成";
+  return status || "待製作";
+}
+
+function loadOrders(){
+  const orderRef = ref(db, "orders");
+
+  onValue(orderRef, (snapshot) => {
+    orderBox.innerHTML = "";
+
+    const data = snapshot.val() || {};
+    const keys = Object.keys(data);
+
+    if(keys.length === 0){
+      orderBox.textContent = "目前沒有訂單";
+      return;
+    }
+
+    keys.reverse().forEach((id) => {
+      const order = data[id];
+
+      const card = document.createElement("div");
+      card.className = "order";
+
+      const status = document.createElement("div");
+      status.className = "status";
+      status.textContent = "狀態：" + statusText(order.status);
+      card.appendChild(status);
+
+      const itemsBox = document.createElement("div");
+
+      const items = order.items || [];
+      items.forEach((item) => {
+        const itemDiv = document.createElement("div");
+        itemDiv.className = "item";
+        itemDiv.textContent = item.name + " x " + item.qty;
+        itemsBox.appendChild(itemDiv);
+      });
+
+      card.appendChild(itemsBox);
+
+      const total = document.createElement("div");
+      total.style.marginTop = "8px";
+      total.textContent = "總金額：$" + (order.total || 0);
+      card.appendChild(total);
+
+      const pendingBtn = document.createElement("button");
+      pendingBtn.className = "pending";
+      pendingBtn.textContent = "待製作";
+      pendingBtn.addEventListener("click", () => {
+        update(ref(db, "orders/" + id), { status: "pending" });
+      });
+
+      const cookingBtn = document.createElement("button");
+      cookingBtn.className = "cooking";
+      cookingBtn.textContent = "製作中";
+      cookingBtn.addEventListener("click", () => {
+        update(ref(db, "orders/" + id), { status: "cooking" });
+      });
+
+      const doneBtn = document.createElement("button");
+      doneBtn.className = "done";
+      doneBtn.textContent = "完成";
+      doneBtn.addEventListener("click", () => {
+        update(ref(db, "orders/" + id), { status: "done" });
+      });
+
+      card.appendChild(pendingBtn);
+      card.appendChild(cookingBtn);
+      card.appendChild(doneBtn);
+
+      orderBox.appendChild(card);
+    });
+  });
+}
+
+loadOrders();
+</script>
+
+</body>
+</html>

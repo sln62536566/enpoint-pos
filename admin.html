@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>恩點系統｜菜單後台</title>
+
+<style>
+
+body{
+  margin:0;
+  font-family:sans-serif;
+  background:#f5f5f5;
+}
+
+header{
+  background:#222;
+  color:white;
+  padding:16px;
+  font-size:22px;
+  font-weight:bold;
+}
+
+.container{
+  padding:20px;
+}
+
+.card{
+  background:white;
+  border-radius:12px;
+  padding:20px;
+  margin-bottom:20px;
+  box-shadow:0 2px 8px rgba(0,0,0,0.08);
+}
+
+input{
+  width:100%;
+  padding:12px;
+  margin-top:10px;
+  box-sizing:border-box;
+  font-size:16px;
+}
+
+button{
+  margin-top:15px;
+  padding:12px 18px;
+  border:none;
+  border-radius:8px;
+  background:#222;
+  color:white;
+  cursor:pointer;
+  font-size:16px;
+}
+
+.menu-item{
+  border-bottom:1px solid #ddd;
+  padding:12px 0;
+}
+
+.menu-title{
+  font-size:18px;
+  font-weight:bold;
+}
+
+.menu-info{
+  color:#666;
+  margin-top:5px;
+}
+
+.delete-btn{
+  background:red;
+  margin-left:10px;
+}
+
+</style>
+</head>
+
+<body>
+
+<header>
+🍜 恩點系統｜菜單後台
+</header>
+
+<div class="container">
+
+  <!-- 新增菜單 -->
+  <div class="card">
+
+    <h2>新增餐點</h2>
+
+    <input type="text" id="menuName" placeholder="餐點名稱">
+
+    <input type="text" id="menuCategory" placeholder="分類">
+
+    <input type="number" id="menuPrice" placeholder="價格">
+
+    <button id="addMenuBtn">
+      新增餐點
+    </button>
+
+  </div>
+
+
+  <!-- 菜單列表 -->
+  <div class="card">
+
+    <h2>菜單列表</h2>
+
+    <div id="menuList"></div>
+
+  </div>
+
+</div>
+
+
+<script type="module">
+
+import {
+  listenMenus,
+  addMenuItem,
+  updateMenuItem,
+  deleteMenuItem,
+  toggleMenuStatus
+} from "./src/services/menuService.js";
+
+
+
+const menuList = document.getElementById("menuList");
+
+const addMenuBtn = document.getElementById("addMenuBtn");
+
+
+
+// ========================
+// 載入菜單
+// ========================
+function loadMenus(){
+
+  listenMenus((menus) => {
+
+    menuList.innerHTML = "";
+
+    const menuKeys = Object.keys(menus || {});
+
+    if(menuKeys.length === 0){
+
+      menuList.innerHTML = "目前沒有菜單";
+
+      return;
+    }
+
+    menuKeys.forEach(menuId => {
+
+      const item = menus[menuId];
+
+      const div = document.createElement("div");
+
+      div.className = "menu-item";
+
+      div.innerHTML = `
+        <div class="menu-title">
+          ${item.name}
+        </div>
+
+        <div class="menu-info">
+          分類：${item.category}
+        </div>
+
+        <div class="menu-info">
+          價格：$${item.price}
+        </div>
+        
+        <div class="menu-info">
+          狀態：${item.enabled ? "🟢上架" : "🔴停售"}
+        </div>
+        
+        <button class="edit-btn" data-id="${menuId}">
+          編輯
+        </button>
+        
+        <button class="toggle-btn" data-id="${menuId}">
+          ${item.enabled ? "停用" : "啟用"}
+        </button>
+
+        <button class="delete-btn" data-id="${menuId}">
+          刪除
+        </button>
+      `;
+
+const editBtn = div.querySelector(".edit-btn");
+const deleteBtn = div.querySelector(".delete-btn");
+const toggleBtn = div.querySelector(".toggle-btn");
+
+
+
+// ========================
+// 啟用 / 停用
+// ========================
+toggleBtn.addEventListener("click", async () => {
+
+  await toggleMenuStatus(menuId, item.enabled);
+
+});
+
+
+
+
+// ========================
+// 編輯
+// ========================
+editBtn.addEventListener("click", async () => {
+
+  const newName = prompt("新的餐點名稱", item.name);
+
+  if(newName === null) return;
+
+  const newCategory = prompt("新的分類", item.category);
+
+  if(newCategory === null) return;
+
+  const newPrice = prompt("新的價格", item.price);
+
+  if(newPrice === null) return;
+
+
+  await updateMenuItem(menuId, {
+    name: newName,
+    category: newCategory,
+    price: Number(newPrice)
+  });
+
+});
+
+
+
+// ========================
+// 刪除
+// ========================
+deleteBtn.addEventListener("click", async () => {
+
+  const ok = confirm("確定刪除？");
+
+  if(!ok) return;
+
+  await deleteMenuItem(menuId);
+
+});
+
+
+
+menuList.appendChild(div);
+
+    });
+
+  });
+
+}
+
+
+
+// ========================
+// 新增菜單
+// ========================
+addMenuBtn.addEventListener("click", async () => {
+
+  const name = document.getElementById("menuName").value;
+
+  const category = document.getElementById("menuCategory").value;
+
+  const price = document.getElementById("menuPrice").value;
+
+
+  if(!name || !category || !price){
+
+    alert("請填寫完整");
+
+    return;
+  }
+
+
+  await addMenuItem({
+    name,
+    category,
+    price
+  });
+
+
+  document.getElementById("menuName").value = "";
+
+  document.getElementById("menuCategory").value = "";
+
+  document.getElementById("menuPrice").value = "";
+
+
+  
+
+});
+
+
+
+// 啟動
+loadMenus();
+
+</script>
+
+</body>
+</html>
