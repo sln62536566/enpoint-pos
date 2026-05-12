@@ -143,7 +143,7 @@ function openCustomModal(item) {
 
   modalItemName.textContent = item.name;
   modalItemPrice.textContent = "$" + item.price;
-  modalQuantity.textContent = currentQuantity;
+  modalQuantity.textContent = "1";
   spicySelect.value = "不辣";
   noteInput.value = "";
 
@@ -156,6 +156,10 @@ function closeCustomModal() {
   customModal.classList.add("hidden");
   currentItem = null;
   currentQuantity = 1;
+  modalQuantity.textContent = "1";
+  spicySelect.value = "不辣";
+  noteInput.value = "";
+  extrasBox.innerHTML = "";
 }
 
 function renderExtras(options) {
@@ -358,41 +362,67 @@ function calculateTotal() {
 }
 
 async function submitOrder() {
+
   if (cart.length === 0) {
+
     alert("請先加入餐點");
+
     return;
+
   }
 
   submitOrderBtn.disabled = true;
+
   submitOrderBtn.textContent = "送出中...";
 
   try {
+
     const newOrderRef = push(ordersRef);
 
     const order = {
+
       orderNumber: Date.now().toString().slice(-6),
+
       items: cart,
+
       total: calculateTotal(),
+
       status: "pending",
+
       orderType: currentOrderType,
+
       customerName: customerNameInput.value.trim(),
+
       tableNumber: tableNumberInput.value.trim(),
+
       createdAt: Date.now()
+
     };
 
     await set(newOrderRef, order);
 
     cart = [];
+
     renderCart();
 
+    customerNameInput.value = "";
+
+    tableNumberInput.value = "";
+
     alert("訂單已送出，請等待叫號。");
+
   } catch (error) {
+
     console.error(error);
+
     alert("送出訂單失敗，請稍後再試。");
+
   }
 
   submitOrderBtn.disabled = false;
+
   submitOrderBtn.textContent = "送出訂單";
+
 }
 
 submitOrderBtn.addEventListener("click", submitOrder);
