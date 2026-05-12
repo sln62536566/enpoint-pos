@@ -1,92 +1,82 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-Hant">
 <head>
-<meta charset="UTF-8">
-<title>點餐系統</title>
-
-<style>
-body { font-family: sans-serif; padding:20px; }
-
-.item {
-  border:1px solid #ddd;
-  padding:10px;
-  margin:10px 0;
-  border-radius:10px;
-}
-
-#cart {
-  margin-top:20px;
-  border:2px solid #333;
-  padding:10px;
-}
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>恩點系統｜客人點餐</title>
+  <link rel="stylesheet" href="./css/style.css" />
 </head>
 
 <body>
+  <header class="topbar">
+    <h1>歡迎使用恩點點餐系統</h1>
+    <p>請選擇您想要的餐點</p>
+  </header>
 
-<h1>🍜 點餐系統</h1>
+  <main class="customer-layout">
+    <section>
+      <div class="order-type-panel">
+        <h2>用餐方式</h2>
+        <div class="order-type-buttons">
+          <button id="dineInBtn" class="type-btn active">內用</button>
+          <button id="takeOutBtn" class="type-btn">外帶</button>
+        </div>
 
-<div id="menu"></div>
+        <input id="customerNameInput" type="text" placeholder="客人名稱 / 綽號（可不填）" />
+        <input id="tableNumberInput" type="text" placeholder="桌號（內用可填）" />
+      </div>
 
-<div id="cart">
-  <h3>🛒 購物車</h3>
-  <div id="cartItems"></div>
-  <button onclick="submitOrder()">送出訂單</button>
-</div>
+      <div id="menuContainer" class="menu-container"></div>
+    </section>
 
-<script type="module">
-import { listenMenu, createOrder } from './app.js';
+    <aside class="cart-panel">
+      <h2>目前點餐</h2>
+      <div id="cartList"></div>
 
-const menuDiv = document.getElementById("menu");
-let cart = [];
+      <div class="cart-total">
+        總金額：<strong id="totalAmount">$0</strong>
+      </div>
 
-// ==========================
-// 🍜 menu
-// ==========================
-listenMenu((menu) => {
-  menuDiv.innerHTML = "";
+      <button id="submitOrderBtn" class="primary-btn">
+        送出訂單
+      </button>
+    </aside>
+  </main>
 
-  if (!menu.length) {
-    menuDiv.innerHTML = "⚠️ 沒有菜單";
-    return;
-  }
+  <div id="customModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <h2 id="modalItemName">餐點客製化</h2>
+      <p id="modalItemPrice" class="modal-price">$0</p>
 
-  menu.forEach(item => {
-    const div = document.createElement("div");
-    div.className = "item";
+      <label>數量</label>
+      <div class="quantity-control">
+        <button id="modalMinusBtn">-</button>
+        <span id="modalQuantity">1</span>
+        <button id="modalPlusBtn">+</button>
+      </div>
 
-    div.innerHTML = `
-      <h3>${item.name}</h3>
-      <p>$${item.price}</p>
-      <button onclick="add('${item.name}')">加入</button>
-    `;
+      <label>辣度</label>
+      <select id="spicySelect">
+        <option value="不辣">不辣</option>
+        <option value="微辣">微辣</option>
+        <option value="小辣">小辣</option>
+        <option value="中辣">中辣</option>
+        <option value="大辣">大辣</option>
+      </select>
 
-    menuDiv.appendChild(div);
-  });
-});
+      <label>加料</label>
+      <div id="extrasBox" class="extras-box"></div>
 
-// ==========================
-// 🛒 cart
-// ==========================
-window.add = (name) => {
-  cart.push(name);
-  document.getElementById("cartItems").innerHTML = cart.join("<br>");
-};
+      <label>備註</label>
+      <textarea id="noteInput" placeholder="例如：不要蔥、湯多一點、沙茶另外放"></textarea>
 
-// ==========================
-// 📤 submit
-// ==========================
-window.submitOrder = async () => {
-  const table = new URLSearchParams(location.search).get("table") || "外帶";
+      <div class="modal-actions">
+        <button id="cancelCustomBtn" class="secondary-btn">取消</button>
+        <button id="confirmCustomBtn" class="primary-btn">加入購物車</button>
+      </div>
+    </div>
+  </div>
 
-  await createOrder(cart, table);
-
-  alert("✅ 已送出");
-
-  cart = [];
-  document.getElementById("cartItems").innerHTML = "";
-};
-</script>
-
+  <script type="module" src="./js/menu.js"></script>
 </body>
 </html>

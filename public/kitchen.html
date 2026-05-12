@@ -1,58 +1,25 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-Hant">
 <head>
-<meta charset="UTF-8">
-<title>廚房</title>
-
-<style>
-body { font-family:sans-serif; background:#111; color:white; }
-
-.order {
-  border:1px solid #444;
-  margin:10px;
-  padding:10px;
-}
-
-.pending { border-color: gray; }
-.cooking { border-color: yellow; }
-.done { border-color: lime; opacity:0.5; }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>恩點系統｜廚房看板</title>
+  <link rel="stylesheet" href="./css/style.css" />
 </head>
 
 <body>
+  <header class="topbar">
+    <h1>恩點系統｜廚房看板</h1>
+    <p>即時接收客人訂單</p>
+  </header>
 
-<h2>🔥 廚房</h2>
-<div id="orders"></div>
+  <main>
+    <section class="kitchen-board">
+      <h2>待製作訂單</h2>
+      <div id="orderList" class="order-list"></div>
+    </section>
+  </main>
 
-<script type="module">
-import { listenOrders, updateStatus } from './app.js';
-
-const box = document.getElementById("orders");
-
-listenOrders((orders) => {
-  box.innerHTML = "";
-
-  orders.forEach(o => {
-    const div = document.createElement("div");
-    div.className = "order " + o.status;
-
-    div.innerHTML = `
-      <div>訂單：${o.orderNumber}</div>
-      <div>桌號：${o.table}</div>
-      <div>${o.items.join(", ")}</div>
-      <div>${o.status}</div>
-
-      <button onclick="cook('${o.id}')">開始</button>
-      <button onclick="done('${o.id}')">完成</button>
-    `;
-
-    box.appendChild(div);
-  });
-});
-
-window.cook = (id) => updateStatus(id, "cooking");
-window.done = (id) => updateStatus(id, "done");
-</script>
-
+  <script type="module" src="./js/kitchen.js"></script>
 </body>
 </html>

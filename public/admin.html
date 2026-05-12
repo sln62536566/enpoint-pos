@@ -3,92 +3,44 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>管理後台</title>
-
-  <style>
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: #f5f5f5;
-    }
-
-    .admin-wrap {
-      display: flex;
-      min-height: 100vh;
-    }
-
-    .sidebar {
-      width: 360px;
-      background: #fff;
-      border-right: 1px solid #ddd;
-      padding: 16px;
-      overflow-y: auto;
-    }
-
-    .content {
-      flex: 1;
-      padding: 16px;
-    }
-
-    .order-card {
-      background: #fafafa;
-      border: 1px solid #ddd;
-      border-radius: 10px;
-      padding: 12px;
-      margin-bottom: 10px;
-      cursor: pointer;
-    }
-
-    .order-card.active {
-      background: #e8f2ff;
-      border-color: #4f8cff;
-    }
-
-    .detail-panel {
-      background: #fff;
-      padding: 16px;
-      border-radius: 10px;
-      border: 1px solid #ddd;
-      min-height: 300px;
-    }
-
-    .item-box {
-      border: 1px solid #ddd;
-      padding: 10px;
-      margin-bottom: 10px;
-      border-radius: 8px;
-    }
-  </style>
+  <title>恩點系統｜菜單後台</title>
+  <link rel="stylesheet" href="./css/style.css" />
 </head>
 
 <body>
+  <header class="topbar">
+    <h1>恩點系統｜菜單後台</h1>
+    <p>新增、修改、上下架餐點</p>
+  </header>
 
-<div class="admin-wrap">
-  <div class="sidebar">
-    <h3>訂單列表</h3>
-    <div id="orderList">載入中...</div>
-  </div>
+  <main class="admin-layout">
+    <section class="panel">
+      <h2>新增餐點</h2>
 
-  <div class="content">
-    <h3>訂單明細</h3>
-    <div id="orderDetail" class="detail-panel">
-      請選擇訂單
-    </div>
-  </div>
-</div>
+      <label>餐點名稱</label>
+      <input id="itemName" type="text" placeholder="例如：鍋燒意麵" />
 
-<script src="admin.js"></script>
+      <label>分類</label>
+      <input id="itemCategory" type="text" placeholder="例如：鍋燒類、炒飯類" />
 
-<!-- 🔥 自動刷新（重點） -->
-<script>
-  setInterval(() => {
-    if (typeof loadOrders === "function") {
-      loadOrders();
-    }
-  }, 3000);
-</script>
+      <label>價格</label>
+      <input id="itemPrice" type="number" placeholder="例如：100" />
 
+      <label>圖片網址（先可空白）</label>
+      <input id="itemImage" type="text" placeholder="之後可接圖片上傳" />
+
+      <label>加料選項</label>
+      <textarea id="itemOptions" placeholder="格式：加蛋:15,加肉:20,泡菜:20"></textarea>
+
+      <button id="addItemBtn" class="primary-btn">新增餐點</button>
+    </section>
+
+    <section class="panel">
+      <h2>目前菜單</h2>
+      <div id="menuList" class="menu-list"></div>
+    </section>
+  </main>
+
+  <script type="module" src="./js/admin.js"></script>
 </body>
 </html>
