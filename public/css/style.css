@@ -31,6 +31,40 @@ main {
   align-items: start;
 }
 
+.order-type-panel {
+  background: white;
+  border-radius: 16px;
+  padding: 18px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+}
+
+.order-type-panel h2 {
+  margin-top: 0;
+}
+
+.order-type-buttons {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.type-btn {
+  flex: 1;
+  padding: 12px;
+  border: 1px solid #d5c7b8;
+  border-radius: 12px;
+  background: #fffaf4;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.type-btn.active {
+  background: #356859;
+  color: white;
+  border-color: #356859;
+}
+
 .menu-container {
   display: flex;
   flex-direction: column;
@@ -134,14 +168,27 @@ main {
 }
 
 .cart-item p {
-  margin: 0 0 10px;
+  margin: 0 0 6px;
   color: #6f5d4b;
+}
+
+.cart-custom-detail {
+  padding: 8px;
+  background: #fffaf4;
+  border-radius: 10px;
+  margin-top: 8px;
+}
+
+.cart-custom-detail p {
+  margin: 4px 0;
+  font-size: 14px;
 }
 
 .cart-actions {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-top: 10px;
 }
 
 .cart-actions button {
@@ -187,6 +234,18 @@ main {
   cursor: not-allowed;
 }
 
+.secondary-btn {
+  width: 100%;
+  margin-top: 18px;
+  padding: 14px;
+  background: #e7ddd1;
+  color: #2b2118;
+  border: none;
+  border-radius: 12px;
+  font-size: 18px;
+  cursor: pointer;
+}
+
 .admin-layout {
   display: grid;
   grid-template-columns: 360px 1fr;
@@ -208,7 +267,8 @@ label {
 }
 
 input,
-textarea {
+textarea,
+select {
   width: 100%;
   box-sizing: border-box;
   margin-top: 6px;
@@ -216,6 +276,7 @@ textarea {
   border: 1px solid #d5c7b8;
   border-radius: 10px;
   font-size: 16px;
+  background: white;
 }
 
 textarea {
@@ -323,14 +384,28 @@ textarea {
   border-radius: 12px;
 }
 
-.order-item-row {
-  font-size: 18px;
-  padding: 6px 0;
+.kitchen-item-box {
+  padding: 8px 0;
   border-bottom: 1px solid #eadccc;
 }
 
-.order-item-row:last-child {
+.kitchen-item-box:last-child {
   border-bottom: none;
+}
+
+.order-item-row {
+  font-size: 18px;
+  font-weight: bold;
+  padding: 4px 0;
+}
+
+.kitchen-item-details {
+  padding-left: 10px;
+  color: #6f5d4b;
+}
+
+.kitchen-item-details p {
+  margin: 4px 0;
 }
 
 .order-total {
@@ -361,6 +436,95 @@ textarea {
   background: #b73535;
 }
 
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  z-index: 1000;
+}
+
+.modal-overlay.hidden {
+  display: none;
+}
+
+.modal-card {
+  width: 100%;
+  max-width: 460px;
+  max-height: 90vh;
+  overflow-y: auto;
+  background: white;
+  border-radius: 18px;
+  padding: 22px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+}
+
+.modal-card h2 {
+  margin-top: 0;
+}
+
+.modal-price {
+  font-size: 22px;
+  font-weight: bold;
+  color: #b86b25;
+}
+
+.quantity-control {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.quantity-control button {
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 12px;
+  background: #e7ddd1;
+  font-size: 22px;
+  cursor: pointer;
+}
+
+.quantity-control span {
+  min-width: 40px;
+  text-align: center;
+  font-size: 22px;
+  font-weight: bold;
+}
+
+.extras-box {
+  margin-top: 8px;
+  display: grid;
+  gap: 8px;
+}
+
+.extra-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fffaf4;
+  border: 1px solid #eadccc;
+  border-radius: 10px;
+  padding: 10px;
+  margin-top: 0;
+  font-weight: normal;
+}
+
+.extra-option input {
+  width: auto;
+  margin: 0;
+}
+
+.modal-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
 @media (max-width: 900px) {
   .customer-layout {
     grid-template-columns: 1fr;
@@ -371,6 +535,10 @@ textarea {
   }
 
   .admin-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-actions {
     grid-template-columns: 1fr;
   }
 }
