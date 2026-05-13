@@ -19,34 +19,29 @@ onValue(ordersRef, snapshot => {
   const data = snapshot.val();
 
   const orders = Object.entries(data)
-    .map(([id, order]) => ({
-      id,
-      ...order
-    }))
-    .sort((a, b) => b.createdAt - a.createdAt);
+    .map(([id, order]) => ({ id, ...order }))
+    .filter(order => order.kitchenStatus === "sent")
+    .filter(order => order.status === "pending" || order.status === "cooking")
+    .sort((a, b) => (b.sentToKitchenAt || b.createdAt || 0) - (a.sentToKitchenAt || a.createdAt || 0));
 
-  const activeOrders = orders.filter(order => order.status !== "done");
-
-  if (activeOrders.length === 0) {
-    orderList.innerHTML = "<p>目前沒有待處理訂單。</p>";
+  if (orders.length === 0) {
+    orderList.innerHTML = "<p>目前沒有待製作訂單。</p>";
     return;
   }
 
-  activeOrders.forEach(order => {
+  orders.forEach(order => {
     const card = document.createElement("div");
     card.className = "order-card";
-
-    const statusText = getStatusText(order.status);
 
     const header = document.createElement("div");
     header.className = "order-header";
 
     const title = document.createElement("h3");
-    title.textContent = "訂單 #" + order.orderNumber;
+    title.textContent = "訂單 #" + (order.orderNumber || order.id);
 
     const status = document.createElement("span");
-    status.className = "status-badge " + order.status;
-    status.textContent = statusText;
+    status.className = "status-badge " + (order.status || "pending");
+    status.textContent = getStatusText(order.status);
 
     header.appendChild(title);
     header.appendChild(status);
@@ -57,33 +52,24 @@ onValue(ordersRef, snapshot => {
 
     const type = document.createElement("p");
     type.className = "order-time";
-    type.textContent = "類型：" + (order.orderType || "現場點餐");
+    type.textContent = "類型：" + (order.type || "現場");
 
     const customerInfo = document.createElement("p");
     customerInfo.className = "order-time";
-
-    const infoParts = [];
-
-    if (order.customerName) {
-      infoParts.push("客人：" + order.customerName);
-    }
-
-    if (order.tableNumber) {
-      infoParts.push("桌號：" + order.tableNumber);
-    }
-
-    customerInfo.textContent = infoParts.length > 0 ? infoParts.join("｜") : "客人資訊：未填寫";
+    customerInfo.textContent = "取餐資訊：" + getCustomerLabel(order);
 
     const itemsBox = document.createElement("div");
     itemsBox.className = "order-items";
 
-    order.items.forEach(item => {
+    const items = Array.isArray(order.items) ? order.items : [];
+
+    items.forEach(item => {
       const itemBox = document.createElement("div");
       itemBox.className = "kitchen-item-box";
 
       const itemRow = document.createElement("div");
       itemRow.className = "order-item-row";
-      itemRow.textContent = item.name + " × " + item.quantity;
+      itemRow.textContent = `${item.name || "未命名餐點"} × ${item.quantity || item.qty || 1}`;
 
       itemBox.appendChild(itemRow);
 
@@ -112,7 +98,7 @@ onValue(ordersRef, snapshot => {
 
     const total = document.createElement("p");
     total.className = "order-total";
-    total.textContent = "總金額：$" + order.total;
+    total.textContent = "總金額：$" + (order.total || 0);
 
     const actions = document.createElement("div");
     actions.className = "order-actions";
@@ -151,8 +137,16 @@ onValue(ordersRef, snapshot => {
 
 function updateOrderStatus(id, status) {
   update(ref(db, "orders/" + id), {
-    status
+    status,
+    updatedAt: Date.now()
   });
+}
+
+function getCustomerLabel(order) {
+  if (order.customerLabel) return order.customerLabel;
+  if (order.type === "內用" && order.table) return `${order.table}桌`;
+  if (order.type === "外帶" && order.orderNumber) return `外帶-${order.orderNumber}`;
+  return "未填寫";
 }
 
 function getStatusText(status) {
@@ -163,9 +157,9 @@ function getStatusText(status) {
 }
 
 function formatTime(timestamp) {
-  const date = new Date(timestamp);
+  if (!timestamp) return "-";
 
-  return date.toLocaleString("zh-TW", {
+  return new Date(timestamp).toLocaleString("zh-TW", {
     hour12: false
   });
 }

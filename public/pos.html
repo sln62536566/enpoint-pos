@@ -1,94 +1,95 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-Hant">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>恩點 POS v39（店員 POS）</title>
-
-<link rel="stylesheet" href="style.css">
-
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-
-<style>
-body{
-  font-family:Arial;
-  margin:0;
-  background:#f5f5f5;
-  padding-bottom:180px;
-}
-header{
-  background:#0077cc;
-  padding:15px;
-  font-size:20px;
-  font-weight:bold;
-  color:#fff;
-}
-.card{
-  background:#fff;
-  margin:10px;
-  padding:10px;
-  border-radius:10px;
-}
-.menu-grid{
-  display:grid;
-  grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));
-  gap:10px;
-  padding:10px;
-}
-.menu-item{
-  border:1px solid #ddd;
-  padding:10px;
-  text-align:center;
-  cursor:pointer;
-  border-radius:10px;
-}
-.menu-item img{
-  width:100%;
-  height:120px;
-  object-fit:cover;
-  border-radius:10px;
-  margin-bottom:5px;
-}
-.menu-item .price{
-  font-weight:bold;
-  color:#333;
-}
-.tools{
-  background:#fff;
-  position:fixed;
-  bottom:0;
-  left:0;
-  right:0;
-  padding:10px;
-  border-top:2px solid #ccc;
-  display:flex;
-  gap:10px;
-}
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>恩點系統｜店員 POS</title>
+  <link rel="stylesheet" href="./css/style.css" />
 </head>
 
 <body>
+  <header class="topbar">
+    <h1>恩點系統｜店員 POS 總控台</h1>
+    <p>點餐、結帳、確認送廚房</p>
+  </header>
 
-<div id="app" style="padding:10px;">
+  <main class="pos-layout">
+    <section class="pos-panel">
+      <h2>分類</h2>
+      <div id="categoryList" class="category-list"></div>
+    </section>
 
-  <header>👨‍🍳 恩點 POS v39（店員 POS）</header>
+    <section class="pos-panel pos-menu-panel">
+      <h2>餐點</h2>
+      <div id="posMenuList" class="pos-menu-list"></div>
+    </section>
 
-  <div class="card">
-    桌號：<input id="tablePos" value="A1"><br>
-    類型：<select id="typePos"><option>內用</option><option>外帶</option></select>
+    <section class="pos-panel pos-cart-panel">
+      <h2>目前點餐</h2>
+
+      <label>點餐類型</label>
+      <div class="type-buttons">
+        <button id="dineInBtn" class="active">內用</button>
+        <button id="takeOutBtn">外帶</button>
+      </div>
+
+      <div id="tableSelectBox">
+        <label>桌號</label>
+        <div id="tableButtons" class="type-buttons"></div>
+      </div>
+
+      <div id="takeOutInfo" style="display:none;">
+        <p>外帶會自動產生訂單號。</p>
+      </div>
+
+      <div id="cartList" class="cart-list"></div>
+
+      <h3>總金額：<span id="totalAmount">$0</span></h3>
+
+      <button id="submitOrderBtn" class="primary-btn">建立未結帳訂單</button>
+      <button id="clearCartBtn" class="danger-btn">清空購物車</button>
+    </section>
+  </main>
+
+  <section class="pos-orders-panel">
+    <h2>今日訂單總控</h2>
+    <p>未結帳訂單不會進廚房；確認結帳後才送廚房。</p>
+    <div id="todayOrderList" class="today-order-list"></div>
+  </section>
+
+  <div id="customModal" class="modal hidden">
+    <div class="modal-content">
+      <h2 id="modalItemName">餐點名稱</h2>
+      <p id="modalItemPrice">$0</p>
+
+      <label>數量</label>
+      <div class="quantity-control">
+        <button id="modalMinusBtn">-</button>
+        <span id="modalQuantity">1</span>
+        <button id="modalPlusBtn">+</button>
+      </div>
+
+      <label>辣度</label>
+      <select id="spicySelect">
+        <option value="不辣">不辣</option>
+        <option value="小辣">小辣</option>
+        <option value="中辣">中辣</option>
+        <option value="大辣">大辣</option>
+      </select>
+
+      <label>加料</label>
+      <div id="extrasBox"></div>
+
+      <label>備註</label>
+      <textarea id="noteInput" placeholder="例如：不要蔥、湯多一點"></textarea>
+
+      <div class="modal-actions">
+        <button id="cancelCustomBtn">取消</button>
+        <button id="confirmCustomBtn" class="primary-btn">加入訂單</button>
+      </div>
+    </div>
   </div>
 
-  <div id="menuPos"></div>
-
-  <div class="tools">
-    <div id="cartPos"></div>
-    <button onclick="showConfirmPos()">確認送出</button>
-    <a href="manage-menu.html" style="color:#fff;background:#777;text-align:center;padding:10px;border-radius:10px;text-decoration:none;">📊 改菜單</a>
-    <div id="dailyTotal" style="color:#c33;font-weight:bold;"></div>
-  </div>
-
-</div>
-
-<!-- 彈窗 -->
-<div id="confirmModalPos" s
+  <script type="module" src="./js/pos.js"></script>
+</body>
+</html>
