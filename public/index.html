@@ -15,15 +15,18 @@
 
   <main class="customer-layout">
     <section>
+      <div id="orderResult" class="order-result hidden"></div>
+
       <div class="order-type-panel">
         <h2>用餐方式</h2>
+
         <div class="order-type-buttons">
           <button id="dineInBtn" class="type-btn active">內用</button>
           <button id="takeOutBtn" class="type-btn">外帶</button>
         </div>
 
         <input id="customerNameInput" type="text" placeholder="客人名稱 / 綽號（可不填）" />
-        <input id="tableNumberInput" type="text" placeholder="桌號（內用可填）" />
+        <input id="tableNumberInput" type="text" placeholder="桌號（掃 QR 會自動帶入）" />
       </div>
 
       <div id="menuContainer" class="menu-container"></div>

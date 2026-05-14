@@ -10,6 +10,7 @@ const menuContainer = document.getElementById("menuContainer");
 const cartList = document.getElementById("cartList");
 const totalAmount = document.getElementById("totalAmount");
 const submitOrderBtn = document.getElementById("submitOrderBtn");
+const orderResult = document.getElementById("orderResult");
 
 const dineInBtn = document.getElementById("dineInBtn");
 const takeOutBtn = document.getElementById("takeOutBtn");
@@ -35,12 +36,31 @@ let cart = [];
 let currentOrderType = "內用";
 let currentItem = null;
 let currentQuantity = 1;
+let currentOrderId = localStorage.getItem("endian_customer_order_id") || "";
+
+const urlParams = new URLSearchParams(window.location.search);
+const qrTable = urlParams.get("table");
+
+if (qrTable) {
+  currentOrderType = "內用";
+  tableNumberInput.value = qrTable;
+  tableNumberInput.readOnly = true;
+}
+
+if (currentOrderId) {
+  watchCustomerOrder(currentOrderId);
+}
 
 dineInBtn.addEventListener("click", () => {
   currentOrderType = "內用";
   dineInBtn.classList.add("active");
   takeOutBtn.classList.remove("active");
   tableNumberInput.style.display = "block";
+
+  if (qrTable) {
+    tableNumberInput.value = qrTable;
+    tableNumberInput.readOnly = true;
+  }
 });
 
 takeOutBtn.addEventListener("click", () => {
@@ -49,6 +69,7 @@ takeOutBtn.addEventListener("click", () => {
   dineInBtn.classList.remove("active");
   tableNumberInput.style.display = "none";
   tableNumberInput.value = "";
+  tableNumberInput.readOnly = false;
 });
 
 onValue(menuRef, snapshot => {
@@ -65,11 +86,11 @@ onValue(menuRef, snapshot => {
   Object.entries(data).forEach(([id, item]) => {
     if (!item.enabled) return;
 
-    if (!grouped[item.category]) {
-      grouped[item.category] = [];
-    }
+    const category = item.category || "未分類";
 
-    grouped[item.category].push({
+    if (!grouped[category]) grouped[category] = [];
+
+    grouped[category].push({
       id,
       ...item
     });
@@ -117,10 +138,7 @@ onValue(menuRef, snapshot => {
       const button = document.createElement("button");
       button.className = "order-btn";
       button.textContent = "選擇餐點";
-
-      button.addEventListener("click", () => {
-        openCustomModal(item);
-      });
+      button.addEventListener("click", () => openCustomModal(item));
 
       info.appendChild(name);
       info.appendChild(price);
@@ -148,7 +166,6 @@ function openCustomModal(item) {
   noteInput.value = "";
 
   renderExtras(item.options || {});
-
   customModal.classList.remove("hidden");
 }
 
@@ -205,9 +222,7 @@ modalPlusBtn.addEventListener("click", () => {
 cancelCustomBtn.addEventListener("click", closeCustomModal);
 
 customModal.addEventListener("click", event => {
-  if (event.target === customModal) {
-    closeCustomModal();
-  }
+  if (event.target === customModal) closeCustomModal();
 });
 
 confirmCustomBtn.addEventListener("click", () => {
@@ -226,9 +241,11 @@ confirmCustomBtn.addEventListener("click", () => {
     cartId: Date.now().toString() + Math.random().toString(36).slice(2),
     id: currentItem.id,
     name: currentItem.name,
+    category: currentItem.category || "",
     basePrice: Number(currentItem.price),
     price: calculateItemPrice(Number(currentItem.price), selectedExtras),
     quantity: currentQuantity,
+    qty: currentQuantity,
     spicy: spicySelect.value,
     extras: selectedExtras,
     note: noteInput.value.trim()
@@ -240,11 +257,9 @@ confirmCustomBtn.addEventListener("click", () => {
 });
 
 function calculateItemPrice(basePrice, extras) {
-  const extrasTotal = extras.reduce((sum, extra) => {
+  return extras.reduce((sum, extra) => {
     return sum + Number(extra.price);
-  }, 0);
-
-  return basePrice + extrasTotal;
+  }, basePrice);
 }
 
 function renderCart() {
@@ -278,7 +293,6 @@ function renderCart() {
 
     const spicy = document.createElement("p");
     spicy.textContent = "辣度：" + item.spicy;
-
     customDetail.appendChild(spicy);
 
     if (item.extras.length > 0) {
@@ -302,25 +316,19 @@ function renderCart() {
 
     const minusBtn = document.createElement("button");
     minusBtn.textContent = "-";
-    minusBtn.addEventListener("click", () => {
-      changeQuantity(item.cartId, -1);
-    });
+    minusBtn.addEventListener("click", () => changeQuantity(item.cartId, -1));
 
     const qty = document.createElement("span");
     qty.textContent = item.quantity;
 
     const plusBtn = document.createElement("button");
     plusBtn.textContent = "+";
-    plusBtn.addEventListener("click", () => {
-      changeQuantity(item.cartId, 1);
-    });
+    plusBtn.addEventListener("click", () => changeQuantity(item.cartId, 1));
 
     const deleteBtn = document.createElement("button");
     deleteBtn.textContent = "刪除";
     deleteBtn.className = "small-delete-btn";
-    deleteBtn.addEventListener("click", () => {
-      removeFromCart(item.cartId);
-    });
+    deleteBtn.addEventListener("click", () => removeFromCart(item.cartId));
 
     actions.appendChild(minusBtn);
     actions.appendChild(qty);
@@ -337,10 +345,10 @@ function renderCart() {
 
 function changeQuantity(cartId, amount) {
   const item = cart.find(cartItem => cartItem.cartId === cartId);
-
   if (!item) return;
 
   item.quantity += amount;
+  item.qty = item.quantity;
 
   if (item.quantity <= 0) {
     removeFromCart(cartId);
@@ -362,69 +370,131 @@ function calculateTotal() {
 }
 
 async function submitOrder() {
-
   if (cart.length === 0) {
-
     alert("請先加入餐點");
-
     return;
-
   }
 
   submitOrderBtn.disabled = true;
-
   submitOrderBtn.textContent = "送出中...";
 
   try {
-
     const newOrderRef = push(ordersRef);
+    const orderId = newOrderRef.key;
+    const orderNumber = Date.now().toString().slice(-6);
+
+    const tableNumber = tableNumberInput.value.trim();
+    const customerName = customerNameInput.value.trim();
+
+    const customerLabel =
+      currentOrderType === "內用"
+        ? tableNumber ? `${tableNumber}桌` : `內用-${orderNumber}`
+        : `外帶-${orderNumber}`;
 
     const order = {
-
-      orderNumber: Date.now().toString().slice(-6),
-
+      orderNumber,
+      source: qrTable ? "QR點餐" : "客人點餐",
+      type: currentOrderType,
+      table: currentOrderType === "內用" ? tableNumber : "",
+      customerName,
+      customerLabel,
       items: cart,
-
       total: calculateTotal(),
 
-      status: "pending",
+      status: "unpaid",
+      paymentStatus: "unpaid",
+      kitchenStatus: "not_sent",
 
-      orderType: currentOrderType,
-
-      customerName: customerNameInput.value.trim(),
-
-      tableNumber: tableNumberInput.value.trim(),
-
-      createdAt: Date.now()
-
+      createdAt: Date.now(),
+      updatedAt: Date.now()
     };
 
     await set(newOrderRef, order);
 
-    cart = [];
+    currentOrderId = orderId;
+    localStorage.setItem("endian_customer_order_id", orderId);
 
+    watchCustomerOrder(orderId);
+
+    cart = [];
     renderCart();
 
     customerNameInput.value = "";
 
-    tableNumberInput.value = "";
+    if (!qrTable) {
+      tableNumberInput.value = "";
+    }
 
-    alert("訂單已送出，請等待叫號。");
+    alert("訂單已送出，請到櫃檯結帳。");
 
   } catch (error) {
-
     console.error(error);
-
     alert("送出訂單失敗，請稍後再試。");
-
+  } finally {
+    submitOrderBtn.disabled = false;
+    submitOrderBtn.textContent = "送出訂單";
   }
+}
 
-  submitOrderBtn.disabled = false;
+function watchCustomerOrder(orderId) {
+  const orderRef = ref(db, "orders/" + orderId);
 
-  submitOrderBtn.textContent = "送出訂單";
+  onValue(orderRef, snapshot => {
+    if (!snapshot.exists()) return;
 
+    const order = {
+      id: orderId,
+      ...snapshot.val()
+    };
+
+    showOrderResult(order);
+  });
+}
+
+function showOrderResult(order) {
+  if (!orderResult) return;
+
+  const itemsText = Array.isArray(order.items)
+    ? order.items.map(item => {
+        return `<li>${item.name} × ${item.quantity || item.qty || 1}</li>`;
+      }).join("")
+    : "";
+
+  orderResult.classList.remove("hidden");
+
+  orderResult.innerHTML = `
+    <h3>您的訂單</h3>
+    <p><strong>訂單號：</strong>${order.orderNumber}</p>
+    <p><strong>取餐資訊：</strong>${order.customerLabel}</p>
+    <p><strong>建立時間：</strong>${formatTime(order.createdAt)}</p>
+    <p><strong>付款狀態：</strong>${getPaymentText(order)}</p>
+    <p><strong>廚房狀態：</strong>${getKitchenText(order)}</p>
+    <p><strong>總金額：</strong>$${order.total}</p>
+    <ul>${itemsText}</ul>
+    <p class="customer-note">請保留此畫面，結帳或取餐時可給店員確認。</p>
+  `;
+}
+
+function getPaymentText(order) {
+  if (order.paymentStatus === "paid") return "已結帳";
+  return "待櫃檯結帳";
+}
+
+function getKitchenText(order) {
+  if (order.kitchenStatus !== "sent") return "尚未送廚房";
+  if (order.status === "pending") return "已送廚房，等待製作";
+  if (order.status === "cooking") return "製作中";
+  if (order.status === "done") return "已完成";
+  return "處理中";
+}
+
+function formatTime(timestamp) {
+  if (!timestamp) return "-";
+
+  return new Date(timestamp).toLocaleString("zh-TW", {
+    hour12: false
+  });
 }
 
 submitOrderBtn.addEventListener("click", submitOrder);
-
 renderCart();

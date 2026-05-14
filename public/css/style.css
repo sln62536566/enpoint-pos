@@ -614,3 +614,34 @@ textarea {
   font-size: 14px;
   font-weight: bold;
 }
+
+/* =========================
+   客人訂單保留畫面
+========================= */
+
+.order-result {
+  margin-bottom: 16px;
+  padding: 16px;
+  border-radius: 14px;
+  background: #fff7e8;
+  border: 2px solid #f0b45a;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.order-result h3 {
+  margin-top: 0;
+  color: #8b3f1f;
+}
+
+.order-result ul {
+  padding-left: 20px;
+}
+
+.customer-note {
+  margin-top: 12px;
+  padding: 10px;
+  background: #fff;
+  border-radius: 10px;
+  font-weight: bold;
+}
+
