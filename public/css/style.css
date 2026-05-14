@@ -645,3 +645,19 @@ textarea {
   font-weight: bold;
 }
 
+/* =========================
+   POS 訂單分區
+========================= */
+
+.today-order-section {
+  margin-bottom: 30px;
+}
+
+.today-order-section h3 {
+  margin-bottom: 12px;
+  padding: 10px;
+  border-radius: 10px;
+  background: #222;
+  color: #fff;
+}
+

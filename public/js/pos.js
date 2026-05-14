@@ -45,6 +45,7 @@ let currentOrderType = "內用";
 let selectedTable = "1";
 let currentItem = null;
 let currentQuantity = 1;
+let expandedOrderId = null;
 
 const tables = ["1", "2", "3", "4", "5", "6", "7", "8"];
 
@@ -299,9 +300,9 @@ function clearCart() {
   renderCart();
 }
 
-function calculateTotal() {
-  return cart.reduce((sum, item) => {
-    return sum + item.price * item.quantity;
+function calculateTotal(items = cart) {
+  return items.reduce((sum, item) => {
+    return sum + Number(item.price || 0) * Number(item.quantity || item.qty || 1);
   }, 0);
 }
 
@@ -331,7 +332,7 @@ async function submitOrder() {
       customerName: currentOrderType === "外帶" ? `外帶-${orderNumber}` : "",
       customerLabel,
       items: cart,
-      total: calculateTotal(),
+      total: calculateTotal(cart),
       status: "unpaid",
       paymentStatus: "unpaid",
       kitchenStatus: "not_sent",
@@ -369,167 +370,322 @@ function renderTodayOrders() {
     return;
   }
 
-  todayOrderList.innerHTML = orders.map(order => {
-    const label = getCustomerLabel(order);
-    const statusText = getPosStatusText(order);
-    const itemsText = Array.isArray(order.items)
-      ? order.items.map(item => `${item.name}×${item.quantity || item.qty || 1}`).join("、")
-      : "無餐點";
+  const unpaidOrders = orders.filter(order =>
+    order.paymentStatus !== "paid" &&
+    order.status !== "cancelled"
+  );
 
-    const canSendKitchen =
+  const processingOrders = orders.filter(order =>
+    order.paymentStatus === "paid" &&
+    order.status !== "done" &&
+    order.status !== "cancelled"
+  );
 
-      order.paymentStatus !== "paid" ||
+  const doneOrders = orders.filter(order => order.status === "done");
+  const cancelledOrders = orders.filter(order => order.status === "cancelled");
 
-      order.kitchenStatus !== "sent";
-
-    return `
-
-      <div class="today-order-card ${order.paymentStatus || "unpaid"}">
-
-        <div class="today-order-head">
-
-          <strong>#${order.orderNumber || order.id}</strong>
-
-          <span class="pos-status-badge">${statusText}</span>
-
-        </div>
-
-        <p>來源：${order.source || "未知"}｜類型：${order.type || "現場"}</p>
-
-        <p>取餐資訊：${label}</p>
-
-        <p>時間：${formatTime(order.createdAt)}</p>
-
-        <p>餐點：${itemsText}</p>
-
-        <p class="order-total">總金額：$${order.total || 0}</p>
-
-        <div class="order-actions">
-
-          ${
-
-            canSendKitchen
-
-              ? `<button class="primary-btn" onclick="confirmPaidAndSendKitchen('${order.id}')">確認結帳並送廚房</button>`
-
-              : `<button disabled>已送廚房</button>`
-
-          }
-
-        </div>
-
-      </div>
-
-    `;
-
-  }).join("");
-
+  todayOrderList.innerHTML = `
+    ${renderOrderSection("🔴 未結帳", unpaidOrders)}
+    ${renderOrderSection("🟠 製作中 / 已送廚房", processingOrders)}
+    ${renderOrderSection("🟢 已完成", doneOrders)}
+    ${renderOrderSection("⚫ 已取消", cancelledOrders)}
+  `;
 }
 
-async function confirmPaidAndSendKitchen(orderId) {
+function renderOrderSection(title, orders) {
+  return `
+    <div class="today-order-section">
+      <h3>${title}</h3>
+      ${
+        orders.length === 0
+          ? `<p>目前沒有訂單</p>`
+          : orders.map(order => renderOrderCard(order)).join("")
+      }
+    </div>
+  `;
+}
 
+function renderOrderCard(order) {
+  const label = getCustomerLabel(order);
+  const statusText = getPosStatusText(order);
+
+  const itemsText = Array.isArray(order.items)
+    ? order.items.map(item => `${item.name}×${item.quantity || item.qty || 1}`).join("、")
+    : "無餐點";
+
+  const canSendKitchen =
+    order.status !== "cancelled" &&
+    (order.paymentStatus !== "paid" || order.kitchenStatus !== "sent");
+
+  const isExpanded = expandedOrderId === order.id;
+
+  return `
+    <div class="today-order-card ${order.paymentStatus || "unpaid"}">
+      <div class="today-order-head">
+        <strong>#${order.orderNumber || order.id}</strong>
+        <span class="pos-status-badge">${statusText}</span>
+      </div>
+
+      <p>來源：${order.source || "未知"}｜類型：${order.type || "現場"}</p>
+      <p>取餐資訊：${label}</p>
+      <p>時間：${formatTime(order.createdAt)}</p>
+      <p>餐點：${itemsText}</p>
+      <p class="order-total">總金額：$${order.total || 0}</p>
+
+      <div class="order-actions">
+        <button onclick="toggleOrderDetail('${order.id}')">
+          ${isExpanded ? "收起改單" : "查看 / 改單"}
+        </button>
+
+        ${
+          canSendKitchen
+            ? `<button class="primary-btn" onclick="confirmPaidAndSendKitchen('${order.id}')">確認結帳並送廚房</button>`
+            : `<button disabled>已送廚房</button>`
+        }
+      </div>
+
+      ${
+        isExpanded
+          ? renderInlineOrderDetail(order)
+          : ""
+      }
+    </div>
+  `;
+}
+
+function toggleOrderDetail(orderId) {
+  expandedOrderId = expandedOrderId === orderId ? null : orderId;
+  renderTodayOrders();
+}
+
+function renderInlineOrderDetail(order) {
+  const editable = canEditOrder(order);
+  const items = Array.isArray(order.items) ? order.items : [];
+
+  const itemsHtml = items.map((item, index) => {
+    const qty = item.quantity || item.qty || 1;
+    const subtotal = Number(item.price || 0) * Number(qty);
+
+    const extrasText = item.extras && item.extras.length > 0
+      ? item.extras.map(extra => `${extra.name}+${extra.price}`).join("、")
+      : "無";
+
+    return `
+      <div class="cart-item">
+        <div>
+          <strong>${item.name}</strong>
+          <p>NT$${item.price || 0} × ${qty} = NT$${subtotal}</p>
+          <p>辣度：${item.spicy || "不辣"}</p>
+          <p>加料：${extrasText}</p>
+          <p>備註：${item.note || "無"}</p>
+        </div>
+
+        <div class="cart-actions">
+          ${
+            editable
+              ? `<button class="danger-btn" onclick="removeItemFromOrder('${order.id}', ${index})">刪除此餐點</button>`
+              : `<button disabled>不可修改</button>`
+          }
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  return `
+    <div class="inline-order-detail">
+      <hr>
+      <h4>訂單詳情</h4>
+      <p><strong>狀態：</strong>${getPosStatusText(order)}</p>
+      <p><strong>說明：</strong>${editable ? "此訂單尚未結帳，可以改單。" : "此訂單已結帳、已送廚房、已完成或已取消，不能改單。"}</p>
+
+      ${itemsHtml || "<p>此訂單沒有餐點</p>"}
+
+      <div class="order-actions">
+        ${
+          editable
+            ? `
+              <button class="primary-btn" onclick="addCartToOrder('${order.id}')">把目前點餐加到此訂單</button>
+              <button class="danger-btn" onclick="cancelOrder('${order.id}')">取消此訂單</button>
+            `
+            : ""
+        }
+      </div>
+    </div>
+  `;
+}
+
+function canEditOrder(order) {
+  return (
+    order.status !== "cancelled" &&
+    order.status !== "done" &&
+    order.paymentStatus !== "paid" &&
+    order.kitchenStatus !== "sent"
+  );
+}
+
+async function addCartToOrder(orderId) {
   const order = ordersData[orderId];
 
   if (!order) return;
 
-  const ok = confirm(`確認「${getCustomerLabel(order)}」已結帳，並送到廚房？`);
+  if (!canEditOrder(order)) {
+    alert("此訂單已送廚房或已結帳，不能加點。");
+    return;
+  }
 
+  if (cart.length === 0) {
+    alert("目前點餐區沒有餐點可以加入。");
+    return;
+  }
+
+  const oldItems = Array.isArray(order.items) ? order.items : [];
+  const newItems = [...oldItems, ...cart];
+
+  await update(ref(db, "orders/" + orderId), {
+    items: newItems,
+    total: calculateTotal(newItems),
+    updatedAt: Date.now()
+  });
+
+  cart = [];
+  renderCart();
+
+  alert("已加點到此訂單。");
+}
+
+async function removeItemFromOrder(orderId, index) {
+  const order = ordersData[orderId];
+
+  if (!order) return;
+
+  if (!canEditOrder(order)) {
+    alert("此訂單已送廚房或已結帳，不能修改。");
+    return;
+  }
+
+  const items = Array.isArray(order.items) ? [...order.items] : [];
+  const removed = items[index];
+
+  if (!removed) return;
+
+  const ok = confirm(`確定要刪除「${removed.name}」嗎？`);
+  if (!ok) return;
+
+  items.splice(index, 1);
+
+  await update(ref(db, "orders/" + orderId), {
+    items,
+    total: calculateTotal(items),
+    updatedAt: Date.now()
+  });
+}
+
+async function cancelOrder(orderId) {
+  const order = ordersData[orderId];
+
+  if (!order) return;
+
+  if (!canEditOrder(order)) {
+    alert("此訂單已送廚房或已結帳，不能取消。");
+    return;
+  }
+
+  const ok = confirm(`確定要取消「${getCustomerLabel(order)}」這張訂單嗎？`);
   if (!ok) return;
 
   await update(ref(db, "orders/" + orderId), {
-
-    status: "pending",
-
-    paymentStatus: "paid",
-
-    kitchenStatus: "sent",
-
-    sentToKitchenAt: Date.now(),
-
+    status: "cancelled",
+    paymentStatus: "cancelled",
+    kitchenStatus: "cancelled",
+    cancelledAt: Date.now(),
     updatedAt: Date.now()
-
   });
 
+  expandedOrderId = null;
+}
+
+async function confirmPaidAndSendKitchen(orderId) {
+  const order = ordersData[orderId];
+
+  if (!order) return;
+
+  if (order.status === "cancelled") {
+    alert("此訂單已取消，不能送廚房。");
+    return;
+  }
+
+  const ok = confirm(`確認「${getCustomerLabel(order)}」已結帳，並送到廚房？`);
+  if (!ok) return;
+
+  await update(ref(db, "orders/" + orderId), {
+    status: "pending",
+    paymentStatus: "paid",
+    kitchenStatus: "sent",
+    sentToKitchenAt: Date.now(),
+    updatedAt: Date.now()
+  });
+
+  expandedOrderId = null;
 }
 
 function getCustomerLabel(order) {
-
   if (order.customerLabel) return order.customerLabel;
-
   if (order.type === "內用" && order.table) return `${order.table}桌`;
-
   if (order.type === "外帶" && order.orderNumber) return `外帶-${order.orderNumber}`;
-
   return "未填寫";
-
 }
 
 function getPosStatusText(order) {
+  if (order.status === "cancelled") return "已取消";
+  if (order.status === "done") return "已完成";
+
+  if (order.paymentStatus === "paid" && order.status === "cooking") {
+    return "已結帳｜製作中";
+  }
 
   if (order.paymentStatus === "paid" && order.kitchenStatus === "sent") {
-
     return "已結帳｜已送廚房";
-
   }
 
-  if (order.paymentStatus === "paid") {
-
-    return "已結帳";
-
-  }
+  if (order.paymentStatus === "paid") return "已結帳";
 
   return "未結帳";
-
 }
 
 function isToday(timestamp) {
-
   if (!timestamp) return false;
 
   const date = new Date(timestamp);
-
   const now = new Date();
 
   return (
-
     date.getFullYear() === now.getFullYear() &&
-
     date.getMonth() === now.getMonth() &&
-
     date.getDate() === now.getDate()
-
   );
-
 }
 
 function formatTime(timestamp) {
-
   if (!timestamp) return "-";
 
   return new Date(timestamp).toLocaleString("zh-TW", {
-
     hour12: false
-
   });
-
 }
 
 submitOrderBtn.addEventListener("click", submitOrder);
-
 clearCartBtn.addEventListener("click", clearCart);
 
 window.selectCategory = selectCategory;
-
 window.selectTable = selectTable;
-
 window.openCustomModal = openCustomModal;
-
 window.changeQuantity = changeQuantity;
-
 window.removeFromCart = removeFromCart;
-
 window.confirmPaidAndSendKitchen = confirmPaidAndSendKitchen;
+window.toggleOrderDetail = toggleOrderDetail;
+window.addCartToOrder = addCartToOrder;
+window.removeItemFromOrder = removeItemFromOrder;
+window.cancelOrder = cancelOrder;
 
 renderTableButtons();
-
 renderCart();
