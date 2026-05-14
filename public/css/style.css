@@ -661,3 +661,30 @@ textarea {
   color: #fff;
 }
 
+.today-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+}
+
+.today-stat-card {
+  background: #fff7e8;
+  border: 2px solid #f0b45a;
+  border-radius: 14px;
+  padding: 14px;
+  text-align: center;
+}
+
+.today-stat-card span {
+  display: block;
+  font-size: 14px;
+  color: #666;
+}
+
+.today-stat-card strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 24px;
+  color: #8b3f1f;
+}
+

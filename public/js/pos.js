@@ -22,6 +22,12 @@ const submitOrderBtn = document.getElementById("submitOrderBtn");
 const clearCartBtn = document.getElementById("clearCartBtn");
 const todayOrderList = document.getElementById("todayOrderList");
 
+const statTotalOrders = document.getElementById("statTotalOrders");
+const statUnpaidOrders = document.getElementById("statUnpaidOrders");
+const statProcessingOrders = document.getElementById("statProcessingOrders");
+const statDoneOrders = document.getElementById("statDoneOrders");
+const statTodayRevenue = document.getElementById("statTodayRevenue");
+
 const customModal = document.getElementById("customModal");
 const modalItemName = document.getElementById("modalItemName");
 const modalItemPrice = document.getElementById("modalItemPrice");
@@ -366,6 +372,13 @@ function renderTodayOrders() {
     .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
   if (orders.length === 0) {
+    renderTodayStats({
+      orders: [],
+      unpaidOrders: [],
+      processingOrders: [],
+      doneOrders: []
+    });
+
     todayOrderList.innerHTML = "<p>今天目前沒有訂單。</p>";
     return;
   }
@@ -384,12 +397,36 @@ function renderTodayOrders() {
   const doneOrders = orders.filter(order => order.status === "done");
   const cancelledOrders = orders.filter(order => order.status === "cancelled");
 
+  renderTodayStats({
+    orders,
+    unpaidOrders,
+    processingOrders,
+    doneOrders
+  });
+
   todayOrderList.innerHTML = `
     ${renderOrderSection("🔴 未結帳", unpaidOrders)}
     ${renderOrderSection("🟠 製作中 / 已送廚房", processingOrders)}
     ${renderOrderSection("🟢 已完成", doneOrders)}
     ${renderOrderSection("⚫ 已取消", cancelledOrders)}
   `;
+}
+
+function renderTodayStats({
+  orders,
+  unpaidOrders,
+  processingOrders,
+  doneOrders
+}) {
+  const revenue = doneOrders.reduce((sum, order) => {
+    return sum + Number(order.total || 0);
+  }, 0);
+
+  if (statTotalOrders) statTotalOrders.textContent = orders.length;
+  if (statUnpaidOrders) statUnpaidOrders.textContent = unpaidOrders.length;
+  if (statProcessingOrders) statProcessingOrders.textContent = processingOrders.length;
+  if (statDoneOrders) statDoneOrders.textContent = doneOrders.length;
+  if (statTodayRevenue) statTodayRevenue.textContent = "$" + revenue;
 }
 
 function renderOrderSection(title, orders) {

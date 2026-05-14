@@ -52,12 +52,42 @@
   </main>
 
   <section class="pos-orders-panel">
+    <h2>今日營業小統計</h2>
+
+    <div class="today-stats-grid">
+      <div class="today-stat-card">
+        <span>今日訂單</span>
+        <strong id="statTotalOrders">0</strong>
+      </div>
+
+      <div class="today-stat-card">
+        <span>未結帳</span>
+        <strong id="statUnpaidOrders">0</strong>
+      </div>
+
+      <div class="today-stat-card">
+        <span>製作中</span>
+        <strong id="statProcessingOrders">0</strong>
+      </div>
+
+      <div class="today-stat-card">
+        <span>已完成</span>
+        <strong id="statDoneOrders">0</strong>
+      </div>
+
+      <div class="today-stat-card">
+        <span>今日營業額</span>
+        <strong id="statTodayRevenue">$0</strong>
+      </div>
+    </div>
+  </section>
+
+  <section class="pos-orders-panel">
     <h2>今日訂單總控</h2>
     <p>未結帳訂單可改單；已送廚房訂單暫不開放修改。</p>
     <div id="todayOrderList" class="today-order-list"></div>
   </section>
 
-  <!-- 餐點客製化彈窗 -->
   <div id="customModal" class="modal hidden">
     <div class="modal-content">
       <h2 id="modalItemName">餐點名稱</h2>
@@ -87,20 +117,6 @@
       <div class="modal-actions">
         <button id="cancelCustomBtn">取消</button>
         <button id="confirmCustomBtn" class="primary-btn">加入訂單</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- 訂單詳情 / 改單彈窗 -->
-  <div id="orderDetailModal" class="modal hidden">
-    <div class="modal-content">
-      <h2>訂單詳情 / 改單</h2>
-      <div id="orderDetailContent"></div>
-
-      <div class="modal-actions">
-        <button id="closeOrderDetailBtn">關閉</button>
-        <button id="addCartToOrderBtn" class="primary-btn">把目前點餐加到此訂單</button>
-        <button id="cancelOrderBtn" class="danger-btn">取消此訂單</button>
       </div>
     </div>
   </div>
