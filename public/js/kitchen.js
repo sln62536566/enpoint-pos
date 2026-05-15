@@ -26,9 +26,11 @@ onValue(ordersRef, snapshot => {
 
       return (
         kitchenStatus === "sent" &&
-        status !== "done" &&
-        status !== "cancelled" &&
-        (status === "confirmed" || status === "pending" || status === "cooking")
+        (
+          status === "confirmed" ||
+          status === "pending" ||
+          status === "cooking"
+        )
       );
     })
     .sort((a, b) => {
@@ -100,22 +102,20 @@ function renderItem(item) {
 }
 
 function updateOrderStatus(id, action) {
-  const status = action === "done" ? "done" : "cooking";
+  const isDone = action === "done";
+  const status = isDone ? "done" : "cooking";
 
   const updateData = {
     status,
+    kitchenStatus: isDone ? "done" : "sent",
     statusText: getCustomerStatusText(status),
     updatedAt: Date.now()
   };
 
-  if (status === "cooking") {
-    updateData.kitchenStatus = "sent";
-    updateData.startedAt = Date.now();
-  }
-
-  if (status === "done") {
-    updateData.kitchenStatus = "done";
+  if (isDone) {
     updateData.completedAt = Date.now();
+  } else {
+    updateData.startedAt = Date.now();
   }
 
   update(ref(db, "orders/" + id), updateData);
@@ -132,7 +132,6 @@ function getStatusText(status) {
   if (status === "confirmed") return "待製作";
   if (status === "pending") return "待製作";
   if (status === "cooking") return "製作中";
-  if (status === "done") return "已完成";
   return "待製作";
 }
 
