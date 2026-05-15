@@ -358,9 +358,8 @@ async function submitOrder() {
 
     selectedTable = "1";
     renderTableButtons();
-
   } catch (err) {
-    console.error("❌ 建立訂單失敗：", err);
+    console.error("建立訂單失敗：", err);
     alert("建立訂單失敗");
   } finally {
     submitOrderBtn.disabled = false;
@@ -408,10 +407,10 @@ function renderTodayOrders() {
   });
 
   todayOrderList.innerHTML = `
-    ${renderOrderSection("🔴 未結帳", unpaidOrders)}
-    ${renderOrderSection("🟠 製作中 / 已送廚房", processingOrders)}
-    ${renderOrderSection("🟢 已完成", doneOrders)}
-    ${renderOrderSection("⚫ 已取消", cancelledOrders)}
+    ${renderOrderSection("未結帳", unpaidOrders)}
+    ${renderOrderSection("製作中 / 已送廚房", processingOrders)}
+    ${renderOrderSection("已完成", doneOrders)}
+    ${renderOrderSection("已取消", cancelledOrders)}
   `;
 }
 
@@ -650,7 +649,10 @@ async function cancelOrder(orderId) {
 async function confirmPaidAndSendKitchen(orderId) {
   const order = ordersData[orderId];
 
-  if (!order) return;
+  if (!order) {
+    alert("找不到這筆訂單。");
+    return;
+  }
 
   if (order.status === "cancelled") {
     alert("此訂單已取消，不能送廚房。");
@@ -660,18 +662,25 @@ async function confirmPaidAndSendKitchen(orderId) {
   const ok = confirm(`確認「${getCustomerLabel(order)}」已結帳，並送到廚房？`);
   if (!ok) return;
 
-  await update(ref(db, "orders/" + orderId), {
-    status: "confirmed",
-    statusText: "櫃檯已確認，等待廚房製作",
-    paymentStatus: "paid",
-    kitchenStatus: "sent",
-    confirmed: true,
-    paid: true,
-    sentToKitchenAt: Date.now(),
-    updatedAt: Date.now()
-  });
+  try {
+    await update(ref(db, "orders/" + orderId), {
+      status: "confirmed",
+      statusText: "櫃檯已確認，等待廚房製作",
+      paymentStatus: "paid",
+      kitchenStatus: "sent",
+      confirmed: true,
+      paid: true,
+      sentToKitchenAt: Date.now(),
+      updatedAt: Date.now()
+    });
 
-  expandedOrderId = null;
+    console.log("已送廚房：", orderId);
+    alert("已送到廚房。");
+    expandedOrderId = null;
+  } catch (err) {
+    console.error("送廚房失敗：", err);
+    alert("送廚房失敗，請檢查 Firebase 權限或網路。");
+  }
 }
 
 function getCustomerLabel(order) {

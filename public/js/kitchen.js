@@ -24,12 +24,19 @@ onValue(ordersRef, snapshot => {
 
   console.log("🔥 KDS讀到所有訂單：", allOrders);
 
-  const orders = allOrders.filter(order =>
-    order.kitchenStatus === "sent" ||
-    order.status === "confirmed" ||
-    order.status === "cooking" ||
-    (order.paymentStatus === "paid" && order.status !== "done" && order.status !== "cancelled")
-  );
+  const orders = allOrders.filter(order => {
+    const status = String(order.status || "").toLowerCase();
+    const kitchenStatus = String(order.kitchenStatus || "").toLowerCase();
+    const paymentStatus = String(order.paymentStatus || "").toLowerCase();
+
+    return (
+      kitchenStatus === "sent" ||
+      status === "confirmed" ||
+      status === "cooking" ||
+      (paymentStatus === "paid" && status !== "done" && status !== "cancelled")
+      );
+    });
+
 
   if (orders.length === 0) {
     orderList.innerHTML = `
