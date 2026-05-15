@@ -24,11 +24,11 @@ onValue(ordersRef, snapshot => {
       const status = String(order.status || "").toLowerCase();
       const kitchenStatus = String(order.kitchenStatus || "").toLowerCase();
 
-      // ✅ 完成或取消，一律不顯示在廚房主畫面
+      // 已完成或取消不顯示
       if (status === "done" || status === "cancelled") return false;
       if (kitchenStatus === "done" || kitchenStatus === "cancelled") return false;
 
-      // ✅ 只顯示已送廚房或正在處理的訂單
+      // 顯示送廚房中的訂單
       return (
         kitchenStatus === "sent" ||
         status === "confirmed" ||
@@ -62,26 +62,55 @@ function renderOrderCard(order) {
     <div class="order-card ${status}">
       <div class="order-header">
         <h3>訂單 #${escapeHtml(order.orderNumber || order.id)}</h3>
+
         <span class="status-badge ${status}">
           ${getStatusText(status)}
         </span>
       </div>
 
-      <p class="order-time">時間：${formatTime(order.createdAt)}</p>
-      <p class="order-time">類型：${escapeHtml(order.type || "現場")}</p>
-      <p class="order-time">取餐資訊：${escapeHtml(getCustomerLabel(order))}</p>
+      <p class="order-time">
+        時間：${formatTime(order.createdAt)}
+      </p>
+
+      <p class="order-time">
+        類型：${escapeHtml(order.type || "現場")}
+      </p>
+
+      <p class="order-time">
+        取餐資訊：${escapeHtml(getCustomerLabel(order))}
+      </p>
 
       <div class="order-items">
-        ${items.length ? items.map(item => renderItem(item)).join("") : "<p>此訂單沒有餐點資料</p>"}
+        ${
+          items.length
+            ? items.map(item => renderItem(item)).join("")
+            : "<p>此訂單沒有餐點資料</p>"
+        }
       </div>
 
-      <p class="order-total">總金額：$${Number(order.total || 0)}</p>
+      <p class="order-total">
+        總金額：$${Number(order.total || 0)}
+      </p>
 
       <div class="order-actions">
         ${
           status === "cooking"
-            ? `<button class="done-btn" data-action="done" data-id="${order.id}">完成訂單</button>`
-            : `<button class="cooking-btn" data-action="cooking" data-id="${order.id}">開始製作</button>`
+            ? `
+              <button
+                class="done-btn"
+                data-action="done"
+                data-id="${order.id}">
+                完成訂單
+              </button>
+            `
+            : `
+              <button
+                class="cooking-btn"
+                data-action="cooking"
+                data-id="${order.id}">
+                開始製作
+              </button>
+            `
         }
       </div>
     </div>
@@ -94,12 +123,35 @@ function renderItem(item) {
 
   return `
     <div class="kitchen-item-box">
-      <div class="order-item-row">${escapeHtml(item.name || "未命名餐點")} × ${qty}</div>
+
+      <div class="order-item-row">
+        ${escapeHtml(item.name || "未命名餐點")} × ${qty}
+      </div>
+
       <div class="kitchen-item-details">
-        <p>辣度：${escapeHtml(item.spicy || "不辣")}</p>
-        ${item.satay ? `<p>沙茶：${escapeHtml(item.satay)}</p>` : ""}
-        ${addons.length ? `<p>加料：${addons.map(extra => escapeHtml(extra.name)).join("、")}</p>` : ""}
-        ${item.note ? `<p>備註：${escapeHtml(item.note)}</p>` : ""}
+
+        <p>
+          辣度：${escapeHtml(item.spicy || "不辣")}
+        </p>
+
+        ${
+          item.satay
+            ? `<p>沙茶：${escapeHtml(item.satay)}</p>`
+            : ""
+        }
+
+        ${
+          addons.length
+            ? `<p>加料：${addons.map(extra => escapeHtml(extra.name)).join("、")}</p>`
+            : ""
+        }
+
+        ${
+          item.note
+            ? `<p>備註：${escapeHtml(item.note)}</p>`
+            : ""
+        }
+
       </div>
     </div>
   `;
@@ -112,7 +164,9 @@ function updateOrderStatus(id, action) {
   const updateData = {
     status: isDone ? "done" : "cooking",
     kitchenStatus: isDone ? "done" : "sent",
-    statusText: isDone ? "餐點已完成，請留意取餐" : "製作中",
+    statusText: isDone
+      ? "餐點已完成，請留意取餐"
+      : "製作中",
     updatedAt: now
   };
 
@@ -124,15 +178,22 @@ function updateOrderStatus(id, action) {
 
   update(ref(db, "orders/" + id), updateData)
     .catch(error => {
-      console.error("更新廚房狀態失敗：", error);
-      alert("更新失敗，請確認網路或 Firebase 權限。");
+      console.error("更新訂單失敗：", error);
+      alert("更新失敗，請重新操作");
     });
 }
 
 function getCustomerLabel(order) {
   if (order.customerLabel) return order.customerLabel;
-  if (order.type === "內用" && order.table) return `${order.table}桌`;
-  if (order.type === "外帶" && order.orderNumber) return `外帶-${order.orderNumber}`;
+
+  if (order.type === "內用" && order.table) {
+    return `${order.table}桌`;
+  }
+
+  if (order.type === "外帶" && order.orderNumber) {
+    return `外帶-${order.orderNumber}`;
+  }
+
   return "未填寫";
 }
 
@@ -140,6 +201,7 @@ function getStatusText(status) {
   if (status === "confirmed") return "待製作";
   if (status === "pending") return "待製作";
   if (status === "cooking") return "製作中";
+
   return "待製作";
 }
 
