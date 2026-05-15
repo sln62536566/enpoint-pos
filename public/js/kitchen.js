@@ -31,7 +31,9 @@ onValue(ordersRef, snapshot => {
         (status === "confirmed" || status === "pending" || status === "cooking")
       );
     })
-    .sort((a, b) => (b.sentToKitchenAt || b.createdAt || 0) - (a.sentToKitchenAt || a.createdAt || 0));
+    .sort((a, b) => {
+      return (b.sentToKitchenAt || b.createdAt || 0) - (a.sentToKitchenAt || a.createdAt || 0);
+    });
 
   if (orders.length === 0) {
     orderList.innerHTML = "<p>目前沒有待製作訂單。</p>";
@@ -100,11 +102,23 @@ function renderItem(item) {
 function updateOrderStatus(id, action) {
   const status = action === "done" ? "done" : "cooking";
 
-  update(ref(db, "orders/" + id), {
+  const updateData = {
     status,
     statusText: getCustomerStatusText(status),
     updatedAt: Date.now()
-  });
+  };
+
+  if (status === "cooking") {
+    updateData.kitchenStatus = "sent";
+    updateData.startedAt = Date.now();
+  }
+
+  if (status === "done") {
+    updateData.kitchenStatus = "done";
+    updateData.completedAt = Date.now();
+  }
+
+  update(ref(db, "orders/" + id), updateData);
 }
 
 function getCustomerLabel(order) {
@@ -118,6 +132,7 @@ function getStatusText(status) {
   if (status === "confirmed") return "待製作";
   if (status === "pending") return "待製作";
   if (status === "cooking") return "製作中";
+  if (status === "done") return "已完成";
   return "待製作";
 }
 
