@@ -26,25 +26,32 @@ onValue(ordersRef, snapshot => {
 
       return (
         kitchenStatus === "sent" &&
+        status !== "done" &&
+        status !== "cancelled" &&
         (status === "confirmed" || status === "pending" || status === "cooking")
       );
     })
-    .sort((a, b) => {
-      return (b.sentToKitchenAt || b.createdAt || 0) - (a.sentToKitchenAt || a.createdAt || 0);
-    });
+    .sort((a, b) => (b.sentToKitchenAt || b.createdAt || 0) - (a.sentToKitchenAt || a.createdAt || 0));
 
   if (orders.length === 0) {
     orderList.innerHTML = "<p>目前沒有待製作訂單。</p>";
     return;
   }
 
-  orders.forEach(order => {
-    const card = document.createElement("div");
-    card.className = `order-card ${order.status || "confirmed"}`;
+  orderList.innerHTML = orders.map(order => renderOrderCard(order)).join("");
 
-    const items = Array.isArray(order.items) ? order.items : [];
+  orderList.querySelectorAll("button[data-action]").forEach(button => {
+    button.addEventListener("click", () => {
+      updateOrderStatus(button.dataset.id, button.dataset.action);
+    });
+  });
+});
 
-    card.innerHTML = `
+function renderOrderCard(order) {
+  const items = Array.isArray(order.items) ? order.items : [];
+
+  return `
+    <div class="order-card ${order.status || "confirmed"}">
       <div class="order-header">
         <h3>訂單 #${order.orderNumber || order.id}</h3>
         <span class="status-badge ${order.status || "confirmed"}">
@@ -57,11 +64,7 @@ onValue(ordersRef, snapshot => {
       <p class="order-time">取餐資訊：${getCustomerLabel(order)}</p>
 
       <div class="order-items">
-        ${
-          items.length
-            ? items.map(item => renderItem(item)).join("")
-            : "<p>此訂單沒有餐點資料</p>"
-        }
+        ${items.length ? items.map(item => renderItem(item)).join("") : "<p>此訂單沒有餐點資料</p>"}
       </div>
 
       <p class="order-total">總金額：$${order.total || 0}</p>
@@ -73,17 +76,9 @@ onValue(ordersRef, snapshot => {
             : `<button class="cooking-btn" data-action="cooking" data-id="${order.id}">開始製作</button>`
         }
       </div>
-    `;
-
-    orderList.appendChild(card);
-  });
-
-  orderList.querySelectorAll("button[data-action]").forEach(button => {
-    button.addEventListener("click", () => {
-      updateOrderStatus(button.dataset.id, button.dataset.action);
-    });
-  });
-});
+    </div>
+  `;
+}
 
 function renderItem(item) {
   const addons = item.addons || item.extras || [];
@@ -123,15 +118,13 @@ function getStatusText(status) {
   if (status === "confirmed") return "待製作";
   if (status === "pending") return "待製作";
   if (status === "cooking") return "製作中";
-  if (status === "done") return "已完成";
   return "待製作";
 }
 
 function getCustomerStatusText(status) {
   if (status === "cooking") return "製作中";
   if (status === "done") return "餐點已完成，請留意取餐";
-  if (status === "confirmed") return "櫃檯已確認，等待廚房製作";
-  return "等待櫃檯確認";
+  return "櫃檯已確認，等待廚房製作";
 }
 
 function formatTime(timestamp) {
