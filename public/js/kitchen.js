@@ -21,7 +21,11 @@ onValue(ordersRef, snapshot => {
   const orders = Object.entries(data)
     .map(([id, order]) => ({ id, ...order }))
     .filter(order => order.kitchenStatus === "sent")
-    .filter(order => order.status === "pending" || order.status === "cooking")
+    .filter(order =>
+      order.status === "confirmed" ||
+      order.status === "pending" ||
+      order.status === "cooking"
+    )
     .sort((a, b) => (b.sentToKitchenAt || b.createdAt || 0) - (a.sentToKitchenAt || a.createdAt || 0));
 
   if (orders.length === 0) {
@@ -80,10 +84,17 @@ onValue(ordersRef, snapshot => {
       spicy.textContent = "辣度：" + (item.spicy || "不辣");
       details.appendChild(spicy);
 
-      if (item.extras && item.extras.length > 0) {
+      const addons = item.addons || item.extras || [];
+      if (addons.length > 0) {
         const extras = document.createElement("p");
-        extras.textContent = "加料：" + item.extras.map(extra => extra.name).join("、");
+        extras.textContent = "加料：" + addons.map(extra => extra.name).join("、");
         details.appendChild(extras);
+      }
+
+      if (item.satay) {
+        const satay = document.createElement("p");
+        satay.textContent = "沙茶：" + item.satay;
+        details.appendChild(satay);
       }
 
       if (item.note) {
@@ -103,7 +114,7 @@ onValue(ordersRef, snapshot => {
     const actions = document.createElement("div");
     actions.className = "order-actions";
 
-    if (order.status === "pending") {
+    if (order.status === "confirmed" || order.status === "pending") {
       const cookingBtn = document.createElement("button");
       cookingBtn.textContent = "開始製作";
       cookingBtn.className = "cooking-btn";
@@ -138,6 +149,7 @@ onValue(ordersRef, snapshot => {
 function updateOrderStatus(id, status) {
   update(ref(db, "orders/" + id), {
     status,
+    statusText: getCustomerStatusText(status),
     updatedAt: Date.now()
   });
 }
@@ -150,10 +162,19 @@ function getCustomerLabel(order) {
 }
 
 function getStatusText(status) {
+  if (status === "confirmed") return "待製作";
   if (status === "pending") return "待製作";
   if (status === "cooking") return "製作中";
   if (status === "done") return "已完成";
   return "未知";
+}
+
+function getCustomerStatusText(status) {
+  if (status === "confirmed") return "櫃檯已確認，等待廚房製作";
+  if (status === "pending") return "等待櫃檯確認";
+  if (status === "cooking") return "製作中";
+  if (status === "done") return "餐點已完成，請留意取餐";
+  return "等待櫃檯確認";
 }
 
 function formatTime(timestamp) {
