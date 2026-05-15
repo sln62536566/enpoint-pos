@@ -12,57 +12,49 @@ onValue(ordersRef, snapshot => {
   orderList.innerHTML = "";
 
   if (!snapshot.exists()) {
-    orderList.innerHTML = "<p>目前 Firebase orders 沒有任何訂單。</p>";
+    orderList.innerHTML = "<p>目前沒有待製作訂單。</p>";
     return;
   }
 
   const data = snapshot.val();
 
-  const allOrders = Object.entries(data)
+  const orders = Object.entries(data)
     .map(([id, order]) => ({ id, ...order }))
-    .sort((a, b) => (b.sentToKitchenAt || b.createdAt || 0) - (a.sentToKitchenAt || a.createdAt || 0));
+    .filter(order => {
+      const status = String(order.status || "").toLowerCase();
+      const kitchenStatus = String(order.kitchenStatus || "").toLowerCase();
 
-  console.log("🔥 KDS讀到所有訂單：", allOrders);
-
-  const orders = allOrders.filter(order => {
-    const status = String(order.status || "").toLowerCase();
-    const kitchenStatus = String(order.kitchenStatus || "").toLowerCase();
-    const paymentStatus = String(order.paymentStatus || "").toLowerCase();
-
-    return (
-      kitchenStatus === "sent" ||
-      status === "confirmed" ||
-      status === "cooking" ||
-      (paymentStatus === "paid" && status !== "done" && status !== "cancelled")
+      return (
+        kitchenStatus === "sent" &&
+        (status === "confirmed" || status === "pending" || status === "cooking")
       );
+    })
+    .sort((a, b) => {
+      return (b.sentToKitchenAt || b.createdAt || 0) - (a.sentToKitchenAt || a.createdAt || 0);
     });
 
-
   if (orders.length === 0) {
-    orderList.innerHTML = `
-      <p>目前沒有待製作訂單。</p>
-      <p>Firebase 有讀到 ${allOrders.length} 筆訂單，但沒有符合廚房條件。</p>
-      <p>請檢查該訂單是否有 kitchenStatus: sent 或 status: confirmed。</p>
-    `;
+    orderList.innerHTML = "<p>目前沒有待製作訂單。</p>";
     return;
   }
 
   orders.forEach(order => {
     const card = document.createElement("div");
-    card.className = "order-card";
+    card.className = `order-card ${order.status || "confirmed"}`;
 
     const items = Array.isArray(order.items) ? order.items : [];
 
     card.innerHTML = `
       <div class="order-header">
         <h3>訂單 #${order.orderNumber || order.id}</h3>
-        <span class="status-badge ${order.status || "pending"}">${getStatusText(order.status)}</span>
+        <span class="status-badge ${order.status || "confirmed"}">
+          ${getStatusText(order.status)}
+        </span>
       </div>
 
       <p class="order-time">時間：${formatTime(order.createdAt)}</p>
       <p class="order-time">類型：${order.type || "現場"}</p>
       <p class="order-time">取餐資訊：${getCustomerLabel(order)}</p>
-      <p class="order-time">狀態資料：status=${order.status || "-"}｜kitchenStatus=${order.kitchenStatus || "-"}｜paymentStatus=${order.paymentStatus || "-"}</p>
 
       <div class="order-items">
         ${
