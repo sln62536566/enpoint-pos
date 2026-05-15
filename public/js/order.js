@@ -52,6 +52,7 @@ let activeCategory = "全部";
 let cart = [];
 let selectedItem = null;
 let modalState = null;
+let currentOrderUnsubscribe = null;
 
 storeNameEl.textContent = "🍜 恩點點餐";
 tableInfoEl.textContent = `桌號：${TABLE}`;
@@ -92,7 +93,6 @@ function bindEvents() {
   });
 
   addToCartBtn.addEventListener("click", addCurrentItemToCart);
-
   submitOrderBtn.addEventListener("click", submitOrder);
 
   backToMenuBtn.addEventListener("click", () => {
@@ -101,7 +101,7 @@ function bindEvents() {
 }
 
 function watchMenu() {
-  const menuRef = ref(db, `menu`);
+  const menuRef = ref(db, "menu");
 
   onValue(menuRef, (snapshot) => {
     const data = snapshot.val();
@@ -123,33 +123,13 @@ function watchMenu() {
 function normalizeMenu(data) {
   const result = [];
 
-  if (Array.isArray(data)) {
-    data.forEach((item, index) => {
-      result.push(normalizeItem(item, index));
-    });
-    return result.filter(item => item.enabled !== false);
-  }
-
   Object.entries(data).forEach(([key, value]) => {
     if (!value) return;
 
-    if (value.items && typeof value.items === "object") {
-      Object.entries(value.items).forEach(([itemKey, item]) => {
-        result.push(normalizeItem({
-          ...item,
-          id: item.id || itemKey,
-          category: item.category || value.name || key
-        }, itemKey));
-      });
-      return;
-    }
-
-    if (value.name || value.price || value.sizes) {
-      result.push(normalizeItem({
-        ...value,
-        id: value.id || key
-      }, key));
-    }
+    result.push(normalizeItem({
+      ...value,
+      id: value.id || key
+    }, key));
   });
 
   return result.filter(item => item.enabled !== false);
@@ -306,7 +286,6 @@ function openModal(item) {
   modalImage.src = item.image || PLACEHOLDER_IMAGE;
   modalTitle.textContent = item.name;
   modalDesc.textContent = item.description || "請選擇餐點設定";
-
   itemNoteInput.value = "";
 
   renderSizeOptions();
@@ -585,18 +564,17 @@ async function submitOrder() {
       updatedAt: now
     };
 
-    const newOrderRef = push(ref(db, `orders`));
+    const newOrderRef = push(ref(db, "orders"));
     await set(newOrderRef, order);
 
-    localStorage.setItem("lastQrOrder", JSON.stringify({
+    const savedOrder = {
       id: newOrderRef.key,
       ...order
-    }));
+    };
 
-    showDonePage({
-      id: newOrderRef.key,
-      ...order
-    });
+    localStorage.setItem("lastQrOrder", JSON.stringify(savedOrder));
+    showDonePage(savedOrder);
+    watchCustomerOrderStatus(newOrderRef.key);
 
     cart = [];
     customerNameInput.value = "";
@@ -635,16 +613,23 @@ function getTodayKey() {
 }
 
 function showDonePage(order) {
+  renderDoneOrderInfo(order);
+  orderDonePage.classList.remove("hidden");
+}
+
+function renderDoneOrderInfo(order) {
   const createdTime = new Date(order.createdAt).toLocaleTimeString("zh-TW", {
     hour: "2-digit",
     minute: "2-digit"
   });
 
+  const statusText = getCustomerStatusText(order);
+
   doneOrderInfo.innerHTML = `
     <strong>訂單號：</strong>${escapeHtml(order.orderNumber)}<br>
     <strong>類型：</strong>${escapeHtml(order.type)}｜${escapeHtml(order.table)}<br>
     <strong>訂單時間：</strong>${createdTime}<br>
-    <strong>狀態：</strong>${escapeHtml(order.statusText || "等待櫃檯確認")}<br>
+    <strong>狀態：</strong><span class="status-text">${escapeHtml(statusText)}</span><br>
     <strong>總金額：</strong>NT$${order.total}<br>
     <hr>
     ${order.items.map(item => `
@@ -660,8 +645,62 @@ function showDonePage(order) {
       </div>
     `).join("<br>")}
   `;
+}
 
-  orderDonePage.classList.remove("hidden");
+function getCustomerStatusText(order) {
+  if (!order) return "等待櫃檯確認";
+
+  const status = String(order.status || "").toLowerCase();
+  const kitchenStatus = String(order.kitchenStatus || "").toLowerCase();
+  const paymentStatus = String(order.paymentStatus || "").toLowerCase();
+
+  if (status === "done") return "餐點已完成，請留意取餐";
+  if (status === "cooking") return "製作中";
+  if (status === "confirmed") return "櫃檯已確認，等待廚房製作";
+
+  // ✅ 補強：POS 只要已送廚房，就視為櫃檯已確認
+  if (kitchenStatus === "sent") {
+    return "櫃檯已確認，等待廚房製作";
+  }
+
+  if (paymentStatus === "paid") {
+    return "櫃檯已確認，等待廚房製作";
+  }
+
+  if (order.confirmed === true) {
+    return "櫃檯已確認，等待廚房製作";
+  }
+
+  if (status === "pending") return "等待櫃檯確認";
+
+  if (order.statusText) return order.statusText;
+
+  return "等待櫃檯確認";
+}
+
+function watchCustomerOrderStatus(orderId) {
+  if (!orderId) return;
+
+  if (currentOrderUnsubscribe) {
+    currentOrderUnsubscribe();
+    currentOrderUnsubscribe = null;
+  }
+
+  const orderRef = ref(db, `orders/${orderId}`);
+
+  currentOrderUnsubscribe = onValue(orderRef, (snapshot) => {
+    const latestOrder = snapshot.val();
+
+    if (!latestOrder) return;
+
+    const savedOrder = {
+      id: orderId,
+      ...latestOrder
+    };
+
+    localStorage.setItem("lastQrOrder", JSON.stringify(savedOrder));
+    renderDoneOrderInfo(savedOrder);
+  });
 }
 
 function loadLastOrder() {
@@ -676,6 +715,7 @@ function loadLastOrder() {
 
     if (ageMinutes <= 120) {
       showDonePage(order);
+      watchCustomerOrderStatus(order.id);
     }
   } catch {
     localStorage.removeItem("lastQrOrder");

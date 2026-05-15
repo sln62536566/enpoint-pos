@@ -308,7 +308,7 @@ function clearCart() {
 
 function calculateTotal(items = cart) {
   return items.reduce((sum, item) => {
-    return sum + Number(item.price || 0) * Number(item.quantity || item.qty || 1);
+    return sum + Number(item.price || item.unitPrice || 0) * Number(item.quantity || item.qty || 1);
   }, 0);
 }
 
@@ -340,8 +340,11 @@ async function submitOrder() {
       items: cart,
       total: calculateTotal(cart),
       status: "unpaid",
+      statusText: "未結帳",
       paymentStatus: "unpaid",
       kitchenStatus: "not_sent",
+      confirmed: false,
+      paid: false,
       createdAt: Date.now(),
       updatedAt: Date.now()
     };
@@ -452,7 +455,8 @@ function renderOrderCard(order) {
 
   const canSendKitchen =
     order.status !== "cancelled" &&
-    (order.paymentStatus !== "paid" || order.kitchenStatus !== "sent");
+    order.status !== "done" &&
+    order.kitchenStatus !== "sent";
 
   const isExpanded = expandedOrderId === order.id;
 
@@ -501,17 +505,18 @@ function renderInlineOrderDetail(order) {
 
   const itemsHtml = items.map((item, index) => {
     const qty = item.quantity || item.qty || 1;
-    const subtotal = Number(item.price || 0) * Number(qty);
+    const subtotal = Number(item.price || item.unitPrice || 0) * Number(qty);
 
-    const extrasText = item.extras && item.extras.length > 0
-      ? item.extras.map(extra => `${extra.name}+${extra.price}`).join("、")
+    const extras = item.extras || item.addons || [];
+    const extrasText = extras.length > 0
+      ? extras.map(extra => `${extra.name}+${extra.price || 0}`).join("、")
       : "無";
 
     return `
       <div class="cart-item">
         <div>
           <strong>${item.name}</strong>
-          <p>NT$${item.price || 0} × ${qty} = NT$${subtotal}</p>
+          <p>NT$${item.price || item.unitPrice || 0} × ${qty} = NT$${subtotal}</p>
           <p>辣度：${item.spicy || "不辣"}</p>
           <p>加料：${extrasText}</p>
           <p>備註：${item.note || "無"}</p>
@@ -632,6 +637,7 @@ async function cancelOrder(orderId) {
 
   await update(ref(db, "orders/" + orderId), {
     status: "cancelled",
+    statusText: "訂單已取消",
     paymentStatus: "cancelled",
     kitchenStatus: "cancelled",
     cancelledAt: Date.now(),
@@ -655,9 +661,12 @@ async function confirmPaidAndSendKitchen(orderId) {
   if (!ok) return;
 
   await update(ref(db, "orders/" + orderId), {
-    status: "pending",
+    status: "confirmed",
+    statusText: "櫃檯已確認，等待廚房製作",
     paymentStatus: "paid",
     kitchenStatus: "sent",
+    confirmed: true,
+    paid: true,
     sentToKitchenAt: Date.now(),
     updatedAt: Date.now()
   });
@@ -675,6 +684,10 @@ function getCustomerLabel(order) {
 function getPosStatusText(order) {
   if (order.status === "cancelled") return "已取消";
   if (order.status === "done") return "已完成";
+
+  if (order.status === "confirmed") {
+    return "已結帳｜等待廚房製作";
+  }
 
   if (order.paymentStatus === "paid" && order.status === "cooking") {
     return "已結帳｜製作中";
