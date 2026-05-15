@@ -12,24 +12,31 @@ onValue(ordersRef, snapshot => {
   orderList.innerHTML = "";
 
   if (!snapshot.exists()) {
-    orderList.innerHTML = "<p>目前沒有訂單。</p>";
+    orderList.innerHTML = "<p>目前 Firebase orders 沒有任何訂單。</p>";
     return;
   }
 
   const data = snapshot.val();
 
-  const orders = Object.entries(data)
+  const allOrders = Object.entries(data)
     .map(([id, order]) => ({ id, ...order }))
-    .filter(order => order.kitchenStatus === "sent")
-    .filter(order =>
-      order.status === "confirmed" ||
-      order.status === "pending" ||
-      order.status === "cooking"
-    )
     .sort((a, b) => (b.sentToKitchenAt || b.createdAt || 0) - (a.sentToKitchenAt || a.createdAt || 0));
 
+  console.log("🔥 KDS讀到所有訂單：", allOrders);
+
+  const orders = allOrders.filter(order =>
+    order.kitchenStatus === "sent" ||
+    order.status === "confirmed" ||
+    order.status === "cooking" ||
+    (order.paymentStatus === "paid" && order.status !== "done" && order.status !== "cancelled")
+  );
+
   if (orders.length === 0) {
-    orderList.innerHTML = "<p>目前沒有待製作訂單。</p>";
+    orderList.innerHTML = `
+      <p>目前沒有待製作訂單。</p>
+      <p>Firebase 有讀到 ${allOrders.length} 筆訂單，但沒有符合廚房條件。</p>
+      <p>請檢查該訂單是否有 kitchenStatus: sent 或 status: confirmed。</p>
+    `;
     return;
   }
 
@@ -37,116 +44,68 @@ onValue(ordersRef, snapshot => {
     const card = document.createElement("div");
     card.className = "order-card";
 
-    const header = document.createElement("div");
-    header.className = "order-header";
-
-    const title = document.createElement("h3");
-    title.textContent = "訂單 #" + (order.orderNumber || order.id);
-
-    const status = document.createElement("span");
-    status.className = "status-badge " + (order.status || "pending");
-    status.textContent = getStatusText(order.status);
-
-    header.appendChild(title);
-    header.appendChild(status);
-
-    const time = document.createElement("p");
-    time.className = "order-time";
-    time.textContent = "時間：" + formatTime(order.createdAt);
-
-    const type = document.createElement("p");
-    type.className = "order-time";
-    type.textContent = "類型：" + (order.type || "現場");
-
-    const customerInfo = document.createElement("p");
-    customerInfo.className = "order-time";
-    customerInfo.textContent = "取餐資訊：" + getCustomerLabel(order);
-
-    const itemsBox = document.createElement("div");
-    itemsBox.className = "order-items";
-
     const items = Array.isArray(order.items) ? order.items : [];
 
-    items.forEach(item => {
-      const itemBox = document.createElement("div");
-      itemBox.className = "kitchen-item-box";
+    card.innerHTML = `
+      <div class="order-header">
+        <h3>訂單 #${order.orderNumber || order.id}</h3>
+        <span class="status-badge ${order.status || "pending"}">${getStatusText(order.status)}</span>
+      </div>
 
-      const itemRow = document.createElement("div");
-      itemRow.className = "order-item-row";
-      itemRow.textContent = `${item.name || "未命名餐點"} × ${item.quantity || item.qty || 1}`;
+      <p class="order-time">時間：${formatTime(order.createdAt)}</p>
+      <p class="order-time">類型：${order.type || "現場"}</p>
+      <p class="order-time">取餐資訊：${getCustomerLabel(order)}</p>
+      <p class="order-time">狀態資料：status=${order.status || "-"}｜kitchenStatus=${order.kitchenStatus || "-"}｜paymentStatus=${order.paymentStatus || "-"}</p>
 
-      itemBox.appendChild(itemRow);
+      <div class="order-items">
+        ${
+          items.length
+            ? items.map(item => renderItem(item)).join("")
+            : "<p>此訂單沒有餐點資料</p>"
+        }
+      </div>
 
-      const details = document.createElement("div");
-      details.className = "kitchen-item-details";
+      <p class="order-total">總金額：$${order.total || 0}</p>
 
-      const spicy = document.createElement("p");
-      spicy.textContent = "辣度：" + (item.spicy || "不辣");
-      details.appendChild(spicy);
-
-      const addons = item.addons || item.extras || [];
-      if (addons.length > 0) {
-        const extras = document.createElement("p");
-        extras.textContent = "加料：" + addons.map(extra => extra.name).join("、");
-        details.appendChild(extras);
-      }
-
-      if (item.satay) {
-        const satay = document.createElement("p");
-        satay.textContent = "沙茶：" + item.satay;
-        details.appendChild(satay);
-      }
-
-      if (item.note) {
-        const note = document.createElement("p");
-        note.textContent = "備註：" + item.note;
-        details.appendChild(note);
-      }
-
-      itemBox.appendChild(details);
-      itemsBox.appendChild(itemBox);
-    });
-
-    const total = document.createElement("p");
-    total.className = "order-total";
-    total.textContent = "總金額：$" + (order.total || 0);
-
-    const actions = document.createElement("div");
-    actions.className = "order-actions";
-
-    if (order.status === "confirmed" || order.status === "pending") {
-      const cookingBtn = document.createElement("button");
-      cookingBtn.textContent = "開始製作";
-      cookingBtn.className = "cooking-btn";
-      cookingBtn.addEventListener("click", () => {
-        updateOrderStatus(order.id, "cooking");
-      });
-      actions.appendChild(cookingBtn);
-    }
-
-    if (order.status === "cooking") {
-      const doneBtn = document.createElement("button");
-      doneBtn.textContent = "完成訂單";
-      doneBtn.className = "done-btn";
-      doneBtn.addEventListener("click", () => {
-        updateOrderStatus(order.id, "done");
-      });
-      actions.appendChild(doneBtn);
-    }
-
-    card.appendChild(header);
-    card.appendChild(time);
-    card.appendChild(type);
-    card.appendChild(customerInfo);
-    card.appendChild(itemsBox);
-    card.appendChild(total);
-    card.appendChild(actions);
+      <div class="order-actions">
+        ${
+          order.status === "cooking"
+            ? `<button class="done-btn" data-action="done" data-id="${order.id}">完成訂單</button>`
+            : `<button class="cooking-btn" data-action="cooking" data-id="${order.id}">開始製作</button>`
+        }
+      </div>
+    `;
 
     orderList.appendChild(card);
   });
+
+  orderList.querySelectorAll("button[data-action]").forEach(button => {
+    button.addEventListener("click", () => {
+      updateOrderStatus(button.dataset.id, button.dataset.action);
+    });
+  });
 });
 
-function updateOrderStatus(id, status) {
+function renderItem(item) {
+  const addons = item.addons || item.extras || [];
+  const qty = item.quantity || item.qty || 1;
+
+  return `
+    <div class="kitchen-item-box">
+      <div class="order-item-row">${item.name || "未命名餐點"} × ${qty}</div>
+      <div class="kitchen-item-details">
+        <p>辣度：${item.spicy || "不辣"}</p>
+        ${item.satay ? `<p>沙茶：${item.satay}</p>` : ""}
+        ${addons.length ? `<p>加料：${addons.map(extra => extra.name).join("、")}</p>` : ""}
+        ${item.note ? `<p>備註：${item.note}</p>` : ""}
+      </div>
+    </div>
+  `;
+}
+
+function updateOrderStatus(id, action) {
+  const status = action === "done" ? "done" : "cooking";
+
   update(ref(db, "orders/" + id), {
     status,
     statusText: getCustomerStatusText(status),
@@ -166,14 +125,13 @@ function getStatusText(status) {
   if (status === "pending") return "待製作";
   if (status === "cooking") return "製作中";
   if (status === "done") return "已完成";
-  return "未知";
+  return "待製作";
 }
 
 function getCustomerStatusText(status) {
-  if (status === "confirmed") return "櫃檯已確認，等待廚房製作";
-  if (status === "pending") return "等待櫃檯確認";
   if (status === "cooking") return "製作中";
   if (status === "done") return "餐點已完成，請留意取餐";
+  if (status === "confirmed") return "櫃檯已確認，等待廚房製作";
   return "等待櫃檯確認";
 }
 
