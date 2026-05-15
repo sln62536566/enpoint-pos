@@ -1,690 +1,319 @@
-body {
-  margin: 0;
-  font-family: "Noto Sans TC", Arial, sans-serif;
-  background: #f6f3ed;
-  color: #2b2118;
+*{
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
 }
 
-.topbar {
-  background: #7a4b24;
-  color: white;
-  padding: 20px;
-  text-align: center;
+body{
+  font-family:"Microsoft JhengHei",sans-serif;
+  background:#111;
+  color:#fff;
 }
 
-.topbar h1 {
-  margin: 0;
+/* =========================
+   HEADER
+========================= */
+
+header,
+.topbar{
+  background:#1b1b1b;
+  padding:16px;
+  border-bottom:2px solid #d4af37;
 }
 
-.topbar p {
-  margin-top: 8px;
+header h1,
+.topbar h1{
+  color:#d4af37;
+  font-size:24px;
 }
 
-main {
-  padding: 20px;
+header p,
+.topbar p{
+  color:#aaa;
+  margin-top:6px;
 }
 
-.customer-layout {
-  display: grid;
-  grid-template-columns: 1fr 360px;
-  gap: 20px;
-  align-items: start;
+/* =========================
+   POS LAYOUT
+========================= */
+
+.pos-layout{
+  display:grid;
+  grid-template-columns:220px 1fr 380px;
+  gap:16px;
+  padding:16px;
+  min-height:calc(100vh - 90px);
 }
 
-.order-type-panel {
-  background: white;
-  border-radius: 16px;
-  padding: 18px;
-  margin-bottom: 20px;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+.pos-panel{
+  background:#1c1c1c;
+  border-radius:16px;
+  padding:16px;
+  border:1px solid #2c2c2c;
 }
 
-.order-type-panel h2 {
-  margin-top: 0;
+.pos-panel h2{
+  margin-bottom:12px;
+  color:#d4af37;
 }
 
-.order-type-buttons {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 12px;
+/* =========================
+   CATEGORY
+========================= */
+
+.category-list{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
 }
 
-.type-btn {
-  flex: 1;
-  padding: 12px;
-  border: 1px solid #d5c7b8;
-  border-radius: 12px;
-  background: #fffaf4;
-  font-size: 16px;
-  cursor: pointer;
+.category-btn{
+  border:none;
+  background:#2a2a2a;
+  color:#fff;
+  padding:12px;
+  border-radius:12px;
+  cursor:pointer;
+  transition:0.2s;
+  font-weight:bold;
 }
 
-.type-btn.active {
-  background: #356859;
-  color: white;
-  border-color: #356859;
+.category-btn:hover{
+  background:#d4af37;
+  color:#111;
 }
 
-.menu-container {
-  display: flex;
-  flex-direction: column;
-  gap: 28px;
+.category-btn.active{
+  background:#d4af37;
+  color:#111;
 }
 
-.menu-section h2 {
-  margin-bottom: 14px;
-  border-left: 6px solid #b86b25;
-  padding-left: 12px;
+/* =========================
+   MENU
+========================= */
+
+.pos-menu-list{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+  gap:14px;
 }
 
-.menu-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 18px;
+.menu-card{
+  background:#252525;
+  border-radius:16px;
+  overflow:hidden;
+  border:1px solid #333;
+  transition:0.2s;
 }
 
-.food-card {
-  background: white;
-  border-radius: 16px;
-  overflow: hidden;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.08);
-  transition: 0.2s;
+.menu-card:hover{
+  transform:translateY(-3px);
 }
 
-.food-card:hover {
-  transform: translateY(-3px);
+.menu-card img{
+  width:100%;
+  height:140px;
+  object-fit:cover;
+  background:#333;
 }
 
-.food-image {
-  width: 100%;
-  height: 160px;
-  background: #e7ddd1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.menu-info{
+  padding:12px;
 }
 
-.food-image img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+.menu-info h3{
+  font-size:18px;
+  margin-bottom:8px;
 }
 
-.no-image {
-  font-size: 48px;
+.menu-price{
+  color:#d4af37;
+  font-weight:bold;
+  margin-bottom:10px;
 }
 
-.food-info {
-  padding: 14px;
+.menu-btn{
+  width:100%;
+  border:none;
+  background:#d4af37;
+  color:#111;
+  padding:10px;
+  border-radius:10px;
+  font-weight:bold;
+  cursor:pointer;
 }
 
-.food-info h3 {
-  margin: 0;
+/* =========================
+   CART
+========================= */
+
+.cart-list{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
 }
 
-.price {
-  margin-top: 8px;
-  font-size: 20px;
-  font-weight: bold;
-  color: #b86b25;
+.cart-item{
+  background:#2b2b2b;
+  border-radius:12px;
+  padding:12px;
 }
 
-.order-btn {
-  width: 100%;
-  margin-top: 14px;
-  padding: 12px;
-  background: #356859;
-  color: white;
-  border: none;
-  border-radius: 12px;
-  font-size: 16px;
-  cursor: pointer;
+.cart-item h4{
+  margin-bottom:6px;
 }
 
-.cart-panel {
-  position: sticky;
-  top: 20px;
-  background: white;
-  border-radius: 16px;
-  padding: 18px;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+.cart-detail{
+  color:#bbb;
+  font-size:14px;
+  line-height:1.6;
 }
 
-.cart-panel h2 {
-  margin-top: 0;
+.cart-total{
+  margin-top:20px;
+  padding-top:12px;
+  border-top:1px solid #444;
+  font-size:20px;
+  color:#d4af37;
+  font-weight:bold;
 }
 
-.empty-cart {
-  color: #8a7a68;
+/* =========================
+   BUTTON
+========================= */
+
+.primary-btn{
+  width:100%;
+  border:none;
+  background:#d4af37;
+  color:#111;
+  padding:14px;
+  border-radius:14px;
+  font-size:16px;
+  font-weight:bold;
+  margin-top:14px;
+  cursor:pointer;
 }
 
-.cart-item {
-  border-bottom: 1px solid #eadccc;
-  padding: 12px 0;
+.primary-btn:hover{
+  opacity:0.9;
 }
 
-.cart-item h3 {
-  margin: 0 0 6px;
-}
-
-.cart-item p {
-  margin: 0 0 6px;
-  color: #6f5d4b;
-}
-
-.cart-custom-detail {
-  padding: 8px;
-  background: #fffaf4;
-  border-radius: 10px;
-  margin-top: 8px;
-}
-
-.cart-custom-detail p {
-  margin: 4px 0;
-  font-size: 14px;
-}
-
-.cart-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 10px;
-}
-
-.cart-actions button {
-  padding: 7px 11px;
-  border: none;
-  border-radius: 8px;
-  background: #e7ddd1;
-  cursor: pointer;
-}
-
-.cart-actions span {
-  min-width: 24px;
-  text-align: center;
-  font-weight: bold;
-}
-
-.small-delete-btn {
-  background: #b73535 !important;
-  color: white;
-}
-
-.cart-total {
-  margin-top: 18px;
-  padding-top: 14px;
-  border-top: 2px solid #eadccc;
-  font-size: 20px;
-}
-
-.primary-btn {
-  width: 100%;
-  margin-top: 18px;
-  padding: 14px;
-  background: #b86b25;
-  color: white;
-  border: none;
-  border-radius: 12px;
-  font-size: 18px;
-  cursor: pointer;
-}
-
-.primary-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.secondary-btn {
-  width: 100%;
-  margin-top: 18px;
-  padding: 14px;
-  background: #e7ddd1;
-  color: #2b2118;
-  border: none;
-  border-radius: 12px;
-  font-size: 18px;
-  cursor: pointer;
-}
-
-.admin-layout {
-  display: grid;
-  grid-template-columns: 360px 1fr;
-  gap: 20px;
-  padding: 20px;
-}
-
-.panel {
-  background: white;
-  border-radius: 14px;
-  padding: 20px;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.08);
-}
-
-label {
-  display: block;
-  margin-top: 14px;
-  font-weight: bold;
-}
+/* =========================
+   INPUT
+========================= */
 
 input,
 textarea,
-select {
-  width: 100%;
-  box-sizing: border-box;
-  margin-top: 6px;
-  padding: 12px;
-  border: 1px solid #d5c7b8;
-  border-radius: 10px;
-  font-size: 16px;
-  background: white;
-}
-
-textarea {
-  height: 90px;
-}
-
-.menu-list {
-  display: grid;
-  gap: 12px;
-}
-
-.menu-card {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px;
-  border: 1px solid #eadccc;
-  border-radius: 12px;
-  background: #fffaf4;
-}
-
-.card-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.card-actions button {
-  padding: 10px 14px;
-  border: none;
-  border-radius: 10px;
-  cursor: pointer;
-}
-
-.toggle-btn {
-  background: #356859;
-  color: white;
-}
-
-.delete-btn {
-  background: #b73535;
-  color: white;
-}
-
-.kitchen-board {
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.order-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 18px;
-}
-
-.order-card {
-  background: white;
-  border-radius: 16px;
-  padding: 18px;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.08);
-  border-left: 8px solid #b86b25;
-}
-
-.order-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-}
-
-.order-header h3 {
-  margin: 0;
-  font-size: 24px;
-}
-
-.status-badge {
-  padding: 6px 10px;
-  border-radius: 999px;
-  color: white;
-  font-size: 14px;
-  white-space: nowrap;
-}
-
-.status-badge.pending {
-  background: #b86b25;
-}
-
-.status-badge.cooking {
-  background: #356859;
-}
-
-.status-badge.done {
-  background: #666;
-}
-
-.order-time {
-  color: #6f5d4b;
-  margin: 8px 0;
-}
-
-.order-items {
-  margin: 14px 0;
-  padding: 12px;
-  background: #fffaf4;
-  border-radius: 12px;
-}
-
-.kitchen-item-box {
-  padding: 8px 0;
-  border-bottom: 1px solid #eadccc;
-}
-
-.kitchen-item-box:last-child {
-  border-bottom: none;
-}
-
-.order-item-row {
-  font-size: 18px;
-  font-weight: bold;
-  padding: 4px 0;
-}
-
-.kitchen-item-details {
-  padding-left: 10px;
-  color: #6f5d4b;
-}
-
-.kitchen-item-details p {
-  margin: 4px 0;
-}
-
-.order-total {
-  font-size: 20px;
-  font-weight: bold;
-}
-
-.order-actions {
-  display: flex;
-  gap: 10px;
-}
-
-.order-actions button {
-  flex: 1;
-  padding: 12px;
-  border: none;
-  border-radius: 12px;
-  color: white;
-  font-size: 16px;
-  cursor: pointer;
-}
-
-.cooking-btn {
-  background: #356859;
-}
-
-.done-btn {
-  background: #b73535;
-}
-
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.45);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 20px;
-  z-index: 1000;
-}
-
-.modal-overlay.hidden {
-  display: none;
-}
-
-.modal-card {
-  width: 100%;
-  max-width: 460px;
-  max-height: 90vh;
-  overflow-y: auto;
-  background: white;
-  border-radius: 18px;
-  padding: 22px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.25);
-}
-
-.modal-card h2 {
-  margin-top: 0;
-}
-
-.modal-price {
-  font-size: 22px;
-  font-weight: bold;
-  color: #b86b25;
-}
-
-.quantity-control {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 8px;
-}
-
-.quantity-control button {
-  width: 44px;
-  height: 44px;
-  border: none;
-  border-radius: 12px;
-  background: #e7ddd1;
-  font-size: 22px;
-  cursor: pointer;
-}
-
-.quantity-control span {
-  min-width: 40px;
-  text-align: center;
-  font-size: 22px;
-  font-weight: bold;
-}
-
-.extras-box {
-  margin-top: 8px;
-  display: grid;
-  gap: 8px;
-}
-
-.extra-option {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: #fffaf4;
-  border: 1px solid #eadccc;
-  border-radius: 10px;
-  padding: 10px;
-  margin-top: 0;
-  font-weight: normal;
-}
-
-.extra-option input {
-  width: auto;
-  margin: 0;
-}
-
-.modal-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-@media (max-width: 900px) {
-  .customer-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .cart-panel {
-    position: static;
-  }
-
-  .admin-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .modal-actions {
-    grid-template-columns: 1fr;
-  }
+select{
+  width:100%;
+  padding:12px;
+  border:none;
+  border-radius:10px;
+  margin-top:10px;
+  background:#2b2b2b;
+  color:#fff;
 }
 
 /* =========================
-   POS 桌號選取狀態
+   KDS
 ========================= */
 
-#tableButtons button {
-  border: 2px solid #ccc;
-  background: #fff;
-  color: #333;
-  padding: 10px 16px;
-  margin: 4px;
-  border-radius: 10px;
-  font-weight: bold;
-  cursor: pointer;
+.kds-container{
+  padding:16px;
 }
 
-#tableButtons button.active {
-  background: #8b3f1f;
-  color: #fff;
-  border: 3px solid #ffcc66;
-  box-shadow: 0 0 0 3px rgba(255, 204, 102, 0.35);
-  transform: scale(1.08);
+.kds-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(340px,1fr));
+  gap:16px;
+}
+
+.order-card{
+  background:#1f1f1f;
+  border-radius:18px;
+  padding:16px;
+  border-left:8px solid orange;
+}
+
+.order-card.pending{
+  border-color:orange;
+}
+
+.order-card.cooking{
+  border-color:dodgerblue;
+}
+
+.order-card.done{
+  border-color:#22c55e;
+  opacity:0.88;
+}
+
+.order-card h2{
+  color:#d4af37;
+  margin-bottom:10px;
+}
+
+.order-meta{
+  color:#aaa;
+  margin-bottom:12px;
+  line-height:1.7;
+}
+
+.order-items{
+  margin-top:10px;
+}
+
+.order-item{
+  background:#2a2a2a;
+  padding:10px;
+  border-radius:10px;
+  margin-bottom:8px;
+}
+
+.order-actions{
+  display:flex;
+  gap:10px;
+  margin-top:14px;
+}
+
+.status-btn{
+  flex:1;
+  border:none;
+  padding:12px;
+  border-radius:10px;
+  font-weight:bold;
+  cursor:pointer;
+}
+
+.btn-pending{
+  background:orange;
+  color:#111;
+}
+
+.btn-cooking{
+  background:dodgerblue;
+  color:#fff;
+}
+
+.btn-done{
+  background:#22c55e;
+  color:#fff;
 }
 
 /* =========================
-   POS 今日訂單總控
+   MOBILE
 ========================= */
 
-.pos-orders-panel {
-  margin: 16px;
-  padding: 16px;
-  background: #fff;
-  border-radius: 14px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.08);
-}
+@media(max-width:1100px){
 
-.today-order-list {
-  display: grid;
-  gap: 12px;
-}
+  .pos-layout{
+    grid-template-columns:1fr;
+  }
 
-.today-order-card {
-  border: 2px solid #ddd;
-  border-radius: 12px;
-  padding: 12px;
-  background: #fffaf5;
-}
+  .pos-menu-list{
+    grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
+  }
 
-.today-order-card.unpaid {
-  border-color: #d9534f;
-  background: #fff1f0;
-}
-
-.today-order-card.paid {
-  border-color: #3c9f5f;
-  background: #f1fff5;
-}
-
-.today-order-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.pos-status-badge {
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: #222;
-  color: #fff;
-  font-size: 14px;
-  font-weight: bold;
-}
-
-/* =========================
-   客人訂單保留畫面
-========================= */
-
-.order-result {
-  margin-bottom: 16px;
-  padding: 16px;
-  border-radius: 14px;
-  background: #fff7e8;
-  border: 2px solid #f0b45a;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-}
-
-.order-result h3 {
-  margin-top: 0;
-  color: #8b3f1f;
-}
-
-.order-result ul {
-  padding-left: 20px;
-}
-
-.customer-note {
-  margin-top: 12px;
-  padding: 10px;
-  background: #fff;
-  border-radius: 10px;
-  font-weight: bold;
-}
-
-/* =========================
-   POS 訂單分區
-========================= */
-
-.today-order-section {
-  margin-bottom: 30px;
-}
-
-.today-order-section h3 {
-  margin-bottom: 12px;
-  padding: 10px;
-  border-radius: 10px;
-  background: #222;
-  color: #fff;
-}
-
-.today-stats-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 12px;
-}
-
-.today-stat-card {
-  background: #fff7e8;
-  border: 2px solid #f0b45a;
-  border-radius: 14px;
-  padding: 14px;
-  text-align: center;
-}
-
-.today-stat-card span {
-  display: block;
-  font-size: 14px;
-  color: #666;
-}
-
-.today-stat-card strong {
-  display: block;
-  margin-top: 6px;
-  font-size: 24px;
-  color: #8b3f1f;
 }
 
