@@ -10,8 +10,8 @@ const STORE_ID = "defaultStore";
 
 const params = new URLSearchParams(window.location.search);
 const table = params.get("table") || "";
-const tableInfo = document.getElementById("tableInfo");
 
+const tableInfo = document.getElementById("tableInfo");
 const categoryList = document.getElementById("categoryList");
 const menuList = document.getElementById("menuList");
 const cartList = document.getElementById("cartList");
@@ -36,7 +36,6 @@ const modalSubtotal = document.getElementById("modalSubtotal");
 const addToCartBtn = document.getElementById("addToCartBtn");
 
 let menuData = [];
-let categories = [];
 let currentCategory = "全部";
 let cart = [];
 
@@ -74,7 +73,7 @@ const DEFAULT_ADDONS = {
     { name: "肉絲", price: 30 },
     { name: "蝦仁", price: 40 }
   ],
-  "咖喱類": [
+  "咖哩類": [
     { name: "荷包蛋", price: 15 }
   ]
 };
@@ -99,7 +98,7 @@ function normalizeMenu(raw) {
         });
       }
     });
-    return list;
+    return list.filter(item => item.enabled !== false);
   }
 
   Object.entries(raw).forEach(([key, value]) => {
@@ -138,6 +137,10 @@ function getBasePrice(item) {
   if (item.sizes?.small) return Number(item.sizes.small);
   if (item.sizes?.小) return Number(item.sizes.小);
   return 0;
+}
+
+function getImageUrl(item) {
+  return item.image || item.imageUrl || item.photo || item.photoUrl || "";
 }
 
 function getSizeOptions(item) {
@@ -192,6 +195,13 @@ function normalizeAddon(addon) {
     };
   }
 
+  if (typeof addon === "number") {
+    return {
+      name: "加料",
+      price: addon
+    };
+  }
+
   return {
     name: addon.name || addon.label || addon.title || "加料",
     price: Number(addon.price || addon.extra || addon.amount || 0)
@@ -235,7 +245,7 @@ function getAddons(item) {
   if (category.includes("鍋燒")) return DEFAULT_ADDONS["鍋燒類"];
   if (category.includes("炒麵")) return DEFAULT_ADDONS["炒麵類"];
   if (category.includes("炒飯")) return DEFAULT_ADDONS["炒飯類"];
-  if (category.includes("咖喱") || category.includes("咖哩")) return DEFAULT_ADDONS["咖喱類"];
+  if (category.includes("咖哩") || category.includes("咖喱")) return DEFAULT_ADDONS["咖哩類"];
 
   return [];
 }
@@ -247,8 +257,8 @@ function allowSpicy(item) {
     category.includes("鍋燒") ||
     category.includes("炒麵") ||
     category.includes("炒飯") ||
-    category.includes("咖喱") ||
-    category.includes("咖哩")
+    category.includes("咖哩") ||
+    category.includes("咖喱")
   );
 }
 
@@ -262,7 +272,7 @@ function allowSatay(item) {
 }
 
 function renderCategories() {
-  categories = ["全部", ...new Set(menuData.map(getItemCategory))];
+  const categories = ["全部", ...new Set(menuData.map(getItemCategory))];
 
   categoryList.innerHTML = categories.map(cat => `
     <button class="category-btn ${cat === currentCategory ? "active" : ""}" data-category="${cat}">
@@ -289,15 +299,27 @@ function renderMenu() {
     return;
   }
 
-  menuList.innerHTML = filtered.map(item => `
-    <button class="menu-card" data-id="${item.id}">
-      <div>
-        <h3>${item.name || "未命名餐點"}</h3>
-        <p>${getItemCategory(item)}</p>
-      </div>
-      <strong>${money(getBasePrice(item))}</strong>
-    </button>
-  `).join("");
+  menuList.innerHTML = filtered.map(item => {
+    const imageUrl = getImageUrl(item);
+
+    return `
+      <button class="menu-card" data-id="${item.id}">
+        <div class="menu-image">
+          ${
+            imageUrl
+              ? `<img src="${imageUrl}" alt="${item.name || "餐點圖片"}" />`
+              : `<div class="no-image">恩點</div>`
+          }
+        </div>
+
+        <div class="menu-info">
+          <h3>${item.name || "未命名餐點"}</h3>
+          <p>${getItemCategory(item)}</p>
+          <strong>${money(getBasePrice(item))}</strong>
+        </div>
+      </button>
+    `;
+  }).join("");
 
   document.querySelectorAll(".menu-card").forEach(card => {
     card.addEventListener("click", () => {
@@ -492,7 +514,7 @@ addToCartBtn.addEventListener("click", () => {
 
 function renderCart() {
   if (cart.length === 0) {
-    cartList.innerHTML = `<div class="empty">購物車是空的</div>`;
+    cartList.innerHTML = `<div class="empty">尚未選擇餐點</div>`;
     cartTotal.textContent = money(0);
     return;
   }
@@ -500,13 +522,18 @@ function renderCart() {
   cartList.innerHTML = cart.map((item, index) => `
     <div class="cart-item">
       <div>
-        <strong>${item.name}（${item.size}） x${item.qty}</strong>
-        <p>${item.addons.map(a => `+${a.name}`).join("、") || "無加料"}</p>
-        ${item.spicy ? `<p>${item.spicy}</p>` : ""}
-        ${item.satay ? `<p>${item.satay}沙茶</p>` : ""}
-        ${item.note ? `<p>備註：${item.note}</p>` : ""}
+        <strong>${item.name} × ${item.qty}</strong>
+
+        <div class="cart-detail">
+          ${item.size && item.size !== "一般" ? `<p>尺寸：${item.size}</p>` : ""}
+          ${item.spicy ? `<p>辣度：${item.spicy}</p>` : ""}
+          ${item.satay ? `<p>沙茶：${item.satay}</p>` : ""}
+          ${item.addons.length ? `<p>加料：${item.addons.map(a => a.name).join("、")}</p>` : ""}
+          ${item.note ? `<p>備註：${item.note}</p>` : ""}
+        </div>
       </div>
-      <div>
+
+      <div class="cart-price">
         <strong>${money(item.subtotal)}</strong>
         <button class="remove-btn" data-index="${index}">刪除</button>
       </div>
@@ -525,7 +552,6 @@ function renderCart() {
 }
 
 submitOrderBtn.addEventListener("click", async () => {
-
   if (cart.length === 0) {
     alert("購物車目前是空的");
     return;
@@ -535,47 +561,25 @@ submitOrderBtn.addEventListener("click", async () => {
   submitOrderBtn.textContent = "送出中...";
 
   try {
-
-    const total = cart.reduce((sum, item) => {
-      return sum + item.subtotal;
-    }, 0);
-
-    // ✅ 改成 POS 共用 orders 路徑
+    const total = cart.reduce((sum, item) => sum + item.subtotal, 0);
     const orderRef = push(ref(db, "orders"));
-
     const now = Date.now();
 
     const order = {
       id: orderRef.key,
-
       storeId: STORE_ID,
-
       source: "QR",
-
       type: table ? "內用" : "線上",
-
       table: table || "",
-
       customerName: customerNameInput.value.trim(),
-
-      customerLabel:
-        customerNameInput.value.trim() ||
-        (table ? `${table}桌` : "QR客人"),
-
+      customerLabel: customerNameInput.value.trim() || (table ? `${table}桌` : "QR客人"),
       note: orderNoteInput.value.trim(),
-
       items: cart,
-
       total,
-
       status: "pending",
-
       kitchenStatus: "pending",
-
       paid: false,
-
       createdAt: now,
-
       updatedAt: now
     };
 
@@ -583,35 +587,25 @@ submitOrderBtn.addEventListener("click", async () => {
 
     alert("訂單已送出，請至櫃檯確認付款。");
 
-    // 清空購物車
     cart = [];
-
     customerNameInput.value = "";
-
     orderNoteInput.value = "";
-
     renderCart();
-
   } catch (error) {
-
     console.error(error);
-
     alert("送出失敗，請稍後再試。");
-
   }
 
   submitOrderBtn.disabled = false;
-
   submitOrderBtn.textContent = "送出訂單";
-
 });
 
 function loadMenu() {
   const possiblePaths = [
-    `menu/${STORE_ID}`,
     "menu",
-    `menus/${STORE_ID}`,
+    `menu/${STORE_ID}`,
     "menus",
+    `menus/${STORE_ID}`,
     `stores/${STORE_ID}/menu`,
     "items"
   ];
