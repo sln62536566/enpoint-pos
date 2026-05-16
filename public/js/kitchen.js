@@ -5,219 +5,113 @@ import {
   update
 } from "./firebase.js";
 
+const STORE_ID = "defaultStore";
 const orderList = document.getElementById("orderList");
-const ordersRef = ref(db, "orders");
 
-onValue(ordersRef, snapshot => {
-  orderList.innerHTML = "";
+const STATUS_TEXT = {
+  pending: "待確認",
+  confirmed: "已送出",
+  sent: "已送出",
+  cooking: "製作中",
+  done: "已完成"
+};
 
-  if (!snapshot.exists()) {
-    orderList.innerHTML = "<p>目前沒有待製作訂單。</p>";
-    return;
-  }
-
-  const data = snapshot.val();
-
-  const orders = Object.entries(data)
-    .map(([id, order]) => ({ id, ...order }))
-    .filter(order => {
-      const status = String(order.status || "").toLowerCase();
-      const kitchenStatus = String(order.kitchenStatus || "").toLowerCase();
-
-      // 已完成或取消不顯示
-      if (status === "done" || status === "cancelled") return false;
-      if (kitchenStatus === "done" || kitchenStatus === "cancelled") return false;
-
-      // 顯示送廚房中的訂單
-      return (
-        kitchenStatus === "sent" ||
-        status === "confirmed" ||
-        status === "pending" ||
-        status === "cooking"
-      );
-    })
-    .sort((a, b) => {
-      return (b.sentToKitchenAt || b.createdAt || 0) - (a.sentToKitchenAt || a.createdAt || 0);
-    });
-
-  if (orders.length === 0) {
-    orderList.innerHTML = "<p>目前沒有待製作訂單。</p>";
-    return;
-  }
-
-  orderList.innerHTML = orders.map(order => renderOrderCard(order)).join("");
-
-  orderList.querySelectorAll("button[data-action]").forEach(button => {
-    button.addEventListener("click", () => {
-      updateOrderStatus(button.dataset.id, button.dataset.action);
-    });
-  });
-});
-
-function renderOrderCard(order) {
-  const items = Array.isArray(order.items) ? order.items : [];
-  const status = String(order.status || "confirmed").toLowerCase();
-
-  return `
-    <div class="order-card ${status}">
-      <div class="order-header">
-        <h3>訂單 #${escapeHtml(order.orderNumber || order.id)}</h3>
-
-        <span class="status-badge ${status}">
-          ${getStatusText(status)}
-        </span>
-      </div>
-
-      <p class="order-time">
-        時間：${formatTime(order.createdAt)}
-      </p>
-
-      <p class="order-time">
-        類型：${escapeHtml(order.type || "現場")}
-      </p>
-
-      <p class="order-time">
-        取餐資訊：${escapeHtml(getCustomerLabel(order))}
-      </p>
-
-      <div class="order-items">
-        ${
-          items.length
-            ? items.map(item => renderItem(item)).join("")
-            : "<p>此訂單沒有餐點資料</p>"
-        }
-      </div>
-
-      <p class="order-total">
-        總金額：$${Number(order.total || 0)}
-      </p>
-
-      <div class="order-actions">
-        ${
-          status === "cooking"
-            ? `
-              <button
-                class="done-btn"
-                data-action="done"
-                data-id="${order.id}">
-                完成訂單
-              </button>
-            `
-            : `
-              <button
-                class="cooking-btn"
-                data-action="cooking"
-                data-id="${order.id}">
-                開始製作
-              </button>
-            `
-        }
-      </div>
-    </div>
-  `;
-}
-
-function renderItem(item) {
-  const addons = item.addons || item.extras || [];
-  const qty = item.quantity || item.qty || 1;
-
-  return `
-    <div class="kitchen-item-box">
-
-      <div class="order-item-row">
-        ${escapeHtml(item.name || "未命名餐點")} × ${qty}
-      </div>
-
-      <div class="kitchen-item-details">
-
-        <p>
-          辣度：${escapeHtml(item.spicy || "不辣")}
-        </p>
-
-        ${
-          item.satay
-            ? `<p>沙茶：${escapeHtml(item.satay)}</p>`
-            : ""
-        }
-
-        ${
-          addons.length
-            ? `<p>加料：${addons.map(extra => escapeHtml(extra.name)).join("、")}</p>`
-            : ""
-        }
-
-        ${
-          item.note
-            ? `<p>備註：${escapeHtml(item.note)}</p>`
-            : ""
-        }
-
-      </div>
-    </div>
-  `;
-}
-
-function updateOrderStatus(id, action) {
-  const isDone = action === "done";
-  const now = Date.now();
-
-  const updateData = {
-    status: isDone ? "done" : "cooking",
-    kitchenStatus: isDone ? "done" : "sent",
-    statusText: isDone
-      ? "餐點已完成，請留意取餐"
-      : "製作中",
-    updatedAt: now
-  };
-
-  if (isDone) {
-    updateData.completedAt = now;
-  } else {
-    updateData.startedAt = now;
-  }
-
-  update(ref(db, "orders/" + id), updateData)
-    .catch(error => {
-      console.error("更新訂單失敗：", error);
-      alert("更新失敗，請重新操作");
-    });
-}
-
-function getCustomerLabel(order) {
-  if (order.customerLabel) return order.customerLabel;
-
-  if (order.type === "內用" && order.table) {
-    return `${order.table}桌`;
-  }
-
-  if (order.type === "外帶" && order.orderNumber) {
-    return `外帶-${order.orderNumber}`;
-  }
-
-  return "未填寫";
-}
-
-function getStatusText(status) {
-  if (status === "confirmed") return "待製作";
-  if (status === "pending") return "待製作";
-  if (status === "cooking") return "製作中";
-
-  return "待製作";
+function getStatus(order) {
+  return order.kitchenStatus || order.status || "pending";
 }
 
 function formatTime(timestamp) {
-  if (!timestamp) return "-";
-
-  return new Date(timestamp).toLocaleString("zh-TW", {
-    hour12: false
+  if (!timestamp) return "";
+  const date = new Date(timestamp);
+  return date.toLocaleTimeString("zh-TW", {
+    hour: "2-digit",
+    minute: "2-digit"
   });
 }
 
-function escapeHtml(value) {
-  return String(value || "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+function renderItem(item) {
+  const addons = Array.isArray(item.addons)
+    ? item.addons.map(a => typeof a === "string" ? a : a.name).filter(Boolean)
+    : [];
+
+  return `
+    <li class="kitchen-item">
+      <strong>${item.name || "未命名餐點"}${item.size ? `（${item.size}）` : ""} x${item.qty || 1}</strong>
+      ${addons.length ? `<p>加料：${addons.map(a => `+${a}`).join("、")}</p>` : ""}
+      ${item.spicy ? `<p>辣度：${item.spicy}</p>` : ""}
+      ${item.satay ? `<p>沙茶：${item.satay}</p>` : ""}
+      ${item.note ? `<p>備註：${item.note}</p>` : ""}
+    </li>
+  `;
 }
+
+function renderOrders(orders) {
+  if (!orders.length) {
+    orderList.innerHTML = `<div class="empty">目前沒有訂單</div>`;
+    return;
+  }
+
+  orderList.innerHTML = orders.map(order => {
+    const status = getStatus(order);
+    const items = Array.isArray(order.items) ? order.items : [];
+
+    return `
+      <article class="kitchen-card ${status}">
+        <div class="kitchen-card-header">
+          <div>
+            <h2>${order.customerLabel || order.customerName || order.table || "QR訂單"}</h2>
+            <p>${order.type || "未分類"}｜${formatTime(order.createdAt)}</p>
+          </div>
+          <span class="status-badge">${STATUS_TEXT[status] || status}</span>
+        </div>
+
+        <ul class="kitchen-items">
+          ${items.map(renderItem).join("")}
+        </ul>
+
+        ${order.note ? `<div class="order-note">整單備註：${order.note}</div>` : ""}
+
+        <div class="kitchen-actions">
+          <button data-id="${order.id}" data-status="cooking">製作中</button>
+          <button data-id="${order.id}" data-status="done">已完成</button>
+        </div>
+      </article>
+    `;
+  }).join("");
+
+  document.querySelectorAll(".kitchen-actions button").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const id = btn.dataset.id;
+      const status = btn.dataset.status;
+
+      await update(ref(db, `orders/${STORE_ID}/${id}`), {
+        kitchenStatus: status,
+        status,
+        updatedAt: Date.now()
+      });
+    });
+  });
+}
+
+function loadOrders() {
+  const ordersRef = ref(db, `orders/${STORE_ID}`);
+
+  onValue(ordersRef, snapshot => {
+    const raw = snapshot.val() || {};
+
+    const orders = Object.entries(raw)
+      .map(([id, order]) => ({
+        id,
+        ...order
+      }))
+      .filter(order => {
+        const status = getStatus(order);
+        return status !== "done";
+      })
+      .sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
+
+    renderOrders(orders);
+  });
+}
+
+loadOrders();
