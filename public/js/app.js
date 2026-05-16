@@ -47,7 +47,7 @@ let selectedSpicy = "不辣";
 let selectedSatay = "不要";
 let selectedQty = 1;
 
-if (table) {
+if (table && tableInfo) {
   tableInfo.textContent = `桌號：${table}`;
 }
 
@@ -92,7 +92,12 @@ function normalizeMenu(raw) {
 
   if (Array.isArray(raw)) {
     raw.forEach((item, index) => {
-      if (item) list.push({ id: item.id || `item-${index}`, ...item });
+      if (item) {
+        list.push({
+          id: item.id || `item-${index}`,
+          ...item
+        });
+      }
     });
     return list;
   }
@@ -108,7 +113,10 @@ function normalizeMenu(raw) {
           ...item
         });
       });
-    } else if (value.name) {
+      return;
+    }
+
+    if (value.name) {
       list.push({
         id: key,
         ...value
@@ -120,7 +128,7 @@ function normalizeMenu(raw) {
 }
 
 function getItemCategory(item) {
-  return item.category || item.type || item.group || "其他";
+  return item.category || item.type || item.group || item.categoryName || "其他";
 }
 
 function getBasePrice(item) {
@@ -142,15 +150,24 @@ function getSizeOptions(item) {
   }
 
   if (item.smallPrice || item.priceSmall) {
-    options.push({ name: "小", price: Number(item.smallPrice || item.priceSmall) });
+    options.push({
+      name: "小",
+      price: Number(item.smallPrice || item.priceSmall)
+    });
   }
 
   if (item.largePrice || item.priceLarge) {
-    options.push({ name: "大", price: Number(item.largePrice || item.priceLarge) });
+    options.push({
+      name: "大",
+      price: Number(item.largePrice || item.priceLarge)
+    });
   }
 
   if (item.price && options.length === 0) {
-    options.push({ name: "一般", price: Number(item.price) });
+    options.push({
+      name: "一般",
+      price: Number(item.price)
+    });
   }
 
   const unique = [];
@@ -163,37 +180,85 @@ function getSizeOptions(item) {
     }
   });
 
-  return unique;
-}
-
-function getAddons(item) {
-  if (Array.isArray(item.addons)) return item.addons.map(normalizeAddon);
-  if (Array.isArray(item.options)) return item.options.map(normalizeAddon);
-  if (Array.isArray(item.mods)) return item.mods.map(normalizeAddon);
-
-  const category = getItemCategory(item);
-  return DEFAULT_ADDONS[category] || [];
+  return unique.length ? unique : [{ name: "一般", price: 0 }];
 }
 
 function normalizeAddon(addon) {
   if (typeof addon === "string") {
-    return { name: addon, price: 0 };
+    const parts = addon.split("+");
+    return {
+      name: parts[0].trim(),
+      price: Number(parts[1] || 0)
+    };
   }
 
   return {
-    name: addon.name || addon.label || "加料",
-    price: Number(addon.price || addon.extra || 0)
+    name: addon.name || addon.label || addon.title || "加料",
+    price: Number(addon.price || addon.extra || addon.amount || 0)
   };
+}
+
+function getAddons(item) {
+  const possibleFields = [
+    item.addons,
+    item.options,
+    item.mods,
+    item.extraOptions,
+    item.addonOptions,
+    item.toppings,
+    item.extras
+  ];
+
+  for (const field of possibleFields) {
+    if (Array.isArray(field) && field.length > 0) {
+      return field.map(normalizeAddon);
+    }
+
+    if (typeof field === "string" && field.trim()) {
+      return field
+        .split(",")
+        .map(x => x.trim())
+        .filter(Boolean)
+        .map(normalizeAddon);
+    }
+
+    if (field && typeof field === "object") {
+      return Object.entries(field).map(([name, price]) => ({
+        name,
+        price: Number(price || 0)
+      }));
+    }
+  }
+
+  const category = getItemCategory(item);
+
+  if (category.includes("鍋燒")) return DEFAULT_ADDONS["鍋燒類"];
+  if (category.includes("炒麵")) return DEFAULT_ADDONS["炒麵類"];
+  if (category.includes("炒飯")) return DEFAULT_ADDONS["炒飯類"];
+  if (category.includes("咖喱") || category.includes("咖哩")) return DEFAULT_ADDONS["咖喱類"];
+
+  return [];
 }
 
 function allowSpicy(item) {
   const category = getItemCategory(item);
-  return ["鍋燒類", "炒麵類", "炒飯類", "咖喱類"].includes(category);
+
+  return (
+    category.includes("鍋燒") ||
+    category.includes("炒麵") ||
+    category.includes("炒飯") ||
+    category.includes("咖喱") ||
+    category.includes("咖哩")
+  );
 }
 
 function allowSatay(item) {
   const category = getItemCategory(item);
-  return ["鍋燒類", "炒麵類"].includes(category);
+
+  return (
+    category.includes("鍋燒") ||
+    category.includes("炒麵")
+  );
 }
 
 function renderCategories() {
@@ -251,9 +316,9 @@ function openItemModal(item) {
   itemNote.value = "";
 
   const sizeOptions = getSizeOptions(item);
-  selectedSize = sizeOptions[0] || { name: "一般", price: getBasePrice(item) };
+  selectedSize = sizeOptions[0];
 
-  modalItemName.textContent = item.name;
+  modalItemName.textContent = item.name || "未命名餐點";
   modalItemPrice.textContent = `${getItemCategory(item)}｜起價 ${money(getBasePrice(item))}`;
 
   renderModalOptions();
@@ -460,6 +525,7 @@ function renderCart() {
 }
 
 submitOrderBtn.addEventListener("click", async () => {
+
   if (cart.length === 0) {
     alert("購物車目前是空的");
     return;
@@ -469,26 +535,47 @@ submitOrderBtn.addEventListener("click", async () => {
   submitOrderBtn.textContent = "送出中...";
 
   try {
-    const total = cart.reduce((sum, item) => sum + item.subtotal, 0);
-    const orderRef = push(ref(db, `orders/${STORE_ID}`));
+
+    const total = cart.reduce((sum, item) => {
+      return sum + item.subtotal;
+    }, 0);
+
+    // ✅ 改成 POS 共用 orders 路徑
+    const orderRef = push(ref(db, "orders"));
 
     const now = Date.now();
 
     const order = {
       id: orderRef.key,
+
       storeId: STORE_ID,
+
       source: "QR",
+
       type: table ? "內用" : "線上",
+
       table: table || "",
+
       customerName: customerNameInput.value.trim(),
-      customerLabel: customerNameInput.value.trim() || (table ? `${table}桌` : "QR客人"),
+
+      customerLabel:
+        customerNameInput.value.trim() ||
+        (table ? `${table}桌` : "QR客人"),
+
       note: orderNoteInput.value.trim(),
+
       items: cart,
+
       total,
+
       status: "pending",
+
       kitchenStatus: "pending",
+
       paid: false,
+
       createdAt: now,
+
       updatedAt: now
     };
 
@@ -496,28 +583,63 @@ submitOrderBtn.addEventListener("click", async () => {
 
     alert("訂單已送出，請至櫃檯確認付款。");
 
+    // 清空購物車
     cart = [];
+
     customerNameInput.value = "";
+
     orderNoteInput.value = "";
+
     renderCart();
+
   } catch (error) {
+
     console.error(error);
+
     alert("送出失敗，請稍後再試。");
+
   }
 
   submitOrderBtn.disabled = false;
+
   submitOrderBtn.textContent = "送出訂單";
+
 });
 
 function loadMenu() {
-  const menuRef = ref(db, `menu/${STORE_ID}`);
+  const possiblePaths = [
+    `menu/${STORE_ID}`,
+    "menu",
+    `menus/${STORE_ID}`,
+    "menus",
+    `stores/${STORE_ID}/menu`,
+    "items"
+  ];
 
-  onValue(menuRef, snapshot => {
-    const raw = snapshot.val();
-    menuData = normalizeMenu(raw);
+  let loaded = false;
 
-    renderCategories();
-    renderMenu();
+  possiblePaths.forEach(path => {
+    const menuRef = ref(db, path);
+
+    onValue(menuRef, snapshot => {
+      if (loaded) return;
+
+      const raw = snapshot.val();
+      const normalized = normalizeMenu(raw);
+
+      console.log("正在嘗試讀取菜單路徑：", path, normalized);
+
+      if (normalized.length > 0) {
+        loaded = true;
+        menuData = normalized;
+
+        console.log("✅ QR 成功讀到菜單路徑：", path);
+        console.log("QR 讀到的菜單資料：", menuData);
+
+        renderCategories();
+        renderMenu();
+      }
+    });
   });
 }
 

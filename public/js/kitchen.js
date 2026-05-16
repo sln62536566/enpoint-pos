@@ -36,11 +36,17 @@ function renderItem(item) {
 
   return `
     <li class="kitchen-item">
-      <strong>${item.name || "未命名餐點"}${item.size ? `（${item.size}）` : ""} x${item.qty || 1}</strong>
-      ${addons.length ? `<p>加料：${addons.map(a => `+${a}`).join("、")}</p>` : ""}
-      ${item.spicy ? `<p>辣度：${item.spicy}</p>` : ""}
-      ${item.satay ? `<p>沙茶：${item.satay}</p>` : ""}
-      ${item.note ? `<p>備註：${item.note}</p>` : ""}
+      <div class="item-main">
+        <strong>${item.name || "未命名餐點"} × ${item.qty || 1}</strong>
+      </div>
+
+      <div class="item-detail">
+        ${item.size && item.size !== "一般" ? `<p>尺寸：${item.size}</p>` : ""}
+        ${item.spicy ? `<p>辣度：${item.spicy}</p>` : ""}
+        ${item.satay ? `<p>沙茶：${item.satay}</p>` : ""}
+        ${addons.length ? `<p>加料：${addons.join("、")}</p>` : ""}
+        ${item.note ? `<p>備註：${item.note}</p>` : ""}
+      </div>
     </li>
   `;
 }
@@ -84,7 +90,7 @@ function renderOrders(orders) {
       const id = btn.dataset.id;
       const status = btn.dataset.status;
 
-      await update(ref(db, `orders/${STORE_ID}/${id}`), {
+      await update(ref(db, `orders/${id}`), {
         kitchenStatus: status,
         status,
         updatedAt: Date.now()
@@ -94,7 +100,7 @@ function renderOrders(orders) {
 }
 
 function loadOrders() {
-  const ordersRef = ref(db, `orders/${STORE_ID}`);
+  const ordersRef = ref(db, "orders");
 
   onValue(ordersRef, snapshot => {
     const raw = snapshot.val() || {};
