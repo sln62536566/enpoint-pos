@@ -489,3 +489,68 @@ textarea.input {
     padding: 10px 15px;
   }
 }
+
+/* =========================
+   CONFIRM MODAL
+========================= */
+
+.confirm-card{
+  max-width:600px;
+}
+
+.confirm-table{
+  font-size:20px;
+  font-weight:bold;
+  margin-bottom:20px;
+  color:#ff9800;
+}
+
+.confirm-item{
+  border-bottom:1px solid #eee;
+  padding:15px 0;
+}
+
+.confirm-item-main{
+  font-size:20px;
+  font-weight:bold;
+}
+
+.confirm-item-detail{
+  margin-left:22px;
+  margin-top:8px;
+  line-height:1.8;
+}
+
+.confirm-item-detail p{
+  margin:0;
+  color:#555;
+}
+
+.confirm-total{
+  font-size:26px;
+  text-align:right;
+  margin-top:20px;
+  font-weight:bold;
+}
+
+.confirm-actions{
+  display:flex;
+  gap:12px;
+  margin-top:20px;
+}
+
+.secondary-btn{
+  flex:1;
+  border:none;
+  background:#e0e0e0;
+  color:#333;
+  font-size:18px;
+  font-weight:bold;
+  padding:14px;
+  border-radius:14px;
+  cursor:pointer;
+}
+
+.confirm-actions .primary-btn{
+  flex:1;
+}

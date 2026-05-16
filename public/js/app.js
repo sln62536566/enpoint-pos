@@ -35,6 +35,12 @@ const itemNote = document.getElementById("itemNote");
 const modalSubtotal = document.getElementById("modalSubtotal");
 const addToCartBtn = document.getElementById("addToCartBtn");
 
+const confirmModal = document.getElementById("confirmModal");
+const confirmContent = document.getElementById("confirmContent");
+const confirmTotal = document.getElementById("confirmTotal");
+const confirmSubmitBtn = document.getElementById("confirmSubmitBtn");
+const backToCartBtn = document.getElementById("backToCartBtn");
+
 let menuData = [];
 let currentCategory = "全部";
 let cart = [];
@@ -98,6 +104,7 @@ function normalizeMenu(raw) {
         });
       }
     });
+
     return list.filter(item => item.enabled !== false);
   }
 
@@ -148,20 +155,23 @@ function getSizeOptions(item) {
 
   if (item.sizes && typeof item.sizes === "object") {
     Object.entries(item.sizes).forEach(([name, price]) => {
-      options.push({ name, price: Number(price) });
+      options.push({
+        name,
+        price: Number(price)
+      });
     });
   }
 
   if (item.smallPrice || item.priceSmall) {
     options.push({
-      name: "小",
+      name: "小份",
       price: Number(item.smallPrice || item.priceSmall)
     });
   }
 
   if (item.largePrice || item.priceLarge) {
     options.push({
-      name: "大",
+      name: "大份",
       price: Number(item.largePrice || item.priceLarge)
     });
   }
@@ -353,7 +363,7 @@ function renderModalOptions() {
   const sizeOptions = getSizeOptions(selectedItem);
 
   sizeSection.innerHTML = `
-    <h3>尺寸</h3>
+    <h3>份量</h3>
     <div class="option-grid">
       ${sizeOptions.map(opt => `
         <button class="option-btn size-btn ${selectedSize?.name === opt.name ? "active" : ""}"
@@ -525,7 +535,7 @@ function renderCart() {
         <strong>${item.name} × ${item.qty}</strong>
 
         <div class="cart-detail">
-          ${item.size && item.size !== "一般" ? `<p>尺寸：${item.size}</p>` : ""}
+          ${item.size && item.size !== "一般" ? `<p>份量：${item.size}</p>` : ""}
           ${item.spicy ? `<p>辣度：${item.spicy}</p>` : ""}
           ${item.satay ? `<p>沙茶：${item.satay}</p>` : ""}
           ${item.addons.length ? `<p>加料：${item.addons.map(a => a.name).join("、")}</p>` : ""}
@@ -551,14 +561,53 @@ function renderCart() {
   cartTotal.textContent = money(total);
 }
 
-submitOrderBtn.addEventListener("click", async () => {
+function renderConfirmModal() {
+  const total = cart.reduce((sum, item) => sum + item.subtotal, 0);
+
+  confirmTotal.textContent = money(total);
+
+  confirmContent.innerHTML = `
+    <div class="confirm-table">
+      ${table ? `桌號：${table}桌` : "QR 點餐"}
+    </div>
+
+    ${cart.map(item => `
+      <div class="confirm-item">
+        <div class="confirm-item-main">
+          • ${item.name} × ${item.qty}
+        </div>
+
+        <div class="confirm-item-detail">
+          ${item.size && item.size !== "一般" ? `<p>份量：${item.size}</p>` : ""}
+          ${item.spicy ? `<p>辣度：${item.spicy}</p>` : ""}
+          ${item.satay ? `<p>沙茶：${item.satay}</p>` : ""}
+          ${item.addons.length ? `<p>加料：${item.addons.map(a => a.name).join("、")}</p>` : ""}
+          ${item.note ? `<p>備註：${item.note}</p>` : ""}
+          <p>小計：${money(item.subtotal)}</p>
+        </div>
+      </div>
+    `).join("")}
+  `;
+
+  confirmModal.classList.remove("hidden");
+}
+
+submitOrderBtn.addEventListener("click", () => {
   if (cart.length === 0) {
     alert("購物車目前是空的");
     return;
   }
 
-  submitOrderBtn.disabled = true;
-  submitOrderBtn.textContent = "送出中...";
+  renderConfirmModal();
+});
+
+backToCartBtn.addEventListener("click", () => {
+  confirmModal.classList.add("hidden");
+});
+
+confirmSubmitBtn.addEventListener("click", async () => {
+  confirmSubmitBtn.disabled = true;
+  confirmSubmitBtn.textContent = "送出中...";
 
   try {
     const total = cart.reduce((sum, item) => sum + item.subtotal, 0);
@@ -572,7 +621,9 @@ submitOrderBtn.addEventListener("click", async () => {
       type: table ? "內用" : "線上",
       table: table || "",
       customerName: customerNameInput.value.trim(),
-      customerLabel: customerNameInput.value.trim() || (table ? `${table}桌` : "QR客人"),
+      customerLabel:
+        customerNameInput.value.trim() ||
+        (table ? `${table}桌` : "QR客人"),
       note: orderNoteInput.value.trim(),
       items: cart,
       total,
@@ -587,17 +638,20 @@ submitOrderBtn.addEventListener("click", async () => {
 
     alert("訂單已送出，請至櫃檯確認付款。");
 
+    confirmModal.classList.add("hidden");
+
     cart = [];
     customerNameInput.value = "";
     orderNoteInput.value = "";
+
     renderCart();
   } catch (error) {
     console.error(error);
     alert("送出失敗，請稍後再試。");
   }
 
-  submitOrderBtn.disabled = false;
-  submitOrderBtn.textContent = "送出訂單";
+  confirmSubmitBtn.disabled = false;
+  confirmSubmitBtn.textContent = "確認送出";
 });
 
 function loadMenu() {

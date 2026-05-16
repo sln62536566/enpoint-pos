@@ -7,6 +7,32 @@
   <link rel="stylesheet" href="./css/style.css" />
 </head>
 
+<!-- 訂單確認視窗 -->
+<div id="confirmModal" class="modal hidden">
+  <div class="modal-card confirm-card">
+
+    <h2>確認訂單</h2>
+
+    <div id="confirmContent"></div>
+
+    <div class="confirm-total">
+      總計：<strong id="confirmTotal">$0</strong>
+    </div>
+
+    <div class="confirm-actions">
+      <button id="backToCartBtn" class="secondary-btn">
+        返回修改
+      </button>
+
+      <button id="confirmSubmitBtn" class="primary-btn">
+        確認送出
+      </button>
+    </div>
+
+  </div>
+</div>
+
+
 <body class="qr-page">
   <header class="qr-header">
     <div>
