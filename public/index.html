@@ -4,93 +4,69 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>恩點系統｜QR 點餐</title>
-  <link rel="stylesheet" href="./css/qr.css" />
+  <link rel="stylesheet" href="./css/style.css" />
 </head>
 
-<body class="qr-body">
+<body class="qr-page">
   <header class="qr-header">
-    <div>
-      <h1 id="storeName">🍜 恩點點餐</h1>
-      <p id="tableInfo">桌號載入中...</p>
-    </div>
-    <button id="languageToggle" class="small-btn">English</button>
+    <h1>恩點點餐</h1>
+    <p id="tableInfo">掃碼點餐</p>
   </header>
 
-  <nav id="categoryTabs" class="category-tabs"></nav>
+  <main class="qr-layout">
+    <section class="menu-area">
+      <div id="categoryList" class="category-list"></div>
+      <div id="menuList" class="menu-list"></div>
+    </section>
 
-  <main class="qr-main">
-    <section id="menuList" class="menu-grid"></section>
-  </main>
+    <aside class="cart-area">
+      <h2>購物車</h2>
+      <div id="cartList" class="cart-list"></div>
 
-  <button id="floatingCartBtn" class="floating-cart">
-    🛒 <span id="cartCount">0</span>
-    <strong id="cartTotal">NT$0</strong>
-  </button>
-
-  <section id="cartPanel" class="cart-panel hidden">
-    <div class="cart-header">
-      <h2>我的購物車</h2>
-      <button id="closeCartBtn">×</button>
-    </div>
-
-    <div id="cartItems" class="cart-items"></div>
-
-    <div class="cart-footer">
-      <div class="cart-total-row">
-        <span>總金額</span>
-        <strong id="cartPanelTotal">NT$0</strong>
+      <div class="cart-total">
+        總計：<strong id="cartTotal">$0</strong>
       </div>
 
-      <input id="customerNameInput" class="input" placeholder="可輸入名字或綽號（選填）" />
-      <textarea id="orderNoteInput" class="input textarea" placeholder="整筆訂單備註（選填）"></textarea>
+      <input id="customerName" class="input" placeholder="可輸入名字或綽號，例如：阿明" />
+      <textarea id="orderNote" class="input" placeholder="整張訂單備註，例如：餐具、取餐需求"></textarea>
 
       <button id="submitOrderBtn" class="primary-btn">送出訂單</button>
-    </div>
-  </section>
+    </aside>
+  </main>
 
-  <section id="itemModal" class="modal hidden">
+  <div id="itemModal" class="modal hidden">
     <div class="modal-card">
       <button id="closeModalBtn" class="modal-close">×</button>
 
-      <img id="modalImage" class="modal-image" src="" alt="餐點圖片" />
+      <h2 id="modalItemName"></h2>
+      <p id="modalItemPrice" class="modal-price"></p>
 
-      <h2 id="modalTitle"></h2>
-      <p id="modalDesc" class="muted"></p>
+      <div id="sizeSection" class="option-section"></div>
+      <div id="addonsSection" class="option-section"></div>
+      <div id="spicySection" class="option-section"></div>
+      <div id="sataySection" class="option-section"></div>
 
-      <div id="sizeOptions" class="option-block"></div>
-      <div id="addonOptions" class="option-block"></div>
-      <div id="spicyOptions" class="option-block"></div>
-      <div id="satayOptions" class="option-block"></div>
-
-      <label class="field-label">備註</label>
-      <textarea id="itemNoteInput" class="input textarea" placeholder="例如：不要蔥、湯多一點"></textarea>
-
-      <div class="qty-row">
-        <button id="minusQtyBtn">－</button>
-        <strong id="itemQty">1</strong>
-        <button id="plusQtyBtn">＋</button>
+      <div class="option-section">
+        <h3>數量</h3>
+        <div class="qty-row">
+          <button id="qtyMinusBtn" type="button">－</button>
+          <span id="modalQty">1</span>
+          <button id="qtyPlusBtn" type="button">＋</button>
+        </div>
       </div>
 
-      <button id="addToCartBtn" class="primary-btn">加入購物車 NT$0</button>
+      <div class="option-section">
+        <h3>備註</h3>
+        <textarea id="itemNote" class="input" placeholder="例如：不要蔥、湯多一點"></textarea>
+      </div>
+
+      <div class="modal-footer">
+        <div>小計：<strong id="modalSubtotal">$0</strong></div>
+        <button id="addToCartBtn" class="primary-btn">加入購物車</button>
+      </div>
     </div>
-  </section>
+  </div>
 
-  <section id="orderDonePage" class="order-done hidden">
-    <div class="done-card">
-      <h2>✅ 訂單已送出</h2>
-      <p class="muted">請保留此畫面，方便櫃檯核對。</p>
-
-      <div id="doneOrderInfo" class="done-info"></div>
-
-      <p class="wait-time">
-        預估等待時間：<strong>15～20 分鐘</strong><br />
-        <span>實際時間依現場狀況為準</span>
-      </p>
-
-      <button id="backToMenuBtn" class="secondary-btn">繼續點餐</button>
-    </div>
-  </section>
-
-  <script type="module" src="./js/order.js"></script>
+  <script type="module" src="./js/app.js?v=20260516"></script>
 </body>
 </html>
