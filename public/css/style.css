@@ -632,3 +632,15 @@ textarea.input {
   margin-top:25px;
   color:#ff5722;
 }
+
+.order-status-box{
+  margin-top:20px;
+  padding:18px;
+  border-radius:16px;
+  background:#fff3e0;
+  color:#e65100;
+  font-size:20px;
+  font-weight:bold;
+  text-align:center;
+  line-height:1.6;
+}
