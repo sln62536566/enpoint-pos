@@ -12,19 +12,11 @@ body{
   overflow:hidden;
 }
 
-/* =========================
-   APP
-========================= */
-
 .pos-app{
   height:100vh;
   display:flex;
   flex-direction:column;
 }
-
-/* =========================
-   HEADER
-========================= */
 
 .pos-header{
   background:#181818;
@@ -60,21 +52,12 @@ body{
   cursor:pointer;
   font-size:16px;
   font-weight:bold;
-  transition:0.2s;
-}
-
-.tab-btn:hover{
-  background:#333;
 }
 
 .tab-btn.active{
   background:#f5c542;
   color:#111;
 }
-
-/* =========================
-   MAIN
-========================= */
 
 .pos-main{
   flex:1;
@@ -89,10 +72,6 @@ body{
 .tab-panel.active{
   display:block;
 }
-
-/* =========================
-   ORDER PAGE
-========================= */
 
 .order-layout{
   display:grid;
@@ -129,10 +108,6 @@ body{
   margin-top:4px;
 }
 
-/* =========================
-   CATEGORY
-========================= */
-
 .category-list{
   display:flex;
   gap:10px;
@@ -157,10 +132,6 @@ body{
   color:#111;
 }
 
-/* =========================
-   MENU GRID
-========================= */
-
 .pos-menu-list{
   flex:1;
   overflow-y:auto;
@@ -176,16 +147,10 @@ body{
   border-radius:20px;
   overflow:hidden;
   cursor:pointer;
-  transition:0.2s;
   color:#fff;
   display:flex;
   flex-direction:column;
   min-height:220px;
-}
-
-.pos-food-btn:hover{
-  transform:translateY(-3px);
-  background:#292929;
 }
 
 .food-img{
@@ -230,14 +195,6 @@ body{
   font-size:20px;
 }
 
-/* =========================
-   CART
-========================= */
-
-.cart-panel{
-  overflow:hidden;
-}
-
 .order-type-row{
   display:flex;
   gap:10px;
@@ -265,14 +222,11 @@ body{
   padding:0 16px 16px;
 }
 
-.table-box h3{
-  margin-bottom:10px;
-}
-
 .table-buttons{
   display:grid;
   grid-template-columns:repeat(4,1fr);
   gap:10px;
+  margin-top:10px;
 }
 
 .table-buttons button{
@@ -345,10 +299,6 @@ body{
   padding:18px;
 }
 
-/* =========================
-   BUTTONS
-========================= */
-
 .primary-btn,
 .secondary-btn,
 .danger-btn{
@@ -358,7 +308,6 @@ body{
   cursor:pointer;
   font-size:16px;
   font-weight:bold;
-  transition:0.2s;
 }
 
 .primary-btn{
@@ -366,17 +315,9 @@ body{
   color:#111;
 }
 
-.primary-btn:hover{
-  opacity:0.9;
-}
-
 .secondary-btn{
   background:#333;
   color:#ddd;
-}
-
-.secondary-btn:hover{
-  background:#444;
 }
 
 .danger-btn{
@@ -384,18 +325,10 @@ body{
   color:#fff;
 }
 
-.danger-btn:hover{
-  background:#c13b3b;
-}
-
 button:disabled{
   opacity:0.5;
   cursor:not-allowed;
 }
-
-/* =========================
-   ORDERS
-========================= */
 
 .orders-layout,
 .database-layout{
@@ -494,10 +427,6 @@ button:disabled{
   gap:10px;
 }
 
-/* =========================
-   STATS
-========================= */
-
 .stats-grid{
   height:100%;
   padding:18px;
@@ -530,10 +459,6 @@ button:disabled{
 .stat-card.revenue strong{
   color:#4caf50;
 }
-
-/* =========================
-   MODAL
-========================= */
 
 .modal{
   position:fixed;
@@ -648,10 +573,6 @@ button:disabled{
   gap:12px;
 }
 
-/* =========================
-   EDIT ORDER
-========================= */
-
 .edit-total{
   margin-top:18px;
   padding:18px;
@@ -700,10 +621,6 @@ button:disabled{
   color:#f5c542;
 }
 
-/* =========================
-   EMPTY
-========================= */
-
 .empty{
   background:#222;
   border-radius:18px;
@@ -715,10 +632,6 @@ button:disabled{
 .muted{
   color:#888;
 }
-
-/* =========================
-   RESPONSIVE
-========================= */
 
 @media (max-width:1200px){
   .order-layout{

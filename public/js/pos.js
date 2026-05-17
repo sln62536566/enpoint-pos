@@ -62,6 +62,21 @@ const editOrderTotal = document.getElementById("editOrderTotal");
 const cancelEditOrderBtn = document.getElementById("cancelEditOrderBtn");
 const saveEditOrderBtn = document.getElementById("saveEditOrderBtn");
 
+const editItemModal = document.getElementById("editItemModal");
+const editItemName = document.getElementById("editItemName");
+const editItemPrice = document.getElementById("editItemPrice");
+const editItemPortionBox = document.getElementById("editItemPortionBox");
+const editItemSpicySelect = document.getElementById("editItemSpicySelect");
+const editItemSatayBox = document.getElementById("editItemSatayBox");
+const editItemExtrasBox = document.getElementById("editItemExtrasBox");
+const editItemMinusBtn = document.getElementById("editItemMinusBtn");
+const editItemPlusBtn = document.getElementById("editItemPlusBtn");
+const editItemQuantity = document.getElementById("editItemQuantity");
+const editItemNoteInput = document.getElementById("editItemNoteInput");
+const editItemSubtotal = document.getElementById("editItemSubtotal");
+const cancelEditItemBtn = document.getElementById("cancelEditItemBtn");
+const saveEditItemBtn = document.getElementById("saveEditItemBtn");
+
 /* =========================
    Firebase
 ========================= */
@@ -89,6 +104,14 @@ let selectedSatay = "不要";
 
 let editingOrderId = null;
 let editingItems = [];
+
+let editingItemIndex = null;
+let editingItemData = null;
+let editingMenuItem = null;
+let editSelectedPortion = null;
+let editSelectedExtras = [];
+let editSelectedSatay = "不要";
+let editQuantity = 1;
 
 const tables = ["1", "2", "3", "4", "5", "6", "7", "8"];
 
@@ -174,6 +197,36 @@ function getBasePrice(item) {
   return Number(item.price || item.smallPrice || item.priceSmall || 0);
 }
 
+function getMenuItemByOrderItem(item) {
+  if (!item) return null;
+
+  const possibleId =
+    item.itemId ||
+    item.id ||
+    item.menuId ||
+    item.productId;
+
+  if (possibleId && menuData[possibleId]) {
+    return {
+      id: possibleId,
+      ...menuData[possibleId]
+    };
+  }
+
+  const found = Object.entries(menuData).find(([id, menuItem]) => {
+    return menuItem.name === item.name;
+  });
+
+  if (found) {
+    return {
+      id: found[0],
+      ...found[1]
+    };
+  }
+
+  return item;
+}
+
 function getPortionOptions(item) {
   const options = [];
 
@@ -202,8 +255,8 @@ function getPortionOptions(item) {
 
   if (options.length === 0) {
     options.push({
-      name: "一般",
-      price: Number(item.price || 0)
+      name: item.size || "一般",
+      price: Number(item.basePrice || item.price || item.unitPrice || 0)
     });
   }
 
@@ -211,6 +264,8 @@ function getPortionOptions(item) {
 }
 
 function getExtras(item) {
+  if (!item) return [];
+
   if (item.options && typeof item.options === "object") {
     return Object.entries(item.options).map(([name, price]) => ({
       name,
@@ -222,6 +277,13 @@ function getExtras(item) {
     return item.addons.map(addon => ({
       name: addon.name || addon.label || addon,
       price: Number(addon.price || 0)
+    }));
+  }
+
+  if (Array.isArray(item.extras)) {
+    return item.extras.map(extra => ({
+      name: extra.name || extra.label || extra,
+      price: Number(extra.price || 0)
     }));
   }
 
@@ -894,6 +956,7 @@ function renderEditOrderItems() {
         </div>
 
         <div class="edit-item-actions">
+          <button class="primary-btn" onclick="openEditItemModal(${index})">修改餐點</button>
           <button class="secondary-btn" onclick="changeEditItemQty(${index}, -1)">－</button>
           <span>${itemQty(item)}</span>
           <button class="secondary-btn" onclick="changeEditItemQty(${index}, 1)">＋</button>
@@ -962,6 +1025,221 @@ saveEditOrderBtn.addEventListener("click", saveEditOrder);
 editOrderModal.addEventListener("click", event => {
   if (event.target === editOrderModal) {
     closeEditOrderModal();
+  }
+});
+
+/* =========================
+   Edit Single Item
+========================= */
+
+function openEditItemModal(index) {
+  const item = editingItems[index];
+
+  if (!item) return;
+
+  const sourceMenuItem = getMenuItemByOrderItem(item);
+
+  editingItemIndex = index;
+  editingItemData = { ...item };
+  editingMenuItem = sourceMenuItem;
+
+  editQuantity = itemQty(item);
+  editSelectedExtras = [...(item.addons || item.extras || [])];
+  editSelectedSatay = item.satay || "不要";
+
+  editSelectedPortion = {
+    name: item.size || "一般",
+    price: Number(item.basePrice || item.price || item.unitPrice || 0)
+  };
+
+  editItemName.textContent = item.name;
+  editItemPrice.textContent = "調整份量、加料、辣度與備註";
+  editItemNoteInput.value = item.note || "";
+  editItemSpicySelect.value = item.spicy || "";
+  editItemQuantity.textContent = editQuantity;
+
+  editItemSpicySelect.disabled = !allowSpicy(editingMenuItem);
+
+  renderEditItemPortions();
+  renderEditItemSatay();
+  renderEditItemExtras();
+  updateEditItemSubtotal();
+
+  editItemModal.classList.remove("hidden");
+}
+
+function closeEditItemModal() {
+  editItemModal.classList.add("hidden");
+
+  editingItemIndex = null;
+  editingItemData = null;
+  editingMenuItem = null;
+
+  editSelectedExtras = [];
+  editSelectedSatay = "不要";
+  editSelectedPortion = null;
+  editQuantity = 1;
+}
+
+function renderEditItemPortions() {
+  const options = getPortionOptions(editingMenuItem || editingItemData);
+
+  editItemPortionBox.innerHTML = `
+    <h3>份量</h3>
+    <div class="option-grid">
+      ${options.map(option => `
+        <button
+          class="option-btn ${editSelectedPortion?.name === option.name ? "active" : ""}"
+          onclick="selectEditPortion('${option.name}', ${option.price})">
+          ${option.name} ${money(option.price)}
+        </button>
+      `).join("")}
+    </div>
+  `;
+}
+
+function selectEditPortion(name, price) {
+  editSelectedPortion = {
+    name,
+    price: Number(price)
+  };
+
+  renderEditItemPortions();
+  updateEditItemSubtotal();
+}
+
+function renderEditItemSatay() {
+  if (!allowSatay(editingMenuItem || editingItemData)) {
+    editItemSatayBox.innerHTML = "";
+    editSelectedSatay = "";
+    return;
+  }
+
+  editItemSatayBox.innerHTML = `
+    <h3>沙茶</h3>
+    <div class="option-grid">
+      <button
+        class="option-btn ${editSelectedSatay === "要" ? "active" : ""}"
+        onclick="selectEditSatay('要')">
+        要沙茶
+      </button>
+
+      <button
+        class="option-btn ${editSelectedSatay === "不要" ? "active" : ""}"
+        onclick="selectEditSatay('不要')">
+        不要沙茶
+      </button>
+    </div>
+  `;
+}
+
+function selectEditSatay(value) {
+  editSelectedSatay = value;
+  renderEditItemSatay();
+}
+
+function renderEditItemExtras() {
+  const extras = getExtras(editingMenuItem || editingItemData);
+
+  if (extras.length === 0) {
+    editItemExtrasBox.innerHTML = `<p class="muted">此餐點沒有加料</p>`;
+    return;
+  }
+
+  editItemExtrasBox.innerHTML = `
+    <div class="option-grid">
+      ${extras.map(extra => {
+        const active = editSelectedExtras.some(item => item.name === extra.name);
+
+        return `
+          <button
+            class="option-btn ${active ? "active" : ""}"
+            onclick="toggleEditExtra('${extra.name}', ${extra.price})">
+            ${extra.name} +${extra.price}
+          </button>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+function toggleEditExtra(name, price) {
+  const exists = editSelectedExtras.some(extra => extra.name === name);
+
+  if (exists) {
+    editSelectedExtras = editSelectedExtras.filter(extra => extra.name !== name);
+  } else {
+    editSelectedExtras.push({
+      name,
+      price: Number(price)
+    });
+  }
+
+  renderEditItemExtras();
+  updateEditItemSubtotal();
+}
+
+function updateEditItemSubtotal() {
+  if (!editSelectedPortion) return;
+
+  const extrasTotal = editSelectedExtras.reduce((sum, extra) => {
+    return sum + Number(extra.price || 0);
+  }, 0);
+
+  const unitPrice = Number(editSelectedPortion.price || 0) + extrasTotal;
+  const subtotal = unitPrice * editQuantity;
+
+  editItemSubtotal.textContent = money(subtotal);
+}
+
+editItemMinusBtn.addEventListener("click", () => {
+  editQuantity = Math.max(1, editQuantity - 1);
+  editItemQuantity.textContent = editQuantity;
+  updateEditItemSubtotal();
+});
+
+editItemPlusBtn.addEventListener("click", () => {
+  editQuantity += 1;
+  editItemQuantity.textContent = editQuantity;
+  updateEditItemSubtotal();
+});
+
+cancelEditItemBtn.addEventListener("click", closeEditItemModal);
+
+saveEditItemBtn.addEventListener("click", () => {
+  if (editingItemIndex === null || !editingItems[editingItemIndex]) return;
+
+  const extrasTotal = editSelectedExtras.reduce((sum, extra) => {
+    return sum + Number(extra.price || 0);
+  }, 0);
+
+  const unitPrice = Number(editSelectedPortion.price || 0) + extrasTotal;
+  const subtotal = unitPrice * editQuantity;
+
+  editingItems[editingItemIndex] = {
+    ...editingItems[editingItemIndex],
+    itemId: editingItems[editingItemIndex].itemId || editingMenuItem?.id || editingItems[editingItemIndex].id,
+    size: editSelectedPortion.name,
+    basePrice: Number(editSelectedPortion.price || 0),
+    price: unitPrice,
+    unitPrice,
+    spicy: editItemSpicySelect.value,
+    satay: editSelectedSatay,
+    addons: editSelectedExtras,
+    extras: editSelectedExtras,
+    note: editItemNoteInput.value.trim(),
+    qty: editQuantity,
+    quantity: editQuantity,
+    subtotal
+  };
+
+  renderEditOrderItems();
+  closeEditItemModal();
+});
+
+editItemModal.addEventListener("click", event => {
+  if (event.target === editItemModal) {
+    closeEditItemModal();
   }
 });
 
@@ -1063,3 +1341,8 @@ window.cancelOrder = cancelOrder;
 window.openEditOrderModal = openEditOrderModal;
 window.changeEditItemQty = changeEditItemQty;
 window.removeEditItem = removeEditItem;
+
+window.openEditItemModal = openEditItemModal;
+window.selectEditPortion = selectEditPortion;
+window.selectEditSatay = selectEditSatay;
+window.toggleEditExtra = toggleEditExtra;
