@@ -24,7 +24,6 @@
     </header>
 
     <main class="pos-main">
-      <!-- 點餐頁 -->
       <section id="orderTab" class="tab-panel active">
         <div class="order-layout">
           <section class="menu-panel">
@@ -71,7 +70,6 @@
         </div>
       </section>
 
-      <!-- 今日訂單 -->
       <section id="todayTab" class="tab-panel">
         <div class="orders-layout">
           <section class="orders-column">
@@ -92,7 +90,6 @@
         </div>
       </section>
 
-      <!-- 資料庫 -->
       <section id="databaseTab" class="tab-panel">
         <div class="database-layout">
           <section class="orders-column">
@@ -113,7 +110,6 @@
         </div>
       </section>
 
-      <!-- 統計 -->
       <section id="statsTab" class="tab-panel">
         <div class="stats-grid">
           <div class="stat-card">
@@ -192,6 +188,33 @@
     </div>
   </div>
 
-  <script type="module" src="./js/pos.js?v=20260517"></script>
+  <!-- 編輯訂單 Modal -->
+  <div id="editOrderModal" class="modal hidden">
+    <div class="modal-card edit-modal-card">
+      <h2 id="editOrderTitle">編輯訂單</h2>
+      <p id="editOrderInfo" class="modal-price"></p>
+
+      <div class="option-section">
+        <h3>訂單餐點</h3>
+        <div id="editOrderItems" class="edit-order-items"></div>
+      </div>
+
+      <div class="option-section">
+        <h3>整單備註</h3>
+        <textarea id="editOrderNote" class="note-input" placeholder="整張訂單備註"></textarea>
+      </div>
+
+      <div class="edit-total">
+        總計：<strong id="editOrderTotal">$0</strong>
+      </div>
+
+      <div class="modal-actions">
+        <button id="cancelEditOrderBtn" class="secondary-btn">取消</button>
+        <button id="saveEditOrderBtn" class="primary-btn">儲存修改</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./js/pos.js?v=20260517-edit1"></script>
 </body>
 </html>

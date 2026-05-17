@@ -53,6 +53,15 @@ const modalQuantity = document.getElementById("modalQuantity");
 const cancelCustomBtn = document.getElementById("cancelCustomBtn");
 const confirmCustomBtn = document.getElementById("confirmCustomBtn");
 
+const editOrderModal = document.getElementById("editOrderModal");
+const editOrderTitle = document.getElementById("editOrderTitle");
+const editOrderInfo = document.getElementById("editOrderInfo");
+const editOrderItems = document.getElementById("editOrderItems");
+const editOrderNote = document.getElementById("editOrderNote");
+const editOrderTotal = document.getElementById("editOrderTotal");
+const cancelEditOrderBtn = document.getElementById("cancelEditOrderBtn");
+const saveEditOrderBtn = document.getElementById("saveEditOrderBtn");
+
 /* =========================
    Firebase
 ========================= */
@@ -77,6 +86,9 @@ let currentQuantity = 1;
 let selectedPortion = null;
 let selectedExtras = [];
 let selectedSatay = "不要";
+
+let editingOrderId = null;
+let editingItems = [];
 
 const tables = ["1", "2", "3", "4", "5", "6", "7", "8"];
 
@@ -293,6 +305,16 @@ function calculateTotal(items = cart) {
   return items.reduce((sum, item) => sum + itemSubtotal(item), 0);
 }
 
+function canEditOrder(order) {
+  return (
+    order &&
+    order.status !== "cancelled" &&
+    order.status !== "done" &&
+    order.kitchenStatus !== "done" &&
+    order.paymentStatus !== "paid"
+  );
+}
+
 /* =========================
    Table / Type
 ========================= */
@@ -395,7 +417,7 @@ function renderMenu() {
 }
 
 /* =========================
-   Modal
+   Add Item Modal
 ========================= */
 
 function openCustomModal(itemId) {
@@ -740,6 +762,7 @@ function renderOrderCard(order) {
   const statusText = getOrderStatusText(order);
   const canConfirm = order.paymentStatus !== "paid" && order.status !== "cancelled";
   const canCancel = order.paymentStatus !== "paid" && order.status !== "cancelled";
+  const editable = canEditOrder(order);
 
   return `
     <article class="order-card">
@@ -762,6 +785,12 @@ function renderOrderCard(order) {
       <div class="order-total">總金額：${money(order.total)}</div>
 
       <div class="order-actions">
+        ${
+          editable
+            ? `<button class="secondary-btn" onclick="openEditOrderModal('${order.id}')">編輯 / 改單</button>`
+            : ""
+        }
+
         ${
           canConfirm
             ? `<button class="primary-btn" onclick="confirmPaidAndSendKitchen('${order.id}')">確認結帳並送廚房</button>`
@@ -795,6 +824,150 @@ function renderOrderItem(item) {
     </div>
   `;
 }
+
+/* =========================
+   Edit Order
+========================= */
+
+function openEditOrderModal(orderId) {
+  const order = ordersData[orderId];
+
+  if (!order) {
+    alert("找不到這筆訂單");
+    return;
+  }
+
+  if (!canEditOrder(order)) {
+    alert("此訂單已結帳、已送廚房、已完成或已取消，不能修改。");
+    return;
+  }
+
+  editingOrderId = orderId;
+  editingItems = normalizeOrderItems(order.items).map(item => ({
+    ...item,
+    addons: item.addons || item.extras || [],
+    extras: item.extras || item.addons || [],
+    qty: itemQty(item),
+    quantity: itemQty(item),
+    subtotal: itemSubtotal(item)
+  }));
+
+  editOrderTitle.textContent = `編輯訂單 #${order.orderNumber || order.id}`;
+  editOrderInfo.textContent = `${getCustomerLabel(order)}｜${order.source || "未知"}｜${formatTime(order.createdAt)}`;
+  editOrderNote.value = order.note || "";
+
+  renderEditOrderItems();
+  editOrderModal.classList.remove("hidden");
+}
+
+function closeEditOrderModal() {
+  editOrderModal.classList.add("hidden");
+  editingOrderId = null;
+  editingItems = [];
+  editOrderNote.value = "";
+  editOrderItems.innerHTML = "";
+}
+
+function renderEditOrderItems() {
+  if (editingItems.length === 0) {
+    editOrderItems.innerHTML = `<div class="empty">此訂單沒有餐點</div>`;
+    editOrderTotal.textContent = "$0";
+    return;
+  }
+
+  editOrderItems.innerHTML = editingItems.map((item, index) => {
+    const extras = itemExtras(item);
+
+    return `
+      <div class="edit-order-item">
+        <div>
+          <strong>${item.name}</strong>
+
+          <div class="order-item-detail">
+            ${item.size && item.size !== "一般" ? `<p>份量：${item.size}</p>` : ""}
+            ${item.spicy ? `<p>辣度：${item.spicy}</p>` : ""}
+            ${item.satay ? `<p>沙茶：${item.satay}</p>` : ""}
+            ${extras.length ? `<p>加料：${extras.map(extra => extra.name).join("、")}</p>` : ""}
+            ${item.note ? `<p>備註：${item.note}</p>` : ""}
+            <p>小計：${money(itemSubtotal(item))}</p>
+          </div>
+        </div>
+
+        <div class="edit-item-actions">
+          <button class="secondary-btn" onclick="changeEditItemQty(${index}, -1)">－</button>
+          <span>${itemQty(item)}</span>
+          <button class="secondary-btn" onclick="changeEditItemQty(${index}, 1)">＋</button>
+          <button class="danger-btn" onclick="removeEditItem(${index})">刪除</button>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  editOrderTotal.textContent = money(calculateTotal(editingItems));
+}
+
+function changeEditItemQty(index, amount) {
+  const item = editingItems[index];
+  if (!item) return;
+
+  const nextQty = Math.max(1, itemQty(item) + amount);
+  item.qty = nextQty;
+  item.quantity = nextQty;
+  item.subtotal = itemUnitPrice(item) * nextQty;
+
+  renderEditOrderItems();
+}
+
+function removeEditItem(index) {
+  const item = editingItems[index];
+  if (!item) return;
+
+  const ok = confirm(`確定要刪除「${item.name}」嗎？`);
+  if (!ok) return;
+
+  editingItems.splice(index, 1);
+  renderEditOrderItems();
+}
+
+async function saveEditOrder() {
+  if (!editingOrderId) return;
+
+  const order = ordersData[editingOrderId];
+
+  if (!canEditOrder(order)) {
+    alert("此訂單已結帳、已送廚房、已完成或已取消，不能修改。");
+    closeEditOrderModal();
+    return;
+  }
+
+  try {
+    await update(ref(db, `orders/${editingOrderId}`), {
+      items: editingItems,
+      total: calculateTotal(editingItems),
+      note: editOrderNote.value.trim(),
+      updatedAt: Date.now()
+    });
+
+    alert("訂單已更新");
+    closeEditOrderModal();
+  } catch (error) {
+    console.error("更新訂單失敗：", error);
+    alert("更新訂單失敗");
+  }
+}
+
+cancelEditOrderBtn.addEventListener("click", closeEditOrderModal);
+saveEditOrderBtn.addEventListener("click", saveEditOrder);
+
+editOrderModal.addEventListener("click", event => {
+  if (event.target === editOrderModal) {
+    closeEditOrderModal();
+  }
+});
+
+/* =========================
+   Confirm / Cancel
+========================= */
 
 async function confirmPaidAndSendKitchen(orderId) {
   const order = ordersData[orderId];
@@ -883,5 +1056,10 @@ window.selectPortion = selectPortion;
 window.selectSatay = selectSatay;
 window.toggleExtra = toggleExtra;
 window.removeFromCart = removeFromCart;
+
 window.confirmPaidAndSendKitchen = confirmPaidAndSendKitchen;
 window.cancelOrder = cancelOrder;
+
+window.openEditOrderModal = openEditOrderModal;
+window.changeEditItemQty = changeEditItemQty;
+window.removeEditItem = removeEditItem;
