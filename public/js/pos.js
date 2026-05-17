@@ -7,6 +7,13 @@ import {
   onValue
 } from "./firebase.js";
 
+/* =========================
+   DOM
+========================= */
+
+const tabButtons = document.querySelectorAll(".tab-btn");
+const tabPanels = document.querySelectorAll(".tab-panel");
+
 const categoryList = document.getElementById("categoryList");
 const posMenuList = document.getElementById("posMenuList");
 const cartList = document.getElementById("cartList");
@@ -20,7 +27,11 @@ const takeOutInfo = document.getElementById("takeOutInfo");
 
 const submitOrderBtn = document.getElementById("submitOrderBtn");
 const clearCartBtn = document.getElementById("clearCartBtn");
-const todayOrderList = document.getElementById("todayOrderList");
+
+const pendingOrderList = document.getElementById("pendingOrderList");
+const processingOrderList = document.getElementById("processingOrderList");
+const doneOrderList = document.getElementById("doneOrderList");
+const cancelledOrderList = document.getElementById("cancelledOrderList");
 
 const statTotalOrders = document.getElementById("statTotalOrders");
 const statUnpaidOrders = document.getElementById("statUnpaidOrders");
@@ -31,29 +42,47 @@ const statTodayRevenue = document.getElementById("statTodayRevenue");
 const customModal = document.getElementById("customModal");
 const modalItemName = document.getElementById("modalItemName");
 const modalItemPrice = document.getElementById("modalItemPrice");
+const portionBox = document.getElementById("portionBox");
+const spicySelect = document.getElementById("spicySelect");
+const satayBox = document.getElementById("satayBox");
+const extrasBox = document.getElementById("extrasBox");
+const noteInput = document.getElementById("noteInput");
 const modalMinusBtn = document.getElementById("modalMinusBtn");
 const modalPlusBtn = document.getElementById("modalPlusBtn");
 const modalQuantity = document.getElementById("modalQuantity");
-const spicySelect = document.getElementById("spicySelect");
-const extrasBox = document.getElementById("extrasBox");
-const noteInput = document.getElementById("noteInput");
 const cancelCustomBtn = document.getElementById("cancelCustomBtn");
 const confirmCustomBtn = document.getElementById("confirmCustomBtn");
 
+/* =========================
+   Firebase
+========================= */
+
 const menuRef = ref(db, "menu");
 const ordersRef = ref(db, "orders");
+
+/* =========================
+   State
+========================= */
 
 let menuData = {};
 let ordersData = {};
 let currentCategory = "全部";
 let cart = [];
+
 let currentOrderType = "內用";
 let selectedTable = "1";
+
 let currentItem = null;
 let currentQuantity = 1;
-let expandedOrderId = null;
+let selectedPortion = null;
+let selectedExtras = [];
+let selectedSatay = "不要";
 
 const tables = ["1", "2", "3", "4", "5", "6", "7", "8"];
+
+/* =========================
+   Init
+========================= */
 
 onValue(menuRef, snapshot => {
   menuData = snapshot.exists() ? snapshot.val() : {};
@@ -63,8 +92,210 @@ onValue(menuRef, snapshot => {
 
 onValue(ordersRef, snapshot => {
   ordersData = snapshot.exists() ? snapshot.val() : {};
-  renderTodayOrders();
+  renderAllOrders();
+  renderStats();
 });
+
+renderTableButtons();
+renderCart();
+
+/* =========================
+   Tabs
+========================= */
+
+tabButtons.forEach(button => {
+  button.addEventListener("click", () => {
+    const target = button.dataset.tab;
+
+    tabButtons.forEach(btn => btn.classList.remove("active"));
+    tabPanels.forEach(panel => panel.classList.remove("active"));
+
+    button.classList.add("active");
+    document.getElementById(target).classList.add("active");
+  });
+});
+
+/* =========================
+   Helpers
+========================= */
+
+function money(n) {
+  return `$${Number(n || 0)}`;
+}
+
+function isToday(timestamp) {
+  if (!timestamp) return false;
+
+  const date = new Date(timestamp);
+  const now = new Date();
+
+  return (
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate()
+  );
+}
+
+function formatTime(timestamp) {
+  if (!timestamp) return "-";
+
+  return new Date(timestamp).toLocaleString("zh-TW", {
+    hour12: false
+  });
+}
+
+function getEnabledItems() {
+  return Object.entries(menuData)
+    .map(([id, item]) => ({ id, ...item }))
+    .filter(item => item.enabled !== false);
+}
+
+function getItemCategory(item) {
+  return item.category || "其他";
+}
+
+function getImageUrl(item) {
+  return item.image || item.imageUrl || item.photo || item.photoUrl || "";
+}
+
+function getBasePrice(item) {
+  return Number(item.price || item.smallPrice || item.priceSmall || 0);
+}
+
+function getPortionOptions(item) {
+  const options = [];
+
+  if (item.sizes && typeof item.sizes === "object") {
+    Object.entries(item.sizes).forEach(([name, price]) => {
+      options.push({
+        name,
+        price: Number(price)
+      });
+    });
+  }
+
+  if (item.smallPrice || item.priceSmall) {
+    options.push({
+      name: "小份",
+      price: Number(item.smallPrice || item.priceSmall)
+    });
+  }
+
+  if (item.largePrice || item.priceLarge) {
+    options.push({
+      name: "大份",
+      price: Number(item.largePrice || item.priceLarge)
+    });
+  }
+
+  if (options.length === 0) {
+    options.push({
+      name: "一般",
+      price: Number(item.price || 0)
+    });
+  }
+
+  return options;
+}
+
+function getExtras(item) {
+  if (item.options && typeof item.options === "object") {
+    return Object.entries(item.options).map(([name, price]) => ({
+      name,
+      price: Number(price || 0)
+    }));
+  }
+
+  if (Array.isArray(item.addons)) {
+    return item.addons.map(addon => ({
+      name: addon.name || addon.label || addon,
+      price: Number(addon.price || 0)
+    }));
+  }
+
+  return [];
+}
+
+function allowSpicy(item) {
+  const category = getItemCategory(item);
+
+  return (
+    category.includes("鍋燒") ||
+    category.includes("炒麵") ||
+    category.includes("炒飯") ||
+    category.includes("咖哩") ||
+    category.includes("咖喱")
+  );
+}
+
+function allowSatay(item) {
+  const category = getItemCategory(item);
+
+  return (
+    category.includes("鍋燒") ||
+    category.includes("炒麵")
+  );
+}
+
+function getOrderStatusText(order) {
+  if (order.status === "cancelled" || order.kitchenStatus === "cancelled") {
+    return "已取消";
+  }
+
+  if (order.status === "done" || order.kitchenStatus === "done") {
+    return "已完成";
+  }
+
+  if (order.kitchenStatus === "cooking" || order.status === "cooking") {
+    return "製作中";
+  }
+
+  if (
+    order.kitchenStatus === "confirmed" ||
+    order.status === "confirmed" ||
+    order.paymentStatus === "paid"
+  ) {
+    return "已確認付款";
+  }
+
+  return "等待付款";
+}
+
+function getCustomerLabel(order) {
+  if (order.customerLabel) return order.customerLabel;
+  if (order.type === "內用" && order.table) return `${order.table}桌`;
+  if (order.type === "外帶" && order.orderNumber) return `外帶-${order.orderNumber}`;
+  return "未填寫";
+}
+
+function normalizeOrderItems(items) {
+  return Array.isArray(items) ? items : [];
+}
+
+function itemQty(item) {
+  return Number(item.qty || item.quantity || 1);
+}
+
+function itemUnitPrice(item) {
+  return Number(item.price || item.unitPrice || item.basePrice || 0);
+}
+
+function itemSubtotal(item) {
+  if (item.subtotal) return Number(item.subtotal);
+  return itemUnitPrice(item) * itemQty(item);
+}
+
+function itemExtras(item) {
+  return item.addons || item.extras || [];
+}
+
+function calculateTotal(items = cart) {
+  return items.reduce((sum, item) => sum + itemSubtotal(item), 0);
+}
+
+/* =========================
+   Table / Type
+========================= */
 
 function renderTableButtons() {
   tableButtons.innerHTML = tables.map(table => `
@@ -79,19 +310,39 @@ function selectTable(table) {
   renderTableButtons();
 }
 
-function getEnabledItems() {
-  return Object.entries(menuData)
-    .map(([id, item]) => ({ id, ...item }))
-    .filter(item => item.enabled);
-}
+dineInBtn.addEventListener("click", () => {
+  currentOrderType = "內用";
+
+  dineInBtn.classList.add("active");
+  takeOutBtn.classList.remove("active");
+
+  tableSelectBox.style.display = "block";
+  takeOutInfo.style.display = "none";
+});
+
+takeOutBtn.addEventListener("click", () => {
+  currentOrderType = "外帶";
+
+  takeOutBtn.classList.add("active");
+  dineInBtn.classList.remove("active");
+
+  tableSelectBox.style.display = "none";
+  takeOutInfo.style.display = "block";
+});
+
+/* =========================
+   Menu
+========================= */
 
 function renderCategories() {
   const items = getEnabledItems();
   const categories = ["全部"];
 
   items.forEach(item => {
-    if (item.category && !categories.includes(item.category)) {
-      categories.push(item.category);
+    const category = getItemCategory(item);
+
+    if (!categories.includes(category)) {
+      categories.push(category);
     }
   });
 
@@ -112,37 +363,40 @@ function renderMenu() {
   let items = getEnabledItems();
 
   if (currentCategory !== "全部") {
-    items = items.filter(item => item.category === currentCategory);
+    items = items.filter(item => getItemCategory(item) === currentCategory);
   }
 
   if (items.length === 0) {
-    posMenuList.innerHTML = "<p>目前沒有餐點</p>";
+    posMenuList.innerHTML = `<div class="empty">目前沒有餐點</div>`;
     return;
   }
 
-  posMenuList.innerHTML = items.map(item => `
-    <button class="pos-food-btn" onclick="openCustomModal('${item.id}')">
-      <strong>${item.name}</strong>
-      <span>NT$${item.price}</span>
-    </button>
-  `).join("");
+  posMenuList.innerHTML = items.map(item => {
+    const imageUrl = getImageUrl(item);
+
+    return `
+      <button class="pos-food-btn" onclick="openCustomModal('${item.id}')">
+        <div class="food-img">
+          ${
+            imageUrl
+              ? `<img src="${imageUrl}" alt="${item.name || "餐點圖片"}">`
+              : `<span>恩點</span>`
+          }
+        </div>
+
+        <div class="food-info">
+          <strong>${item.name || "未命名餐點"}</strong>
+          <small>${getItemCategory(item)}</small>
+          <b>${money(getBasePrice(item))}</b>
+        </div>
+      </button>
+    `;
+  }).join("");
 }
 
-dineInBtn.addEventListener("click", () => {
-  currentOrderType = "內用";
-  dineInBtn.classList.add("active");
-  takeOutBtn.classList.remove("active");
-  tableSelectBox.style.display = "block";
-  takeOutInfo.style.display = "none";
-});
-
-takeOutBtn.addEventListener("click", () => {
-  currentOrderType = "外帶";
-  takeOutBtn.classList.add("active");
-  dineInBtn.classList.remove("active");
-  tableSelectBox.style.display = "none";
-  takeOutInfo.style.display = "block";
-});
+/* =========================
+   Modal
+========================= */
 
 function openCustomModal(itemId) {
   const item = menuData[itemId];
@@ -150,50 +404,130 @@ function openCustomModal(itemId) {
 
   currentItem = { id: itemId, ...item };
   currentQuantity = 1;
+  selectedExtras = [];
+  selectedSatay = "不要";
 
-  modalItemName.textContent = currentItem.name;
-  modalItemPrice.textContent = "NT$" + currentItem.price;
+  const portionOptions = getPortionOptions(currentItem);
+  selectedPortion = portionOptions[0];
+
+  modalItemName.textContent = currentItem.name || "未命名餐點";
+  modalItemPrice.textContent = `起價 ${money(getBasePrice(currentItem))}`;
   modalQuantity.textContent = "1";
-  spicySelect.value = "不辣";
   noteInput.value = "";
 
-  renderExtras(currentItem.options || {});
+  spicySelect.value = allowSpicy(currentItem) ? "不辣" : "";
+  spicySelect.disabled = !allowSpicy(currentItem);
+
+  renderPortionOptions();
+  renderSatayOptions();
+  renderExtrasOptions();
+
   customModal.classList.remove("hidden");
 }
 
 function closeCustomModal() {
   customModal.classList.add("hidden");
+
   currentItem = null;
   currentQuantity = 1;
+  selectedPortion = null;
+  selectedExtras = [];
+  selectedSatay = "不要";
+
   modalQuantity.textContent = "1";
-  spicySelect.value = "不辣";
   noteInput.value = "";
   extrasBox.innerHTML = "";
+  portionBox.innerHTML = "";
+  satayBox.innerHTML = "";
 }
 
-function renderExtras(options) {
-  extrasBox.innerHTML = "";
+function renderPortionOptions() {
+  const options = getPortionOptions(currentItem);
 
-  const entries = Object.entries(options);
+  portionBox.innerHTML = `
+    <h3>份量</h3>
+    <div class="option-grid">
+      ${options.map(option => `
+        <button class="option-btn ${selectedPortion?.name === option.name ? "active" : ""}"
+          onclick="selectPortion('${option.name}', ${option.price})">
+          ${option.name} ${money(option.price)}
+        </button>
+      `).join("")}
+    </div>
+  `;
+}
 
-  if (entries.length === 0) {
-    extrasBox.innerHTML = "<p>此餐點沒有加料選項</p>";
+function selectPortion(name, price) {
+  selectedPortion = {
+    name,
+    price: Number(price)
+  };
+
+  renderPortionOptions();
+}
+
+function renderSatayOptions() {
+  if (!allowSatay(currentItem)) {
+    satayBox.innerHTML = "";
     return;
   }
 
-  extrasBox.innerHTML = entries.map(([name, price]) => `
-    <label class="extra-option">
-      <input type="checkbox" value="${name}" data-price="${price}">
-      <span>${name} + NT$${price}</span>
-    </label>
-  `).join("");
+  satayBox.innerHTML = `
+    <h3>沙茶</h3>
+    <div class="option-grid">
+      <button class="option-btn ${selectedSatay === "要" ? "active" : ""}" onclick="selectSatay('要')">要沙茶</button>
+      <button class="option-btn ${selectedSatay === "不要" ? "active" : ""}" onclick="selectSatay('不要')">不要沙茶</button>
+    </div>
+  `;
+}
+
+function selectSatay(value) {
+  selectedSatay = value;
+  renderSatayOptions();
+}
+
+function renderExtrasOptions() {
+  const extras = getExtras(currentItem);
+
+  if (extras.length === 0) {
+    extrasBox.innerHTML = `<p class="muted">此餐點沒有加料選項</p>`;
+    return;
+  }
+
+  extrasBox.innerHTML = `
+    <div class="option-grid">
+      ${extras.map(extra => {
+        const active = selectedExtras.some(item => item.name === extra.name);
+
+        return `
+          <button class="option-btn ${active ? "active" : ""}"
+            onclick="toggleExtra('${extra.name}', ${extra.price})">
+            ${extra.name} +${extra.price}
+          </button>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+function toggleExtra(name, price) {
+  const exists = selectedExtras.some(extra => extra.name === name);
+
+  if (exists) {
+    selectedExtras = selectedExtras.filter(extra => extra.name !== name);
+  } else {
+    selectedExtras.push({
+      name,
+      price: Number(price)
+    });
+  }
+
+  renderExtrasOptions();
 }
 
 modalMinusBtn.addEventListener("click", () => {
-  if (currentQuantity > 1) {
-    currentQuantity -= 1;
-    modalQuantity.textContent = currentQuantity;
-  }
+  currentQuantity = Math.max(1, currentQuantity - 1);
+  modalQuantity.textContent = currentQuantity;
 });
 
 modalPlusBtn.addEventListener("click", () => {
@@ -203,83 +537,96 @@ modalPlusBtn.addEventListener("click", () => {
 
 cancelCustomBtn.addEventListener("click", closeCustomModal);
 
+customModal.addEventListener("click", event => {
+  if (event.target === customModal) {
+    closeCustomModal();
+  }
+});
+
 confirmCustomBtn.addEventListener("click", () => {
-  if (!currentItem) return;
+  if (!currentItem || !selectedPortion) return;
 
-  const selectedExtras = [];
-
-  extrasBox.querySelectorAll("input[type='checkbox']:checked").forEach(input => {
-    selectedExtras.push({
-      name: input.value,
-      price: Number(input.dataset.price)
-    });
-  });
-
-  const unitPrice = selectedExtras.reduce((sum, extra) => {
-    return sum + Number(extra.price);
-  }, Number(currentItem.price));
+  const basePrice = Number(selectedPortion.price || getBasePrice(currentItem));
+  const extrasTotal = selectedExtras.reduce((sum, extra) => sum + Number(extra.price || 0), 0);
+  const unitPrice = basePrice + extrasTotal;
+  const subtotal = unitPrice * currentQuantity;
 
   cart.push({
-    cartId: Date.now().toString(),
+    cartId: Date.now().toString() + Math.random().toString(36).slice(2),
     id: currentItem.id,
+    itemId: currentItem.id,
     name: currentItem.name,
+    category: getItemCategory(currentItem),
+    size: selectedPortion.name,
+    basePrice,
     price: unitPrice,
+    unitPrice,
     quantity: currentQuantity,
     qty: currentQuantity,
-    spicy: spicySelect.value,
+    spicy: allowSpicy(currentItem) ? spicySelect.value : "",
+    satay: allowSatay(currentItem) ? selectedSatay : "",
     extras: selectedExtras,
-    note: noteInput.value.trim()
+    addons: selectedExtras,
+    note: noteInput.value.trim(),
+    subtotal
   });
 
   renderCart();
   closeCustomModal();
 });
 
+/* =========================
+   Cart
+========================= */
+
 function renderCart() {
   if (cart.length === 0) {
-    cartList.innerHTML = "<p>尚未加入餐點</p>";
+    cartList.innerHTML = `<div class="empty">尚未加入餐點</div>`;
     totalAmount.textContent = "$0";
     return;
   }
 
-  let total = 0;
-
   cartList.innerHTML = cart.map(item => {
-    const subtotal = item.price * item.quantity;
-    total += subtotal;
-
-    const extrasText = item.extras.length
-      ? item.extras.map(extra => extra.name).join("、")
-      : "無";
+    const extras = itemExtras(item);
 
     return `
       <div class="cart-item">
         <div>
-          <strong>${item.name}</strong>
+          <strong>${item.name} × ${itemQty(item)}</strong>
 
-          <p>NT$${item.price} × ${item.quantity} = NT$${subtotal}</p>
-
-          <p>辣度：${item.spicy}</p>
-
-          <p>加料：${extrasText}</p>
-
-          <p>備註：${item.note || "無"}</p>
+          <div class="cart-detail">
+            ${item.size && item.size !== "一般" ? `<p>份量：${item.size}</p>` : ""}
+            ${item.spicy ? `<p>辣度：${item.spicy}</p>` : ""}
+            ${item.satay ? `<p>沙茶：${item.satay}</p>` : ""}
+            ${extras.length ? `<p>加料：${extras.map(extra => extra.name).join("、")}</p>` : ""}
+            ${item.note ? `<p>備註：${item.note}</p>` : ""}
+            <p>小計：${money(itemSubtotal(item))}</p>
+          </div>
         </div>
+
+        <button class="danger-btn" onclick="removeFromCart('${item.cartId}')">刪除</button>
       </div>
     `;
   }).join("");
 
-  totalAmount.textContent = "$" + total;
+  totalAmount.textContent = money(calculateTotal(cart));
 }
 
-function calculateTotal(items = cart) {
-  return items.reduce((sum, item) => {
-    return sum + Number(item.price || 0) * Number(item.quantity || 1);
-  }, 0);
+function removeFromCart(cartId) {
+  cart = cart.filter(item => item.cartId !== cartId);
+  renderCart();
 }
+
+function clearCart() {
+  cart = [];
+  renderCart();
+}
+
+/* =========================
+   Submit POS Order
+========================= */
 
 async function submitOrder() {
-
   if (cart.length === 0) {
     alert("請先加入餐點");
     return;
@@ -289,10 +636,9 @@ async function submitOrder() {
   submitOrderBtn.textContent = "建立中...";
 
   try {
-
     const newOrderRef = push(ordersRef);
-
-    const orderNumber = Date.now().toString().slice(-6);
+    const now = Date.now();
+    const orderNumber = now.toString().slice(-6);
 
     const customerLabel =
       currentOrderType === "內用"
@@ -300,189 +646,242 @@ async function submitOrder() {
         : `外帶-${orderNumber}`;
 
     const order = {
-
+      id: newOrderRef.key,
       orderNumber,
-
       source: "店員POS",
-
       type: currentOrderType,
-
-      table: currentOrderType === "內用"
-        ? selectedTable
-        : "",
-
+      table: currentOrderType === "內用" ? selectedTable : "",
+      customerName: currentOrderType === "外帶" ? `外帶-${orderNumber}` : "",
       customerLabel,
-
       items: cart,
-
       total: calculateTotal(cart),
-
       status: "pending",
-
+      statusText: "等待櫃檯確認付款",
       paymentStatus: "unpaid",
-
       kitchenStatus: "waiting",
-
       confirmed: false,
-
       paid: false,
-
-      createdAt: Date.now(),
-
-      updatedAt: Date.now()
-
+      createdAt: now,
+      updatedAt: now
     };
 
     await set(newOrderRef, order);
 
-    alert(`已建立訂單：${customerLabel}`);
+    alert(`已建立未結帳訂單：${customerLabel}`);
 
     cart = [];
-
     renderCart();
-
-  } catch (err) {
-
-    console.error(err);
-
+  } catch (error) {
+    console.error("建立訂單失敗：", error);
     alert("建立訂單失敗");
-
   }
 
   submitOrderBtn.disabled = false;
-  submitOrderBtn.textContent = "建立訂單";
-
+  submitOrderBtn.textContent = "建立未結帳訂單";
 }
 
-function renderTodayOrders() {
+/* =========================
+   Orders
+========================= */
 
-  const orders = Object.entries(ordersData)
+function getTodayOrders() {
+  return Object.entries(ordersData)
     .map(([id, order]) => ({ id, ...order }))
-    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    .filter(order => isToday(order.createdAt))
+    .sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
+}
 
-  todayOrderList.innerHTML = orders.map(order => {
+function renderAllOrders() {
+  const todayOrders = getTodayOrders();
 
-    const itemsText = Array.isArray(order.items)
-      ? order.items.map(item => `${item.name}×${item.quantity || 1}`).join("、")
-      : "無餐點";
+  const pendingOrders = todayOrders.filter(order => {
+    return (
+      order.status !== "cancelled" &&
+      order.status !== "done" &&
+      order.kitchenStatus !== "done" &&
+      order.paymentStatus !== "paid"
+    );
+  });
 
-    return `
-      <div class="today-order-card">
+  const processingOrders = todayOrders.filter(order => {
+    return (
+      order.paymentStatus === "paid" &&
+      order.status !== "done" &&
+      order.kitchenStatus !== "done" &&
+      order.status !== "cancelled" &&
+      order.kitchenStatus !== "cancelled"
+    );
+  });
 
-        <div class="today-order-head">
+  const doneOrders = todayOrders.filter(order => {
+    return order.status === "done" || order.kitchenStatus === "done";
+  });
+
+  const cancelledOrders = todayOrders.filter(order => {
+    return order.status === "cancelled" || order.kitchenStatus === "cancelled";
+  });
+
+  pendingOrderList.innerHTML = renderOrderList(pendingOrders, "目前沒有待確認訂單");
+  processingOrderList.innerHTML = renderOrderList(processingOrders, "目前沒有製作中訂單");
+  doneOrderList.innerHTML = renderOrderList(doneOrders, "目前沒有已完成訂單");
+  cancelledOrderList.innerHTML = renderOrderList(cancelledOrders, "目前沒有已取消訂單");
+}
+
+function renderOrderList(orders, emptyText) {
+  if (orders.length === 0) {
+    return `<div class="empty">${emptyText}</div>`;
+  }
+
+  return orders.map(order => renderOrderCard(order)).join("");
+}
+
+function renderOrderCard(order) {
+  const items = normalizeOrderItems(order.items);
+  const statusText = getOrderStatusText(order);
+  const canConfirm = order.paymentStatus !== "paid" && order.status !== "cancelled";
+  const canCancel = order.paymentStatus !== "paid" && order.status !== "cancelled";
+
+  return `
+    <article class="order-card">
+      <div class="order-card-head">
+        <div>
           <strong>#${order.orderNumber || order.id}</strong>
-
-          <span class="pos-status-badge">
-            ${getPosStatusText(order)}
-          </span>
+          <p>${getCustomerLabel(order)}｜${order.source || "未知"}｜${order.type || "未分類"}</p>
+          <p>${formatTime(order.createdAt)}</p>
         </div>
 
-        <p>取餐資訊：${order.customerLabel || "-"}</p>
-
-        <p>餐點：${itemsText}</p>
-
-        <p class="order-total">
-          總金額：$${order.total || 0}
-        </p>
-
-        <div class="order-actions">
-
-          ${
-            order.paymentStatus !== "paid"
-              ? `
-                <button
-                  class="primary-btn"
-                  onclick="confirmPaidAndSendKitchen('${order.id}')">
-                  確認結帳並送廚房
-                </button>
-              `
-              : `
-                <button disabled>
-                  已送廚房
-                </button>
-              `
-          }
-
-        </div>
-
+        <span class="status-badge">${statusText}</span>
       </div>
-    `;
 
-  }).join("");
+      <div class="order-items">
+        ${items.map(renderOrderItem).join("")}
+      </div>
 
+      ${order.note ? `<div class="order-note">整單備註：${order.note}</div>` : ""}
+
+      <div class="order-total">總金額：${money(order.total)}</div>
+
+      <div class="order-actions">
+        ${
+          canConfirm
+            ? `<button class="primary-btn" onclick="confirmPaidAndSendKitchen('${order.id}')">確認結帳並送廚房</button>`
+            : ""
+        }
+
+        ${
+          canCancel
+            ? `<button class="danger-btn" onclick="cancelOrder('${order.id}')">取消</button>`
+            : ""
+        }
+      </div>
+    </article>
+  `;
+}
+
+function renderOrderItem(item) {
+  const extras = itemExtras(item);
+
+  return `
+    <div class="order-item">
+      <strong>• ${item.name} × ${itemQty(item)}</strong>
+
+      <div class="order-item-detail">
+        ${item.size && item.size !== "一般" ? `<p>份量：${item.size}</p>` : ""}
+        ${item.spicy ? `<p>辣度：${item.spicy}</p>` : ""}
+        ${item.satay ? `<p>沙茶：${item.satay}</p>` : ""}
+        ${extras.length ? `<p>加料：${extras.map(extra => extra.name).join("、")}</p>` : ""}
+        ${item.note ? `<p>備註：${item.note}</p>` : ""}
+      </div>
+    </div>
+  `;
 }
 
 async function confirmPaidAndSendKitchen(orderId) {
-
   const order = ordersData[orderId];
 
   if (!order) {
-    alert("找不到訂單");
+    alert("找不到這筆訂單");
     return;
   }
 
-  const ok = confirm(
-    `確認「${order.customerLabel || "-"}」已付款並送廚房？`
-  );
-
+  const ok = confirm(`確認「${getCustomerLabel(order)}」已付款，並送到廚房？`);
   if (!ok) return;
 
   try {
-
-    await update(ref(db, "orders/" + orderId), {
-
+    await update(ref(db, `orders/${orderId}`), {
       status: "confirmed",
-
       statusText: "已確認付款，等待廚房製作",
-
       paymentStatus: "paid",
-
       kitchenStatus: "confirmed",
-
       confirmed: true,
-
       paid: true,
-
+      sentToKitchenAt: Date.now(),
       updatedAt: Date.now()
-
     });
 
-    alert("已送到廚房");
-
-  } catch (err) {
-
-    console.error(err);
-
+    alert("已確認付款並送到廚房");
+  } catch (error) {
+    console.error("送廚房失敗：", error);
     alert("送廚房失敗");
-
   }
-
 }
 
-function getPosStatusText(order) {
+async function cancelOrder(orderId) {
+  const order = ordersData[orderId];
 
-  if (order.kitchenStatus === "done") {
-    return "已完成";
+  if (!order) return;
+
+  const ok = confirm(`確定要取消「${getCustomerLabel(order)}」這張訂單嗎？`);
+  if (!ok) return;
+
+  try {
+    await update(ref(db, `orders/${orderId}`), {
+      status: "cancelled",
+      statusText: "訂單已取消",
+      paymentStatus: "cancelled",
+      kitchenStatus: "cancelled",
+      cancelledAt: Date.now(),
+      updatedAt: Date.now()
+    });
+  } catch (error) {
+    console.error("取消訂單失敗：", error);
+    alert("取消訂單失敗");
   }
-
-  if (order.kitchenStatus === "cooking") {
-    return "製作中";
-  }
-
-  if (order.kitchenStatus === "confirmed") {
-    return "已確認付款";
-  }
-
-  return "等待付款";
-
 }
+
+/* =========================
+   Stats
+========================= */
+
+function renderStats() {
+  const todayOrders = getTodayOrders();
+
+  const unpaidOrders = todayOrders.filter(order => order.paymentStatus !== "paid" && order.status !== "cancelled");
+  const processingOrders = todayOrders.filter(order => order.paymentStatus === "paid" && order.status !== "done" && order.kitchenStatus !== "done");
+  const doneOrders = todayOrders.filter(order => order.status === "done" || order.kitchenStatus === "done");
+
+  const revenue = doneOrders.reduce((sum, order) => sum + Number(order.total || 0), 0);
+
+  statTotalOrders.textContent = todayOrders.length;
+  statUnpaidOrders.textContent = unpaidOrders.length;
+  statProcessingOrders.textContent = processingOrders.length;
+  statDoneOrders.textContent = doneOrders.length;
+  statTodayRevenue.textContent = money(revenue);
+}
+
+/* =========================
+   Events / Window
+========================= */
 
 submitOrderBtn.addEventListener("click", submitOrder);
+clearCartBtn.addEventListener("click", clearCart);
 
 window.selectCategory = selectCategory;
 window.selectTable = selectTable;
 window.openCustomModal = openCustomModal;
+window.selectPortion = selectPortion;
+window.selectSatay = selectSatay;
+window.toggleExtra = toggleExtra;
+window.removeFromCart = removeFromCart;
 window.confirmPaidAndSendKitchen = confirmPaidAndSendKitchen;
-
-renderTableButtons();
-renderCart();
+window.cancelOrder = cancelOrder;

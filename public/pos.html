@@ -4,123 +4,194 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>恩點系統｜店員 POS</title>
-  <link rel="stylesheet" href="./css/style.css" />
+  <link rel="stylesheet" href="./css/pos.css" />
 </head>
 
 <body>
-  <header class="topbar">
-    <h1>恩點系統｜店員 POS 總控台</h1>
-    <p>點餐、結帳、確認送廚房、改單</p>
-  </header>
-
-  <main class="pos-layout">
-    <section class="pos-panel">
-      <h2>分類</h2>
-      <div id="categoryList" class="category-list"></div>
-    </section>
-
-    <section class="pos-panel pos-menu-panel">
-      <h2>餐點</h2>
-      <div id="posMenuList" class="pos-menu-list"></div>
-    </section>
-
-    <section class="pos-panel pos-cart-panel">
-      <h2>目前點餐</h2>
-
-      <label>點餐類型</label>
-      <div class="type-buttons">
-        <button id="dineInBtn" class="active">內用</button>
-        <button id="takeOutBtn">外帶</button>
+  <div class="pos-app">
+    <header class="pos-header">
+      <div>
+        <h1>恩點 POS</h1>
+        <p>店員收銀・點餐・確認付款・送廚房</p>
       </div>
 
-      <div id="tableSelectBox">
-        <label>桌號</label>
-        <div id="tableButtons" class="type-buttons"></div>
-      </div>
+      <nav class="pos-tabs">
+        <button class="tab-btn active" data-tab="orderTab">點餐</button>
+        <button class="tab-btn" data-tab="todayTab">今日訂單</button>
+        <button class="tab-btn" data-tab="databaseTab">資料庫</button>
+        <button class="tab-btn" data-tab="statsTab">統計</button>
+      </nav>
+    </header>
 
-      <div id="takeOutInfo" style="display:none;">
-        <p>外帶會自動產生訂單號。</p>
-      </div>
+    <main class="pos-main">
+      <!-- 點餐頁 -->
+      <section id="orderTab" class="tab-panel active">
+        <div class="order-layout">
+          <section class="menu-panel">
+            <div class="panel-title">
+              <h2>點餐區</h2>
+              <p>選擇分類與餐點</p>
+            </div>
 
-      <div id="cartList" class="cart-list"></div>
+            <div id="categoryList" class="category-list"></div>
+            <div id="posMenuList" class="pos-menu-list"></div>
+          </section>
 
-      <h3>總金額：<span id="totalAmount">$0</span></h3>
+          <aside class="cart-panel">
+            <div class="panel-title">
+              <h2>目前訂單</h2>
+              <p>內用 / 外帶・桌號・結帳</p>
+            </div>
 
-      <button id="submitOrderBtn" class="primary-btn">建立未結帳訂單</button>
-      <button id="clearCartBtn" class="danger-btn">清空購物車</button>
-    </section>
-  </main>
+            <div class="order-type-row">
+              <button id="dineInBtn" class="type-btn active">內用</button>
+              <button id="takeOutBtn" class="type-btn">外帶</button>
+            </div>
 
-  <section class="pos-orders-panel">
-    <h2>今日營業小統計</h2>
+            <div id="tableSelectBox" class="table-box">
+              <h3>桌號</h3>
+              <div id="tableButtons" class="table-buttons"></div>
+            </div>
 
-    <div class="today-stats-grid">
-      <div class="today-stat-card">
-        <span>今日訂單</span>
-        <strong id="statTotalOrders">0</strong>
-      </div>
+            <div id="takeOutInfo" class="takeout-info" style="display:none;">
+              外帶訂單會自動產生取餐編號
+            </div>
 
-      <div class="today-stat-card">
-        <span>未結帳</span>
-        <strong id="statUnpaidOrders">0</strong>
-      </div>
+            <div id="cartList" class="cart-list"></div>
 
-      <div class="today-stat-card">
-        <span>製作中</span>
-        <strong id="statProcessingOrders">0</strong>
-      </div>
+            <div class="cart-total">
+              總計：<strong id="totalAmount">$0</strong>
+            </div>
 
-      <div class="today-stat-card">
-        <span>已完成</span>
-        <strong id="statDoneOrders">0</strong>
-      </div>
+            <div class="cart-actions-main">
+              <button id="submitOrderBtn" class="primary-btn">建立未結帳訂單</button>
+              <button id="clearCartBtn" class="secondary-btn">清空</button>
+            </div>
+          </aside>
+        </div>
+      </section>
 
-      <div class="today-stat-card">
-        <span>今日營業額</span>
-        <strong id="statTodayRevenue">$0</strong>
-      </div>
-    </div>
-  </section>
+      <!-- 今日訂單 -->
+      <section id="todayTab" class="tab-panel">
+        <div class="orders-layout">
+          <section class="orders-column">
+            <div class="panel-title">
+              <h2>待確認 / 未結帳</h2>
+              <p>QR 或現場建立後，先在這裡確認付款</p>
+            </div>
+            <div id="pendingOrderList" class="order-list"></div>
+          </section>
 
-  <section class="pos-orders-panel">
-    <h2>今日訂單總控</h2>
-    <p>未結帳訂單可改單；已送廚房訂單暫不開放修改。</p>
-    <div id="todayOrderList" class="today-order-list"></div>
-  </section>
+          <section class="orders-column">
+            <div class="panel-title">
+              <h2>製作中 / 已送廚房</h2>
+              <p>已確認付款並送廚房的訂單</p>
+            </div>
+            <div id="processingOrderList" class="order-list"></div>
+          </section>
+        </div>
+      </section>
 
+      <!-- 資料庫 -->
+      <section id="databaseTab" class="tab-panel">
+        <div class="database-layout">
+          <section class="orders-column">
+            <div class="panel-title">
+              <h2>已完成訂單</h2>
+              <p>完成後自動移到這裡，不佔主畫面</p>
+            </div>
+            <div id="doneOrderList" class="order-list"></div>
+          </section>
+
+          <section class="orders-column">
+            <div class="panel-title">
+              <h2>已取消訂單</h2>
+              <p>取消與異常訂單紀錄</p>
+            </div>
+            <div id="cancelledOrderList" class="order-list"></div>
+          </section>
+        </div>
+      </section>
+
+      <!-- 統計 -->
+      <section id="statsTab" class="tab-panel">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <span>今日訂單</span>
+            <strong id="statTotalOrders">0</strong>
+          </div>
+
+          <div class="stat-card">
+            <span>未結帳</span>
+            <strong id="statUnpaidOrders">0</strong>
+          </div>
+
+          <div class="stat-card">
+            <span>製作中</span>
+            <strong id="statProcessingOrders">0</strong>
+          </div>
+
+          <div class="stat-card">
+            <span>已完成</span>
+            <strong id="statDoneOrders">0</strong>
+          </div>
+
+          <div class="stat-card revenue">
+            <span>今日營收</span>
+            <strong id="statTodayRevenue">$0</strong>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- 餐點選項 Modal -->
   <div id="customModal" class="modal hidden">
-    <div class="modal-content">
+    <div class="modal-card">
       <h2 id="modalItemName">餐點名稱</h2>
-      <p id="modalItemPrice">$0</p>
+      <p id="modalItemPrice" class="modal-price">NT$0</p>
 
-      <label>數量</label>
-      <div class="quantity-control">
-        <button id="modalMinusBtn">-</button>
-        <span id="modalQuantity">1</span>
-        <button id="modalPlusBtn">+</button>
+      <div id="portionBox" class="option-section"></div>
+
+      <div class="option-section">
+        <h3>辣度</h3>
+        <select id="spicySelect" class="select-input">
+          <option value="不辣">不辣</option>
+          <option value="微辣">微辣</option>
+          <option value="小辣">小辣</option>
+          <option value="中辣">中辣</option>
+          <option value="大辣">大辣</option>
+        </select>
       </div>
 
-      <label>辣度</label>
-      <select id="spicySelect">
-        <option value="不辣">不辣</option>
-        <option value="小辣">小辣</option>
-        <option value="中辣">中辣</option>
-        <option value="大辣">大辣</option>
-      </select>
+      <div id="satayBox" class="option-section"></div>
 
-      <label>加料</label>
-      <div id="extrasBox"></div>
+      <div class="option-section">
+        <h3>加料</h3>
+        <div id="extrasBox" class="extras-box"></div>
+      </div>
 
-      <label>備註</label>
-      <textarea id="noteInput" placeholder="例如：不要蔥、湯多一點"></textarea>
+      <div class="option-section">
+        <h3>數量</h3>
+        <div class="qty-row">
+          <button id="modalMinusBtn">－</button>
+          <span id="modalQuantity">1</span>
+          <button id="modalPlusBtn">＋</button>
+        </div>
+      </div>
+
+      <div class="option-section">
+        <h3>備註</h3>
+        <textarea id="noteInput" class="note-input" placeholder="例如：不要蔥、湯多一點"></textarea>
+      </div>
 
       <div class="modal-actions">
-        <button id="cancelCustomBtn">取消</button>
+        <button id="cancelCustomBtn" class="secondary-btn">取消</button>
         <button id="confirmCustomBtn" class="primary-btn">加入訂單</button>
       </div>
     </div>
   </div>
 
-  <script type="module" src="./js/pos.js"></script>
+  <script type="module" src="./js/pos.js?v=20260517"></script>
 </body>
 </html>
