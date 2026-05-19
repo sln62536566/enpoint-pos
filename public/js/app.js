@@ -482,12 +482,14 @@ confirmSubmitBtn.addEventListener("click", async () => {
       note: orderNoteInput.value.trim(),
       items: cart,
       total,
-      status: "pending",
+      status: "pending_payment",
       statusText: "等待櫃檯確認付款",
       paymentStatus: "unpaid",
       kitchenStatus: "waiting",
       confirmed: false,
       paid: false,
+      closed: false,
+      cancelled: false,
       createdAt: now,
       updatedAt: now
     };
@@ -516,16 +518,33 @@ confirmSubmitBtn.addEventListener("click", async () => {
 function getOrderStatusText(order) {
   if (!order) return "等待櫃檯確認付款";
 
-  if (order.status === "cancelled" || order.kitchenStatus === "cancelled") {
+  if (
+    order.status === "cancelled" ||
+    order.kitchenStatus === "cancelled" ||
+    order.cancelled === true
+  ) {
     return "訂單已取消，請洽櫃檯";
   }
 
-  if (order.kitchenStatus === "done" || order.status === "done") {
+  if (
+    order.status === "closed" ||
+    order.closed === true
+  ) {
+    return "訂單已結案，謝謝光臨";
+  }
+
+  if (
+    order.kitchenStatus === "done" ||
+    order.status === "done"
+  ) {
     return "餐點已完成，請留意取餐或送餐";
   }
 
-  if (order.kitchenStatus === "cooking" || order.status === "cooking") {
-    return "餐點製作中";
+  if (
+    order.kitchenStatus === "cooking" ||
+    order.status === "cooking"
+  ) {
+    return "餐點製作中，請耐心等候";
   }
 
   if (
@@ -534,6 +553,14 @@ function getOrderStatusText(order) {
     order.paymentStatus === "paid"
   ) {
     return "已確認付款，餐點安排製作中";
+  }
+
+  if (
+    order.status === "pending_payment" ||
+    order.status === "pending" ||
+    order.paymentStatus === "unpaid"
+  ) {
+    return "等待櫃檯確認付款";
   }
 
   return "等待櫃檯確認付款";
