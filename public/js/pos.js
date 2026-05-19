@@ -8,6 +8,14 @@ import {
 } from "./firebase.js";
 
 /* =========================
+   v55 設定
+========================= */
+
+// pro：專業版，QR + POS + 後台，POS 自己控製作流程
+// pro_plus：專業 Plus 版，QR + POS + 後台 + 廚房 KDS
+const STORE_MODE = "pro_plus";
+
+/* =========================
    DOM
 ========================= */
 
@@ -129,10 +137,12 @@ onValue(ordersRef, snapshot => {
   ordersData = snapshot.exists() ? snapshot.val() : {};
   renderAllOrders();
   renderStats();
+  renderRealtimeBadges();
 });
 
 renderTableButtons();
 renderCart();
+renderStoreModeNotice();
 
 /* =========================
    Tabs
@@ -311,28 +321,42 @@ function allowSatay(item) {
   );
 }
 
-function getOrderStatusText(order) {
-  if (order.status === "cancelled" || order.kitchenStatus === "cancelled") {
-    return "已取消";
-  }
+function isCancelled(order) {
+  return order.status === "cancelled" || order.kitchenStatus === "cancelled";
+}
 
-  if (order.status === "done" || order.kitchenStatus === "done") {
-    return "已完成";
-  }
+function isClosed(order) {
+  return order.status === "closed";
+}
+
+function isDone(order) {
+  return order.status === "done" || order.kitchenStatus === "done";
+}
+
+function isPaid(order) {
+  return order.paymentStatus === "paid" || order.paid === true;
+}
+
+function getOrderStatusText(order) {
+  if (isCancelled(order)) return "已取消";
+  if (isClosed(order)) return "已結案";
+  if (isDone(order)) return "已完成，待結案";
 
   if (order.kitchenStatus === "cooking" || order.status === "cooking") {
     return "製作中";
   }
 
-  if (
-    order.kitchenStatus === "confirmed" ||
-    order.status === "confirmed" ||
-    order.paymentStatus === "paid"
-  ) {
-    return "已確認付款";
+  if (STORE_MODE === "pro_plus") {
+    if (order.kitchenStatus === "confirmed" || order.status === "confirmed") {
+      return "已送廚房";
+    }
   }
 
-  return "等待付款";
+  if (isPaid(order)) {
+    return STORE_MODE === "pro" ? "已付款，製作中" : "已確認付款";
+  }
+
+  return "待付款確認";
 }
 
 function getCustomerLabel(order) {
@@ -370,11 +394,86 @@ function calculateTotal(items = cart) {
 function canEditOrder(order) {
   return (
     order &&
-    order.status !== "cancelled" &&
-    order.status !== "done" &&
-    order.kitchenStatus !== "done" &&
-    order.paymentStatus !== "paid"
+    !isCancelled(order) &&
+    !isDone(order) &&
+    !isClosed(order) &&
+    !isPaid(order)
   );
+}
+
+function getTodayOrders() {
+  return Object.entries(ordersData)
+    .map(([id, order]) => ({ id, ...order }))
+    .filter(order => isToday(order.createdAt))
+    .sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
+}
+
+function getEffectiveTodayOrders() {
+  return getTodayOrders().filter(order => !isCancelled(order));
+}
+
+function getPendingOrders() {
+  return getTodayOrders().filter(order => {
+    return !isCancelled(order) && !isClosed(order) && !isPaid(order);
+  });
+}
+
+function getProcessingOrders() {
+  return getTodayOrders().filter(order => {
+    return (
+      !isCancelled(order) &&
+      !isClosed(order) &&
+      isPaid(order) &&
+      !isDone(order)
+    );
+  });
+}
+
+function getDoneOrders() {
+  return getTodayOrders().filter(order => {
+    return !isCancelled(order) && isDone(order) && !isClosed(order);
+  });
+}
+
+function getClosedOrders() {
+  return getTodayOrders().filter(order => {
+    return !isCancelled(order) && isClosed(order);
+  });
+}
+
+function getCancelledOrders() {
+  return getTodayOrders().filter(order => isCancelled(order));
+}
+
+/* =========================
+   v55 UI Helpers
+========================= */
+
+function renderStoreModeNotice() {
+  const headerText = document.querySelector(".pos-header p");
+  if (!headerText) return;
+
+  if (STORE_MODE === "pro") {
+    headerText.textContent = "專業版｜POS 自主管理・點餐・收銀・製作流程";
+  } else {
+    headerText.textContent = "專業 Plus 版｜店員收銀・點餐・確認付款・送廚房";
+  }
+}
+
+function renderRealtimeBadges() {
+  const todayTabBtn = document.querySelector('[data-tab="todayTab"]');
+  if (!todayTabBtn) return;
+
+  const pendingCount = getPendingOrders().length;
+  const processingCount = getProcessingOrders().length;
+
+  if (pendingCount > 0) {
+    todayTabBtn.textContent = `今日訂單 🔴 ${pendingCount}`;
+  } else if (processingCount > 0) {
+    todayTabBtn.textContent = `今日訂單 (${processingCount})`;
+  } else {
+    todayTabBtn.textContent = "今日訂單";
+  }
 }
 
 /* =========================
@@ -732,6 +831,7 @@ async function submitOrder() {
     const order = {
       id: newOrderRef.key,
       orderNumber,
+      storeMode: STORE_MODE,
       source: "店員POS",
       type: currentOrderType,
       table: currentOrderType === "內用" ? selectedTable : "",
@@ -739,12 +839,14 @@ async function submitOrder() {
       customerLabel,
       items: cart,
       total: calculateTotal(cart),
-      status: "pending",
+      status: "pending_payment",
       statusText: "等待櫃檯確認付款",
       paymentStatus: "unpaid",
       kitchenStatus: "waiting",
       confirmed: false,
       paid: false,
+      closed: false,
+      cancelled: false,
       createdAt: now,
       updatedAt: now
     };
@@ -768,42 +870,11 @@ async function submitOrder() {
    Orders
 ========================= */
 
-function getTodayOrders() {
-  return Object.entries(ordersData)
-    .map(([id, order]) => ({ id, ...order }))
-    .filter(order => isToday(order.createdAt))
-    .sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
-}
-
 function renderAllOrders() {
-  const todayOrders = getTodayOrders();
-
-  const pendingOrders = todayOrders.filter(order => {
-    return (
-      order.status !== "cancelled" &&
-      order.status !== "done" &&
-      order.kitchenStatus !== "done" &&
-      order.paymentStatus !== "paid"
-    );
-  });
-
-  const processingOrders = todayOrders.filter(order => {
-    return (
-      order.paymentStatus === "paid" &&
-      order.status !== "done" &&
-      order.kitchenStatus !== "done" &&
-      order.status !== "cancelled" &&
-      order.kitchenStatus !== "cancelled"
-    );
-  });
-
-  const doneOrders = todayOrders.filter(order => {
-    return order.status === "done" || order.kitchenStatus === "done";
-  });
-
-  const cancelledOrders = todayOrders.filter(order => {
-    return order.status === "cancelled" || order.kitchenStatus === "cancelled";
-  });
+  const pendingOrders = getPendingOrders();
+  const processingOrders = getProcessingOrders();
+  const doneOrders = getDoneOrders();
+  const cancelledOrders = getCancelledOrders();
 
   pendingOrderList.innerHTML = renderOrderList(pendingOrders, "目前沒有待確認訂單");
   processingOrderList.innerHTML = renderOrderList(processingOrders, "目前沒有製作中訂單");
@@ -822,8 +893,9 @@ function renderOrderList(orders, emptyText) {
 function renderOrderCard(order) {
   const items = normalizeOrderItems(order.items);
   const statusText = getOrderStatusText(order);
-  const canConfirm = order.paymentStatus !== "paid" && order.status !== "cancelled";
-  const canCancel = order.paymentStatus !== "paid" && order.status !== "cancelled";
+  const canConfirm = !isPaid(order) && !isCancelled(order) && !isClosed(order);
+  const canCancel = !isPaid(order) && !isCancelled(order) && !isClosed(order);
+  const canClose = isDone(order) && !isClosed(order) && !isCancelled(order);
   const editable = canEditOrder(order);
 
   return `
@@ -855,7 +927,19 @@ function renderOrderCard(order) {
 
         ${
           canConfirm
-            ? `<button class="primary-btn" onclick="confirmPaidAndSendKitchen('${order.id}')">確認結帳並送廚房</button>`
+            ? `<button class="primary-btn" onclick="confirmPaidAndProcess('${order.id}')">${STORE_MODE === "pro" ? "確認結帳並開始製作" : "確認結帳並送廚房"}</button>`
+            : ""
+        }
+
+        ${
+          STORE_MODE === "pro" && order.status === "cooking"
+            ? `<button class="primary-btn" onclick="markOrderDoneByPOS('${order.id}')">POS 標記完成</button>`
+            : ""
+        }
+
+        ${
+          canClose
+            ? `<button class="primary-btn" onclick="closeOrder('${order.id}')">結案</button>`
             : ""
         }
 
@@ -1244,10 +1328,10 @@ editItemModal.addEventListener("click", event => {
 });
 
 /* =========================
-   Confirm / Cancel
+   Confirm / Cancel / Close
 ========================= */
 
-async function confirmPaidAndSendKitchen(orderId) {
+async function confirmPaidAndProcess(orderId) {
   const order = ordersData[orderId];
 
   if (!order) {
@@ -1255,25 +1339,102 @@ async function confirmPaidAndSendKitchen(orderId) {
     return;
   }
 
-  const ok = confirm(`確認「${getCustomerLabel(order)}」已付款，並送到廚房？`);
+  const message =
+    STORE_MODE === "pro"
+      ? `確認「${getCustomerLabel(order)}」已付款，並開始製作？`
+      : `確認「${getCustomerLabel(order)}」已付款，並送到廚房？`;
+
+  const ok = confirm(message);
   if (!ok) return;
 
   try {
+    const now = Date.now();
+
+    if (STORE_MODE === "pro") {
+      await update(ref(db, `orders/${orderId}`), {
+        storeMode: STORE_MODE,
+        status: "cooking",
+        statusText: "已確認付款，餐點製作中",
+        paymentStatus: "paid",
+        kitchenStatus: "not_required",
+        confirmed: true,
+        paid: true,
+        paidAt: now,
+        cookingAt: now,
+        updatedAt: now
+      });
+
+      alert("已確認付款，訂單進入製作中");
+      return;
+    }
+
     await update(ref(db, `orders/${orderId}`), {
+      storeMode: STORE_MODE,
       status: "confirmed",
       statusText: "已確認付款，等待廚房製作",
       paymentStatus: "paid",
       kitchenStatus: "confirmed",
       confirmed: true,
       paid: true,
-      sentToKitchenAt: Date.now(),
-      updatedAt: Date.now()
+      paidAt: now,
+      sentToKitchenAt: now,
+      updatedAt: now
     });
 
     alert("已確認付款並送到廚房");
   } catch (error) {
-    console.error("送廚房失敗：", error);
-    alert("送廚房失敗");
+    console.error("確認付款失敗：", error);
+    alert("確認付款失敗");
+  }
+}
+
+async function markOrderDoneByPOS(orderId) {
+  const order = ordersData[orderId];
+
+  if (!order) {
+    alert("找不到這筆訂單");
+    return;
+  }
+
+  const ok = confirm(`確認「${getCustomerLabel(order)}」餐點已完成？`);
+  if (!ok) return;
+
+  try {
+    await update(ref(db, `orders/${orderId}`), {
+      status: "done",
+      statusText: "餐點已完成，等待 POS 結案",
+      kitchenStatus: "not_required",
+      doneAt: Date.now(),
+      updatedAt: Date.now()
+    });
+  } catch (error) {
+    console.error("標記完成失敗：", error);
+    alert("標記完成失敗");
+  }
+}
+
+async function closeOrder(orderId) {
+  const order = ordersData[orderId];
+
+  if (!order) {
+    alert("找不到這筆訂單");
+    return;
+  }
+
+  const ok = confirm(`確認「${getCustomerLabel(order)}」已出餐 / 已取餐，並結案？`);
+  if (!ok) return;
+
+  try {
+    await update(ref(db, `orders/${orderId}`), {
+      status: "closed",
+      statusText: "訂單已結案",
+      closed: true,
+      closedAt: Date.now(),
+      updatedAt: Date.now()
+    });
+  } catch (error) {
+    console.error("結案失敗：", error);
+    alert("結案失敗");
   }
 }
 
@@ -1282,7 +1443,7 @@ async function cancelOrder(orderId) {
 
   if (!order) return;
 
-  const ok = confirm(`確定要取消「${getCustomerLabel(order)}」這張訂單嗎？`);
+  const ok = confirm(`確定要取消「${getCustomerLabel(order)}」這張訂單嗎？取消後不會計入營收與有效訂單。`);
   if (!ok) return;
 
   try {
@@ -1291,6 +1452,7 @@ async function cancelOrder(orderId) {
       statusText: "訂單已取消",
       paymentStatus: "cancelled",
       kitchenStatus: "cancelled",
+      cancelled: true,
       cancelledAt: Date.now(),
       updatedAt: Date.now()
     });
@@ -1306,14 +1468,15 @@ async function cancelOrder(orderId) {
 
 function renderStats() {
   const todayOrders = getTodayOrders();
+  const effectiveOrders = getEffectiveTodayOrders();
 
-  const unpaidOrders = todayOrders.filter(order => order.paymentStatus !== "paid" && order.status !== "cancelled");
-  const processingOrders = todayOrders.filter(order => order.paymentStatus === "paid" && order.status !== "done" && order.kitchenStatus !== "done");
-  const doneOrders = todayOrders.filter(order => order.status === "done" || order.kitchenStatus === "done");
+  const unpaidOrders = effectiveOrders.filter(order => !isPaid(order) && !isClosed(order));
+  const processingOrders = effectiveOrders.filter(order => isPaid(order) && !isDone(order) && !isClosed(order));
+  const doneOrders = effectiveOrders.filter(order => isDone(order) || isClosed(order));
 
   const revenue = doneOrders.reduce((sum, order) => sum + Number(order.total || 0), 0);
 
-  statTotalOrders.textContent = todayOrders.length;
+  statTotalOrders.textContent = effectiveOrders.length;
   statUnpaidOrders.textContent = unpaidOrders.length;
   statProcessingOrders.textContent = processingOrders.length;
   statDoneOrders.textContent = doneOrders.length;
@@ -1335,7 +1498,10 @@ window.selectSatay = selectSatay;
 window.toggleExtra = toggleExtra;
 window.removeFromCart = removeFromCart;
 
-window.confirmPaidAndSendKitchen = confirmPaidAndSendKitchen;
+window.confirmPaidAndProcess = confirmPaidAndProcess;
+window.confirmPaidAndSendKitchen = confirmPaidAndProcess;
+window.markOrderDoneByPOS = markOrderDoneByPOS;
+window.closeOrder = closeOrder;
 window.cancelOrder = cancelOrder;
 
 window.openEditOrderModal = openEditOrderModal;
