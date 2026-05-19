@@ -15,6 +15,9 @@ import {
 // pro_plus：專業 Plus 版，QR + POS + 後台 + 廚房 KDS
 const STORE_MODE = "pro_plus";
 
+const STORE_ID = "defaultStore";
+
+
 /* =========================
    DOM
 ========================= */
@@ -1463,25 +1466,253 @@ async function cancelOrder(orderId) {
 }
 
 /* =========================
-   Stats
+   v56 Stats
 ========================= */
 
+const statCancelledOrders = document.getElementById("statCancelledOrders");
+const statAverageOrder = document.getElementById("statAverageOrder");
+
+const statRevenueLabel = document.getElementById("statRevenueLabel");
+const statTotalOrdersLabel = document.getElementById("statTotalOrdersLabel");
+
+const topItemsList = document.getElementById("topItemsList");
+
+const closingRevenue = document.getElementById("closingRevenue");
+const closingValidOrders = document.getElementById("closingValidOrders");
+const closingCancelledOrders = document.getElementById("closingCancelledOrders");
+
+const closingStatus = document.getElementById("closingStatus");
+const closingTime = document.getElementById("closingTime");
+const closeBusinessDayBtn = document.getElementById("closeBusinessDayBtn");
+
+let businessDayCloseData = null;
+
+const reportRangeButtons = document.querySelectorAll(".report-range-btn");
+
+let currentReportRange = "day";
+
+reportRangeButtons.forEach(button => {
+  button.addEventListener("click", () => {
+    currentReportRange = button.dataset.range;
+
+    reportRangeButtons.forEach(btn => btn.classList.remove("active"));
+    button.classList.add("active");
+
+    renderStats();
+  });
+});
+
+
+
+
+function isThisWeek(timestamp) {
+  const date = new Date(timestamp);
+  const now = new Date();
+
+  const firstDay = new Date(now);
+  firstDay.setDate(now.getDate() - now.getDay());
+
+  const lastDay = new Date(firstDay);
+  lastDay.setDate(firstDay.getDate() + 7);
+
+  return date >= firstDay && date < lastDay;
+}
+
+function isThisMonth(timestamp) {
+  const date = new Date(timestamp);
+  const now = new Date();
+
+  return (
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth()
+  );
+}
+
+function getOrdersByRange() {
+  const orders = Object.entries(ordersData)
+    .map(([id, order]) => ({
+      id,
+      ...order
+    }));
+
+  if (currentReportRange === "day") {
+    return orders.filter(order => isToday(order.createdAt));
+  }
+
+  if (currentReportRange === "week") {
+    return orders.filter(order => isThisWeek(order.createdAt));
+  }
+
+  if (currentReportRange === "month") {
+    return orders.filter(order => isThisMonth(order.createdAt));
+  }
+
+  return orders;
+}
+
+function renderTopItems(orders) {
+  const counter = {};
+
+  orders.forEach(order => {
+    if (isCancelled(order)) return;
+
+    const items = normalizeOrderItems(order.items);
+
+    items.forEach(item => {
+      const name = item.name || "未命名";
+
+      counter[name] = (counter[name] || 0) + itemQty(item);
+    });
+  });
+
+  const sorted = Object.entries(counter)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
+
+  if (sorted.length === 0) {
+    topItemsList.innerHTML = `<div class="empty">目前沒有銷售資料</div>`;
+    return;
+  }
+
+  topItemsList.innerHTML = sorted.map((item, index) => `
+    <div class="top-item-row">
+      <span>${index + 1}. ${item[0]}</span>
+      <strong>${item[1]} 份</strong>
+    </div>
+  `).join("");
+}
+
 function renderStats() {
-  const todayOrders = getTodayOrders();
-  const effectiveOrders = getEffectiveTodayOrders();
+  const orders = getOrdersByRange();
 
-  const unpaidOrders = effectiveOrders.filter(order => !isPaid(order) && !isClosed(order));
-  const processingOrders = effectiveOrders.filter(order => isPaid(order) && !isDone(order) && !isClosed(order));
-  const doneOrders = effectiveOrders.filter(order => isDone(order) || isClosed(order));
+  const effectiveOrders = orders.filter(order => !isCancelled(order));
 
-  const revenue = doneOrders.reduce((sum, order) => sum + Number(order.total || 0), 0);
+  const unpaidOrders = effectiveOrders.filter(order => {
+    return !isPaid(order) && !isClosed(order);
+  });
+
+  const processingOrders = effectiveOrders.filter(order => {
+    return isPaid(order) && !isDone(order) && !isClosed(order);
+  });
+
+  const doneOrders = effectiveOrders.filter(order => {
+    return isDone(order) || isClosed(order);
+  });
+
+  const cancelledOrders = orders.filter(order => {
+    return isCancelled(order);
+  });
+
+  const revenue = doneOrders.reduce((sum, order) => {
+    return sum + Number(order.total || 0);
+  }, 0);
+
+  const average =
+    effectiveOrders.length > 0
+      ? revenue / effectiveOrders.length
+      : 0;
+
+  if (currentReportRange === "day") {
+    statRevenueLabel.textContent = "今日營收";
+    statTotalOrdersLabel.textContent = "今日有效訂單";
+  }
+
+  if (currentReportRange === "week") {
+    statRevenueLabel.textContent = "本週營收";
+    statTotalOrdersLabel.textContent = "本週有效訂單";
+  }
+
+  if (currentReportRange === "month") {
+    statRevenueLabel.textContent = "本月營收";
+    statTotalOrdersLabel.textContent = "本月有效訂單";
+  }
 
   statTotalOrders.textContent = effectiveOrders.length;
   statUnpaidOrders.textContent = unpaidOrders.length;
   statProcessingOrders.textContent = processingOrders.length;
   statDoneOrders.textContent = doneOrders.length;
+  statCancelledOrders.textContent = cancelledOrders.length;
+
   statTodayRevenue.textContent = money(revenue);
+  statAverageOrder.textContent = money(Math.round(average));
+
+  closingRevenue.textContent = money(revenue);
+  closingValidOrders.textContent = effectiveOrders.length;
+  closingCancelledOrders.textContent = cancelledOrders.length;
+
+  renderTopItems(orders);
 }
+
+function getTodayKey() {
+  const date = new Date();
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function renderClosingStatus() {
+  if (!closingStatus || !closingTime || !closeBusinessDayBtn) return;
+
+  if (!businessDayCloseData || !businessDayCloseData.closed) {
+    closingStatus.textContent = "尚未收班";
+    closingTime.textContent = "-";
+    closeBusinessDayBtn.disabled = false;
+    closeBusinessDayBtn.textContent = "確認今日收班";
+    return;
+  }
+
+  closingStatus.textContent = "已收班";
+  closingTime.textContent = formatTime(businessDayCloseData.closedAt);
+  closeBusinessDayBtn.disabled = true;
+  closeBusinessDayBtn.textContent = "今日已收班";
+}
+
+function watchBusinessDayClose() {
+  const closeRef = ref(db, `businessDays/${STORE_ID}/${getTodayKey()}`);
+
+  onValue(closeRef, snapshot => {
+    businessDayCloseData = snapshot.exists() ? snapshot.val() : null;
+    renderClosingStatus();
+  });
+}
+
+async function closeBusinessDay() {
+  const ok = confirm("確認今天已完成營收與訂單核對，要執行收班嗎？");
+  if (!ok) return;
+
+  const orders = getOrdersByRange();
+  const effectiveOrders = orders.filter(order => !isCancelled(order));
+  const cancelledOrders = orders.filter(order => isCancelled(order));
+  const doneOrders = effectiveOrders.filter(order => isDone(order) || isClosed(order));
+
+  const revenue = doneOrders.reduce((sum, order) => {
+    return sum + Number(order.total || 0);
+  }, 0);
+
+  try {
+    const now = Date.now();
+
+    await set(ref(db, `businessDays/${STORE_ID}/${getTodayKey()}`), {
+      storeId: STORE_ID,
+      date: getTodayKey(),
+      closed: true,
+      closedAt: now,
+      revenue,
+      validOrders: effectiveOrders.length,
+      cancelledOrders: cancelledOrders.length,
+      note: "v56 每日收班基礎版",
+      createdAt: now,
+      updatedAt: now
+    });
+
+    alert("今日收班已完成");
+  } catch (error) {
+    console.error("收班失敗：", error);
+    alert("收班失敗，請稍後再試");
+  }
+}
+
 
 /* =========================
    Events / Window
@@ -1489,6 +1720,13 @@ function renderStats() {
 
 submitOrderBtn.addEventListener("click", submitOrder);
 clearCartBtn.addEventListener("click", clearCart);
+
+if (closeBusinessDayBtn) {
+  closeBusinessDayBtn.addEventListener("click", closeBusinessDay);
+}
+
+watchBusinessDayClose();
+
 
 window.selectCategory = selectCategory;
 window.selectTable = selectTable;

@@ -111,9 +111,25 @@
       </section>
 
       <section id="statsTab" class="tab-panel">
+        <div class="panel-title">
+          <h2>營運統計</h2>
+          <p>v56 基礎報表：日 / 週 / 月統計、熱銷排行、每日收班預留</p>
+        </div>
+
+        <div class="report-range-tabs">
+          <button class="report-range-btn active" data-range="day">日</button>
+          <button class="report-range-btn" data-range="week">週</button>
+          <button class="report-range-btn" data-range="month">月</button>
+        </div>
+
         <div class="stats-grid">
+          <div class="stat-card revenue">
+            <span id="statRevenueLabel">今日營收</span>
+            <strong id="statTodayRevenue">$0</strong>
+          </div>
+
           <div class="stat-card">
-            <span>今日訂單</span>
+            <span id="statTotalOrdersLabel">有效訂單</span>
             <strong id="statTotalOrders">0</strong>
           </div>
 
@@ -128,14 +144,73 @@
           </div>
 
           <div class="stat-card">
-            <span>已完成</span>
+            <span>已完成 / 已結案</span>
             <strong id="statDoneOrders">0</strong>
           </div>
 
-          <div class="stat-card revenue">
-            <span>今日營收</span>
-            <strong id="statTodayRevenue">$0</strong>
+          <div class="stat-card">
+            <span>取消訂單</span>
+            <strong id="statCancelledOrders">0</strong>
           </div>
+
+          <div class="stat-card">
+            <span>平均客單價</span>
+            <strong id="statAverageOrder">$0</strong>
+          </div>
+        </div>
+
+        <div class="stats-detail-layout">
+          <section class="stats-box">
+            <div class="panel-title">
+              <h2>熱銷餐點 TOP 5</h2>
+              <p id="topItemsSubText">依目前選擇時間範圍計算</p>
+            </div>
+            <div id="topItemsList" class="top-items-list">
+              <div class="empty">目前沒有銷售資料</div>
+            </div>
+          </section>
+
+          <section class="stats-box">
+            <div class="panel-title">
+              <h2>每日收班基礎版</h2>
+              <p>先做收班狀態與核對資料，正式現金/支付核對後續補上</p>
+            </div>
+
+            <div class="closing-check-list">
+              <div class="closing-check-item">
+                <span>收班狀態</span>
+                <strong id="closingStatus">尚未收班</strong>
+              </div>
+
+              <div class="closing-check-item">
+                <span>收班時間</span>
+                <strong id="closingTime">-</strong>
+              </div>
+
+              <div class="closing-check-item">
+                <span>營收核對</span>
+                <strong id="closingRevenue">$0</strong>
+              </div>
+
+              <div class="closing-check-item">
+                <span>有效訂單</span>
+                <strong id="closingValidOrders">0</strong>
+              </div>
+
+              <div class="closing-check-item">
+                <span>取消訂單</span>
+                <strong id="closingCancelledOrders">0</strong>
+              </div>
+
+              <button id="closeBusinessDayBtn" class="primary-btn" type="button">
+                確認今日收班
+              </button>
+
+              <div class="closing-check-note">
+                按下收班後會紀錄今天的營收、有效訂單、取消訂單與收班時間。正式版之後會加入現金、線上支付、外送平台核對。
+              </div>
+            </div>
+          </section>
         </div>
       </section>
     </main>
@@ -267,6 +342,6 @@
     </div>
   </div>
 
-  <script type="module" src="./js/pos.js?v=20260517-edit2"></script>
+  <script type="module" src="./js/pos.js?v=20260519-v56-3"></script>
 </body>
 </html>
