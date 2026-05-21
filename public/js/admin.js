@@ -1,3 +1,11 @@
+// =====================================================
+// 恩點系統 v58-1
+// 日期：2026-05-22
+// 端別：菜單後台 admin.js
+// 檔案：public/js/admin.js
+// 用途：分類管理器 + 菜單管理 + 餐點排序
+// =====================================================
+
 import {
   db,
   ref,
@@ -8,10 +16,6 @@ import {
   onValue
 } from "./firebase.js";
 
-/* =========================
-   恩點系統 v57｜菜單後台商業版
-========================= */
-
 const itemName = document.getElementById("itemName");
 const itemCategory = document.getElementById("itemCategory");
 const itemPrice = document.getElementById("itemPrice");
@@ -21,18 +25,23 @@ const addItemBtn = document.getElementById("addItemBtn");
 const cancelEditBtn = document.getElementById("cancelEditBtn");
 const formTitle = document.getElementById("formTitle");
 
+const newCategoryName = document.getElementById("newCategoryName");
+const addCategoryBtn = document.getElementById("addCategoryBtn");
+const categoryManagerList = document.getElementById("categoryManagerList");
+
 const menuSearchInput = document.getElementById("menuSearchInput");
 const categoryFilterList = document.getElementById("categoryFilterList");
-const categorySortList = document.getElementById("categorySortList");
 const menuList = document.getElementById("menuList");
 
 const menuRef = ref(db, "menu");
+const categoriesRef = ref(db, "categories");
 
 let menuData = {};
+let categoriesData = {};
 let editingId = null;
 let currentCategoryFilter = "全部";
 
-let draggedCategory = null;
+let draggedCategoryId = null;
 let draggedItemId = null;
 let draggedItemCategory = null;
 
@@ -42,6 +51,15 @@ let draggedItemCategory = null;
 
 function money(n) {
   return `NT$${Number(n || 0)}`;
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 function parseOptions(text) {
@@ -79,40 +97,55 @@ function getMenuItems() {
   }));
 }
 
-function getCategoryOrder(category) {
-  const items = getMenuItems().filter(item => (item.category || "未分類") === category);
+function getCategoryItems() {
+  const fromCategories = Object.entries(categoriesData).map(([id, category]) => ({
+    id,
+    name: category.name || "未命名分類",
+    enabled: category.enabled !== false,
+    sortOrder: Number(category.sortOrder ?? 999999999),
+    createdAt: category.createdAt || 0
+  }));
 
-  const existingOrder = items
-    .map(item => Number(item.categoryOrder))
-    .filter(n => !Number.isNaN(n));
+  const existingNames = new Set(fromCategories.map(category => category.name));
 
-  if (existingOrder.length > 0) {
-    return Math.min(...existingOrder);
-  }
-
-  return Date.now();
-}
-
-function getCategories() {
-  const map = {};
+  const fromMenu = [];
 
   getMenuItems().forEach(item => {
-    const category = item.category || "未分類";
+    const name = item.category || "未分類";
 
-    if (!map[category]) {
-      map[category] = {
-        name: category,
-        order: Number(item.categoryOrder ?? 999999999)
-      };
+    if (!existingNames.has(name)) {
+      existingNames.add(name);
+
+      fromMenu.push({
+        id: `legacy-${name}`,
+        name,
+        enabled: true,
+        sortOrder: Number(item.categoryOrder ?? 999999999),
+        createdAt: 0,
+        legacy: true
+      });
     }
-
-    map[category].order = Math.min(map[category].order, Number(item.categoryOrder ?? 999999999));
   });
 
-  return Object.values(map).sort((a, b) => {
-    if (a.order !== b.order) return a.order - b.order;
+  return [...fromCategories, ...fromMenu].sort((a, b) => {
+    if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
     return a.name.localeCompare(b.name, "zh-Hant");
   });
+}
+
+function getCategoryNames() {
+  return getCategoryItems().map(category => category.name);
+}
+
+function findCategoryByName(name) {
+  return Object.entries(categoriesData).find(([id, category]) => {
+    return category.name === name;
+  });
+}
+
+function getCategoryOrderByName(name) {
+  const category = getCategoryItems().find(item => item.name === name);
+  return Number(category?.sortOrder ?? 999999999);
 }
 
 function groupItems() {
@@ -160,6 +193,209 @@ function getFilteredItems(items) {
 }
 
 /* =========================
+   Category Manager
+========================= */
+
+async function addCategory() {
+  const name = newCategoryName.value.trim();
+
+  if (!name) {
+    alert("請輸入分類名稱");
+    return;
+  }
+
+  const exists = getCategoryItems().some(category => category.name === name);
+
+  if (exists) {
+    alert("這個分類已經存在");
+    return;
+  }
+
+  try {
+    const now = Date.now();
+    const newRef = push(categoriesRef);
+
+    await set(newRef, {
+      name,
+      enabled: true,
+      sortOrder: now,
+      createdAt: now,
+      updatedAt: now
+    });
+
+    newCategoryName.value = "";
+  } catch (error) {
+    console.error("新增分類失敗：", error);
+    alert("新增分類失敗");
+  }
+}
+
+async function renameCategory(categoryId, oldName) {
+  const category = categoriesData[categoryId];
+
+  if (!category && !String(categoryId).startsWith("legacy-")) return;
+
+  const nextName = prompt("請輸入新的分類名稱", oldName);
+
+  if (!nextName) return;
+
+  const cleanName = nextName.trim();
+
+  if (!cleanName) return;
+
+  if (cleanName === oldName) return;
+
+  const duplicate = getCategoryItems().some(category => category.name === cleanName);
+
+  if (duplicate) {
+    alert("這個分類名稱已經存在");
+    return;
+  }
+
+  const now = Date.now();
+  const updates = {};
+
+  if (String(categoryId).startsWith("legacy-")) {
+    const newRef = push(categoriesRef);
+
+    updates[`categories/${newRef.key}`] = {
+      name: cleanName,
+      enabled: true,
+      sortOrder: getCategoryOrderByName(oldName),
+      createdAt: now,
+      updatedAt: now
+    };
+  } else {
+    updates[`categories/${categoryId}/name`] = cleanName;
+    updates[`categories/${categoryId}/updatedAt`] = now;
+  }
+
+  getMenuItems()
+    .filter(item => (item.category || "未分類") === oldName)
+    .forEach(item => {
+      updates[`menu/${item.id}/category`] = cleanName;
+      updates[`menu/${item.id}/updatedAt`] = now;
+    });
+
+  try {
+    await update(ref(db), updates);
+
+    if (currentCategoryFilter === oldName) {
+      currentCategoryFilter = cleanName;
+    }
+  } catch (error) {
+    console.error("分類改名失敗：", error);
+    alert("分類改名失敗");
+  }
+}
+
+async function toggleCategory(categoryId, name) {
+  const now = Date.now();
+  const updates = {};
+
+  if (String(categoryId).startsWith("legacy-")) {
+    const newRef = push(categoriesRef);
+
+    updates[`categories/${newRef.key}`] = {
+      name,
+      enabled: false,
+      sortOrder: getCategoryOrderByName(name),
+      createdAt: now,
+      updatedAt: now
+    };
+  } else {
+    const current = categoriesData[categoryId];
+    updates[`categories/${categoryId}/enabled`] = !(current.enabled !== false);
+    updates[`categories/${categoryId}/updatedAt`] = now;
+  }
+
+  try {
+    await update(ref(db), updates);
+  } catch (error) {
+    console.error("分類顯示狀態更新失敗：", error);
+    alert("分類顯示狀態更新失敗");
+  }
+}
+
+async function deleteCategory(categoryId, name) {
+  const relatedItems = getMenuItems().filter(item => (item.category || "未分類") === name);
+
+  if (relatedItems.length > 0) {
+    alert(`「${name}」分類底下還有 ${relatedItems.length} 個餐點，請先移動或刪除餐點後再刪除分類。`);
+    return;
+  }
+
+  if (String(categoryId).startsWith("legacy-")) {
+    alert("這是由舊餐點資料產生的分類，沒有獨立分類資料可刪除。");
+    return;
+  }
+
+  const ok = confirm(`確定要刪除分類「${name}」嗎？`);
+  if (!ok) return;
+
+  try {
+    await remove(ref(db, `categories/${categoryId}`));
+
+    if (currentCategoryFilter === name) {
+      currentCategoryFilter = "全部";
+    }
+  } catch (error) {
+    console.error("刪除分類失敗：", error);
+    alert("刪除分類失敗");
+  }
+}
+
+async function reorderCategory(fromId, toId) {
+  if (!fromId || !toId || fromId === toId) return;
+
+  const categories = getCategoryItems();
+
+  const fromIndex = categories.findIndex(category => category.id === fromId);
+  const toIndex = categories.findIndex(category => category.id === toId);
+
+  if (fromIndex < 0 || toIndex < 0) return;
+
+  const moved = categories.splice(fromIndex, 1)[0];
+  categories.splice(toIndex, 0, moved);
+
+  const updates = {};
+  const now = Date.now();
+
+  categories.forEach((category, index) => {
+    const order = index * 1000;
+
+    if (String(category.id).startsWith("legacy-")) {
+      const newRef = push(categoriesRef);
+
+      updates[`categories/${newRef.key}`] = {
+        name: category.name,
+        enabled: category.enabled !== false,
+        sortOrder: order,
+        createdAt: now,
+        updatedAt: now
+      };
+    } else {
+      updates[`categories/${category.id}/sortOrder`] = order;
+      updates[`categories/${category.id}/updatedAt`] = now;
+    }
+
+    getMenuItems()
+      .filter(item => (item.category || "未分類") === category.name)
+      .forEach(item => {
+        updates[`menu/${item.id}/categoryOrder`] = order;
+        updates[`menu/${item.id}/updatedAt`] = now;
+      });
+  });
+
+  try {
+    await update(ref(db), updates);
+  } catch (error) {
+    console.error("分類排序失敗：", error);
+    alert("分類排序失敗");
+  }
+}
+
+/* =========================
    Form
 ========================= */
 
@@ -167,7 +403,6 @@ function resetForm() {
   editingId = null;
 
   itemName.value = "";
-  itemCategory.value = "";
   itemPrice.value = "";
   itemImage.value = "";
   itemOptions.value = "";
@@ -175,6 +410,29 @@ function resetForm() {
   formTitle.textContent = "新增餐點";
   addItemBtn.textContent = "新增餐點";
   cancelEditBtn.style.display = "none";
+
+  renderCategorySelect();
+}
+
+function renderCategorySelect() {
+  const categories = getCategoryItems();
+
+  if (categories.length === 0) {
+    itemCategory.innerHTML = `<option value="">請先新增分類</option>`;
+    return;
+  }
+
+  const currentValue = itemCategory.value;
+
+  itemCategory.innerHTML = categories.map(category => `
+    <option value="${escapeHtml(category.name)}">
+      ${escapeHtml(category.name)}${category.enabled === false ? "（已隱藏）" : ""}
+    </option>
+  `).join("");
+
+  if (currentValue && categories.some(category => category.name === currentValue)) {
+    itemCategory.value = currentValue;
+  }
 }
 
 async function saveItem() {
@@ -190,7 +448,7 @@ async function saveItem() {
   }
 
   if (!category) {
-    alert("請輸入分類");
+    alert("請選擇分類");
     return;
   }
 
@@ -200,8 +458,8 @@ async function saveItem() {
   }
 
   const now = Date.now();
-
   const oldItem = editingId ? menuData[editingId] : null;
+  const foundCategory = findCategoryByName(category);
 
   const itemData = {
     name,
@@ -210,26 +468,45 @@ async function saveItem() {
     image,
     options,
     enabled: oldItem ? oldItem.enabled !== false : true,
-    categoryOrder:
-      oldItem && oldItem.category === category
-        ? Number(oldItem.categoryOrder || getCategoryOrder(category))
-        : getCategoryOrder(category),
-    sortOrder: oldItem ? Number(oldItem.sortOrder || now) : now,
+    categoryOrder: getCategoryOrderByName(category),
+    sortOrder: oldItem ? Number(oldItem.sortOrder ?? now) : now,
     updatedAt: now
   };
+
+  const updates = {};
 
   try {
     addItemBtn.disabled = true;
 
+    if (!foundCategory) {
+      const newCategoryRef = push(categoriesRef);
+
+      updates[`categories/${newCategoryRef.key}`] = {
+        name: category,
+        enabled: true,
+        sortOrder: Date.now(),
+        createdAt: now,
+        updatedAt: now
+      };
+    }
+
     if (editingId) {
-      await update(ref(db, `menu/${editingId}`), itemData);
+      updates[`menu/${editingId}`] = {
+        ...oldItem,
+        ...itemData
+      };
+
+      await update(ref(db), updates);
       alert("餐點已更新");
     } else {
       const newItemRef = push(menuRef);
-      await set(newItemRef, {
+
+      updates[`menu/${newItemRef.key}`] = {
         ...itemData,
         createdAt: now
-      });
+      };
+
+      await update(ref(db), updates);
       alert("餐點已新增");
     }
 
@@ -249,6 +526,8 @@ function editItem(id) {
 
   editingId = id;
 
+  renderCategorySelect();
+
   itemName.value = item.name || "";
   itemCategory.value = item.category || "";
   itemPrice.value = item.price || "";
@@ -266,7 +545,7 @@ function editItem(id) {
 }
 
 /* =========================
-   Actions
+   Item Actions
 ========================= */
 
 async function toggleItem(id) {
@@ -300,47 +579,6 @@ async function deleteItem(id) {
   } catch (err) {
     console.error("刪除失敗：", err);
     alert("刪除失敗");
-  }
-}
-
-/* =========================
-   Drag Sort
-========================= */
-
-async function saveCategoryOrder(newCategories) {
-  const updates = {};
-  const now = Date.now();
-
-  newCategories.forEach((category, index) => {
-    getMenuItems()
-      .filter(item => (item.category || "未分類") === category)
-      .forEach(item => {
-        updates[`menu/${item.id}/categoryOrder`] = index * 1000;
-        updates[`menu/${item.id}/updatedAt`] = now;
-      });
-  });
-
-  await update(ref(db), updates);
-}
-
-async function reorderCategory(fromCategory, toCategory) {
-  if (!fromCategory || !toCategory || fromCategory === toCategory) return;
-
-  const categories = getCategories().map(category => category.name);
-
-  const fromIndex = categories.indexOf(fromCategory);
-  const toIndex = categories.indexOf(toCategory);
-
-  if (fromIndex < 0 || toIndex < 0) return;
-
-  const moved = categories.splice(fromIndex, 1)[0];
-  categories.splice(toIndex, 0, moved);
-
-  try {
-    await saveCategoryOrder(categories);
-  } catch (err) {
-    console.error("分類排序失敗：", err);
-    alert("分類排序失敗");
   }
 }
 
@@ -378,40 +616,86 @@ async function reorderItem(category, fromId, toId) {
    Render
 ========================= */
 
-function renderCategoryFilters() {
-  const categories = getCategories();
-
-  categoryFilterList.innerHTML = [
-    `<button class="${currentCategoryFilter === "全部" ? "active" : ""}" onclick="setCategoryFilter('全部')">全部</button>`,
-    ...categories.map(category => `
-      <button class="${currentCategoryFilter === category.name ? "active" : ""}" onclick="setCategoryFilter('${category.name}')">
-        ${category.name}
-      </button>
-    `)
-  ].join("");
-}
-
-function renderCategorySortList() {
-  const categories = getCategories();
+function renderCategoryManager() {
+  const categories = getCategoryItems();
 
   if (categories.length === 0) {
-    categorySortList.innerHTML = "";
+    categoryManagerList.innerHTML = `<div class="empty">尚未建立分類</div>`;
     return;
   }
 
-  categorySortList.innerHTML = categories.map(category => `
+  categoryManagerList.innerHTML = categories.map(category => `
     <div
-      class="admin-category-pill"
+      class="category-manager-card ${category.enabled === false ? "disabled" : ""}"
       draggable="true"
-      data-category="${category.name}"
-      ondragstart="handleCategoryDragStart(event, '${category.name}')"
-      ondragover="handleDragOver(event)"
-      ondrop="handleCategoryDrop(event, '${category.name}')"
+      data-category-id="${escapeHtml(category.id)}"
     >
-      <span class="drag-icon">☰</span>
-      <span>${category.name}</span>
+      <div class="category-manager-main">
+        <span class="drag-icon">☰</span>
+        <div>
+          <strong>${escapeHtml(category.name)}</strong>
+          <p>${category.enabled === false ? "已隱藏" : "顯示中"}${category.legacy ? "｜舊資料分類" : ""}</p>
+        </div>
+      </div>
+
+      <div class="category-manager-actions">
+        <button data-action="rename" data-id="${escapeHtml(category.id)}" data-name="${escapeHtml(category.name)}">改名</button>
+        <button data-action="toggle" data-id="${escapeHtml(category.id)}" data-name="${escapeHtml(category.name)}">
+          ${category.enabled === false ? "顯示" : "隱藏"}
+        </button>
+        <button class="danger-btn" data-action="delete" data-id="${escapeHtml(category.id)}" data-name="${escapeHtml(category.name)}">刪除</button>
+      </div>
     </div>
   `).join("");
+
+  categoryManagerList.querySelectorAll(".category-manager-card").forEach(card => {
+    card.addEventListener("dragstart", event => {
+      draggedCategoryId = card.dataset.categoryId;
+      event.dataTransfer.effectAllowed = "move";
+    });
+
+    card.addEventListener("dragover", event => {
+      event.preventDefault();
+    });
+
+    card.addEventListener("drop", event => {
+      event.preventDefault();
+      reorderCategory(draggedCategoryId, card.dataset.categoryId);
+      draggedCategoryId = null;
+    });
+  });
+
+  categoryManagerList.querySelectorAll("button").forEach(button => {
+    button.addEventListener("click", () => {
+      const action = button.dataset.action;
+      const id = button.dataset.id;
+      const name = button.dataset.name;
+
+      if (action === "rename") renameCategory(id, name);
+      if (action === "toggle") toggleCategory(id, name);
+      if (action === "delete") deleteCategory(id, name);
+    });
+  });
+}
+
+function renderCategoryFilters() {
+  const categories = getCategoryItems();
+
+  categoryFilterList.innerHTML = [
+    `<button class="${currentCategoryFilter === "全部" ? "active" : ""}" data-category="全部">全部</button>`,
+    ...categories.map(category => `
+      <button class="${currentCategoryFilter === category.name ? "active" : ""}" data-category="${escapeHtml(category.name)}">
+        ${escapeHtml(category.name)}${category.enabled === false ? "（隱藏）" : ""}
+      </button>
+    `)
+  ].join("");
+
+  categoryFilterList.querySelectorAll("button").forEach(button => {
+    button.addEventListener("click", () => {
+      currentCategoryFilter = button.dataset.category;
+      renderMenu();
+    });
+  });
 }
 
 function renderMenu() {
@@ -421,13 +705,14 @@ function renderMenu() {
 
   if (allItems.length === 0) {
     menuList.innerHTML = `<div class="empty">目前沒有菜單資料</div>`;
+    renderCategoryManager();
+    renderCategorySelect();
     renderCategoryFilters();
-    renderCategorySortList();
     return;
   }
 
   const grouped = groupItems();
-  const categories = getCategories();
+  const categories = getCategoryItems();
 
   const html = categories.map(categoryData => {
     const category = categoryData.name;
@@ -436,9 +721,9 @@ function renderMenu() {
     if (items.length === 0) return "";
 
     return `
-      <section class="admin-category-block">
+      <section class="admin-category-block ${categoryData.enabled === false ? "category-hidden" : ""}">
         <div class="admin-category-head">
-          <h3>${category}</h3>
+          <h3>${escapeHtml(category)} ${categoryData.enabled === false ? "（已隱藏）" : ""}</h3>
           <span>${items.length} 項餐點</span>
         </div>
 
@@ -451,8 +736,11 @@ function renderMenu() {
 
   menuList.innerHTML = html || `<div class="empty">找不到符合條件的餐點</div>`;
 
+  bindMenuCardDragEvents();
+
+  renderCategoryManager();
+  renderCategorySelect();
   renderCategoryFilters();
-  renderCategorySortList();
 }
 
 function renderMenuCard(item, category) {
@@ -466,16 +754,13 @@ function renderMenuCard(item, category) {
     <article
       class="admin-menu-card-v57 ${item.enabled === false ? "disabled" : ""}"
       draggable="true"
-      data-id="${item.id}"
-      data-category="${category}"
-      ondragstart="handleItemDragStart(event, '${item.id}', '${category}')"
-      ondragover="handleDragOver(event)"
-      ondrop="handleItemDrop(event, '${item.id}', '${category}')"
+      data-id="${escapeHtml(item.id)}"
+      data-category="${escapeHtml(category)}"
     >
       <div class="admin-card-image">
         ${
           image
-            ? `<img src="${image}" alt="${item.name || "餐點圖片"}">`
+            ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(item.name || "餐點圖片")}">`
             : `<div class="admin-no-image">恩點</div>`
         }
       </div>
@@ -483,8 +768,8 @@ function renderMenuCard(item, category) {
       <div class="admin-card-body">
         <div class="admin-card-title-row">
           <div>
-            <strong>${item.name || "未命名餐點"}</strong>
-            <p>${category}</p>
+            <strong>${escapeHtml(item.name || "未命名餐點")}</strong>
+            <p>${escapeHtml(category)}</p>
           </div>
           <span class="admin-status ${item.enabled === false ? "off" : "on"}">
             ${item.enabled === false ? "下架" : "上架"}
@@ -494,63 +779,61 @@ function renderMenuCard(item, category) {
         <div class="admin-price">${money(item.price)}</div>
 
         <div class="admin-options">
-          ${optionsText}
+          ${escapeHtml(optionsText)}
         </div>
 
         <div class="admin-actions">
-          <button onclick="editItem('${item.id}')">編輯</button>
-          <button onclick="toggleItem('${item.id}')">
+          <button data-action="edit" data-id="${escapeHtml(item.id)}">編輯</button>
+          <button data-action="toggle" data-id="${escapeHtml(item.id)}">
             ${item.enabled === false ? "上架" : "下架"}
           </button>
-          <button class="danger-btn" onclick="deleteItem('${item.id}')">刪除</button>
+          <button class="danger-btn" data-action="delete" data-id="${escapeHtml(item.id)}">刪除</button>
         </div>
       </div>
     </article>
   `;
 }
 
-/* =========================
-   Window Events
-========================= */
+function bindMenuCardDragEvents() {
+  menuList.querySelectorAll(".admin-menu-card-v57").forEach(card => {
+    card.addEventListener("dragstart", event => {
+      draggedItemId = card.dataset.id;
+      draggedItemCategory = card.dataset.category;
+      event.dataTransfer.effectAllowed = "move";
+    });
 
-function setCategoryFilter(category) {
-  currentCategoryFilter = category;
-  renderMenu();
-}
+    card.addEventListener("dragover", event => {
+      event.preventDefault();
+    });
 
-function handleCategoryDragStart(event, category) {
-  draggedCategory = category;
-  event.dataTransfer.effectAllowed = "move";
-}
+    card.addEventListener("drop", event => {
+      event.preventDefault();
 
-function handleCategoryDrop(event, targetCategory) {
-  event.preventDefault();
-  reorderCategory(draggedCategory, targetCategory);
-  draggedCategory = null;
-}
+      const targetId = card.dataset.id;
+      const targetCategory = card.dataset.category;
 
-function handleItemDragStart(event, itemId, category) {
-  draggedItemId = itemId;
-  draggedItemCategory = category;
-  event.dataTransfer.effectAllowed = "move";
-}
+      if (draggedItemCategory !== targetCategory) {
+        alert("目前先支援同分類內餐點排序。要移到其他分類，請用編輯修改分類。");
+        return;
+      }
 
-function handleItemDrop(event, targetId, targetCategory) {
-  event.preventDefault();
+      reorderItem(targetCategory, draggedItemId, targetId);
 
-  if (draggedItemCategory !== targetCategory) {
-    alert("目前先支援同分類內餐點排序。要移到其他分類，請用編輯修改分類。");
-    return;
-  }
+      draggedItemId = null;
+      draggedItemCategory = null;
+    });
+  });
 
-  reorderItem(targetCategory, draggedItemId, targetId);
+  menuList.querySelectorAll(".admin-actions button").forEach(button => {
+    button.addEventListener("click", () => {
+      const action = button.dataset.action;
+      const id = button.dataset.id;
 
-  draggedItemId = null;
-  draggedItemCategory = null;
-}
-
-function handleDragOver(event) {
-  event.preventDefault();
+      if (action === "edit") editItem(id);
+      if (action === "toggle") toggleItem(id);
+      if (action === "delete") deleteItem(id);
+    });
+  });
 }
 
 /* =========================
@@ -562,29 +845,25 @@ onValue(menuRef, snapshot => {
   renderMenu();
 });
 
+onValue(categoriesRef, snapshot => {
+  categoriesData = snapshot.exists() ? snapshot.val() : {};
+  renderMenu();
+});
+
 /* =========================
    Events
 ========================= */
 
+addCategoryBtn.addEventListener("click", addCategory);
+
+newCategoryName.addEventListener("keydown", event => {
+  if (event.key === "Enter") {
+    addCategory();
+  }
+});
+
 addItemBtn.addEventListener("click", saveItem);
 cancelEditBtn.addEventListener("click", resetForm);
-
 menuSearchInput.addEventListener("input", renderMenu);
 
 resetForm();
-
-/* =========================
-   Expose
-========================= */
-
-window.editItem = editItem;
-window.toggleItem = toggleItem;
-window.deleteItem = deleteItem;
-
-window.setCategoryFilter = setCategoryFilter;
-
-window.handleCategoryDragStart = handleCategoryDragStart;
-window.handleCategoryDrop = handleCategoryDrop;
-window.handleItemDragStart = handleItemDragStart;
-window.handleItemDrop = handleItemDrop;
-window.handleDragOver = handleDragOver;

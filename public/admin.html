@@ -1,3 +1,10 @@
+<!--
+  恩點系統 v58-1
+  日期：2026-05-22
+  端別：菜單後台 admin.html
+  用途：分類管理器 + 菜單管理
+-->
+
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
@@ -10,11 +17,32 @@
 <body class="admin-page">
   <header class="topbar admin-topbar">
     <h1>恩點系統｜菜單後台</h1>
-    <p>v57 商業版菜單管理｜新增、編輯、上下架、拖拉排序</p>
+    <p>v58-1 分類管理器｜分類新增、改名、隱藏、刪除、排序</p>
   </header>
 
   <main class="admin-v57-layout">
     <section class="admin-form-panel">
+      <div class="panel-title-row">
+        <div>
+          <h2>分類管理</h2>
+          <p>建立分類、排序、顯示或隱藏分類</p>
+        </div>
+      </div>
+
+      <label>新增分類</label>
+      <div class="admin-inline-form">
+        <input id="newCategoryName" type="text" placeholder="例如：鍋燒類" />
+        <button id="addCategoryBtn" class="primary-btn">新增</button>
+      </div>
+
+      <div class="sort-hint">
+        提示：分類可拖拉排序。隱藏分類後，之後 v58-3 會同步讓 POS / QR 不顯示該分類。
+      </div>
+
+      <div id="categoryManagerList" class="category-manager-list"></div>
+
+      <hr class="admin-divider" />
+
       <div class="panel-title-row">
         <div>
           <h2 id="formTitle">新增餐點</h2>
@@ -26,7 +54,7 @@
       <input id="itemName" type="text" placeholder="例如：鍋燒意麵" />
 
       <label>分類</label>
-      <input id="itemCategory" type="text" placeholder="例如：鍋燒類、炒飯類" />
+      <select id="itemCategory"></select>
 
       <label>價格</label>
       <input id="itemPrice" type="number" placeholder="例如：100" />
@@ -47,7 +75,7 @@
       <div class="panel-title-row">
         <div>
           <h2>目前菜單</h2>
-          <p>可拖拉分類與餐點調整顯示順序</p>
+          <p>可拖拉餐點調整同分類內顯示順序</p>
         </div>
       </div>
 
@@ -57,10 +85,8 @@
       </div>
 
       <div class="sort-hint">
-        提示：按住分類或餐點卡片拖拉，即可調整排序。排序會自動儲存。
+        提示：餐點卡片可拖拉排序。分類排序請在左側「分類管理」操作。
       </div>
-
-      <div id="categorySortList" class="admin-category-sort-list"></div>
 
       <div id="menuList" class="admin-menu-list"></div>
     </section>
