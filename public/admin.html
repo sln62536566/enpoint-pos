@@ -7,15 +7,20 @@
   <link rel="stylesheet" href="./css/style.css" />
 </head>
 
-<body>
-  <header class="topbar">
+<body class="admin-page">
+  <header class="topbar admin-topbar">
     <h1>恩點系統｜菜單後台</h1>
-    <p>新增、修改、上下架餐點</p>
+    <p>v57 商業版菜單管理｜新增、編輯、上下架、拖拉排序</p>
   </header>
 
-  <main class="admin-layout">
-    <section class="panel">
-      <h2>新增餐點</h2>
+  <main class="admin-v57-layout">
+    <section class="admin-form-panel">
+      <div class="panel-title-row">
+        <div>
+          <h2 id="formTitle">新增餐點</h2>
+          <p>建立餐點、分類、圖片與加料選項</p>
+        </div>
+      </div>
 
       <label>餐點名稱</label>
       <input id="itemName" type="text" placeholder="例如：鍋燒意麵" />
@@ -26,18 +31,38 @@
       <label>價格</label>
       <input id="itemPrice" type="number" placeholder="例如：100" />
 
-      <label>圖片網址（先可空白）</label>
-      <input id="itemImage" type="text" placeholder="之後可接圖片上傳" />
+      <label>圖片網址</label>
+      <input id="itemImage" type="text" placeholder="可先空白，之後可接圖片上傳" />
 
       <label>加料選項</label>
       <textarea id="itemOptions" placeholder="格式：加蛋:15,加肉:20,泡菜:20"></textarea>
 
-      <button id="addItemBtn" class="primary-btn">新增餐點</button>
+      <div class="admin-form-actions">
+        <button id="addItemBtn" class="primary-btn">新增餐點</button>
+        <button id="cancelEditBtn" class="secondary-btn" type="button">取消編輯</button>
+      </div>
     </section>
 
-    <section class="panel">
-      <h2>目前菜單</h2>
-      <div id="menuList" class="menu-list"></div>
+    <section class="admin-menu-panel">
+      <div class="panel-title-row">
+        <div>
+          <h2>目前菜單</h2>
+          <p>可拖拉分類與餐點調整顯示順序</p>
+        </div>
+      </div>
+
+      <div class="admin-tools">
+        <input id="menuSearchInput" type="text" placeholder="搜尋餐點名稱或分類..." />
+        <div id="categoryFilterList" class="admin-filter-list"></div>
+      </div>
+
+      <div class="sort-hint">
+        提示：按住分類或餐點卡片拖拉，即可調整排序。排序會自動儲存。
+      </div>
+
+      <div id="categorySortList" class="admin-category-sort-list"></div>
+
+      <div id="menuList" class="admin-menu-list"></div>
     </section>
   </main>
 
