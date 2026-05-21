@@ -1433,7 +1433,13 @@ function renderEditItemRequiredOption() {
     </div>
   `;
 
-  editItemExtrasBox.parentNode.insertBefore(box, editItemExtrasBox);
+  const extrasSection = editItemExtrasBox.parentNode;
+
+  box.style.marginBottom = "18px";
+  box.style.paddingBottom = "16px";
+  box.style.borderBottom = "1px solid rgba(255,255,255,0.12)";
+
+  extrasSection.parentNode.insertBefore(box, extrasSection);
 }
 
 function selectEditRequiredOption(value) {
