@@ -4,6 +4,7 @@ import {
   push,
   set,
   update,
+  remove,
   onValue,
   getBusinessDate,
   generateDailyOrderNumber
@@ -391,6 +392,8 @@ function calculateTotal(items = cart) {
 }
 
 function canEditOrder(order) {
+  if (isBusinessDayClosed()) return false;
+
   return (
     order &&
     !isCancelled(order) &&
@@ -865,10 +868,12 @@ function renderOrderList(orders, emptyText) {
 function renderOrderCard(order) {
   const items = normalizeOrderItems(order.items);
   const statusText = getOrderStatusText(order);
-  const canConfirm = !isPaid(order) && !isCancelled(order) && !isClosed(order);
-  const canCancel = !isPaid(order) && !isCancelled(order) && !isClosed(order);
-  const canClose = isDone(order) && !isClosed(order) && !isCancelled(order);
-  const editable = canEditOrder(order);
+  const locked = isBusinessDayClosed();
+
+  const canConfirm = !locked && !isPaid(order) && !isCancelled(order) && !isClosed(order);
+  const canCancel = !locked && !isPaid(order) && !isCancelled(order) && !isClosed(order);
+  const canClose = !locked && isDone(order) && !isClosed(order) && !isCancelled(order);
+  const editable = !locked && canEditOrder(order);
 
   return `
     <article class="order-card">
@@ -1580,8 +1585,8 @@ function renderClosingStatus() {
 
   closingStatus.textContent = "已收班";
   closingTime.textContent = formatTime(businessDayCloseData.closedAt);
-  closeBusinessDayBtn.disabled = true;
-  closeBusinessDayBtn.textContent = "今日已收班";
+  closeBusinessDayBtn.disabled = false;
+  closeBusinessDayBtn.textContent = "重新開班";
   submitOrderBtn.disabled = true;
 }
 
@@ -1590,7 +1595,17 @@ function watchBusinessDayClose() {
 
   onValue(closeRef, snapshot => {
     businessDayCloseData = snapshot.exists() ? snapshot.val() : null;
+
     renderClosingStatus();
+
+    // 🔥 重新刷新訂單畫面
+    renderAllOrders();
+
+    // 🔥 重新刷新統計
+    renderStats();
+
+    // 🔥 重新刷新角標
+    renderRealtimeBadges();
   });
 }
 
@@ -1631,6 +1646,23 @@ async function closeBusinessDay() {
   }
 }
 
+async function reopenBusinessDay() {
+  const ok = confirm("確定要重新開班嗎？重新開班後，今天可以繼續建立訂單。");
+  if (!ok) return;
+
+  const secondOk = confirm("請再次確認：這通常只用在誤按收班的情況。是否確定重新開班？");
+  if (!secondOk) return;
+
+  try {
+    await remove(ref(db, `businessDays/${STORE_ID}/${getTodayKey()}`));
+    alert("已重新開班，可以繼續建立今日訂單。");
+  } catch (error) {
+    console.error("重新開班失敗：", error);
+    alert("重新開班失敗，請稍後再試");
+  }
+}
+
+
 /* =========================
    Events / Window
 ========================= */
@@ -1639,7 +1671,13 @@ submitOrderBtn.addEventListener("click", submitOrder);
 clearCartBtn.addEventListener("click", clearCart);
 
 if (closeBusinessDayBtn) {
-  closeBusinessDayBtn.addEventListener("click", closeBusinessDay);
+  closeBusinessDayBtn.addEventListener("click", () => {
+    if (isBusinessDayClosed()) {
+      reopenBusinessDay();
+    } else {
+      closeBusinessDay();
+    }
+  });
 }
 
 watchBusinessDayClose();
