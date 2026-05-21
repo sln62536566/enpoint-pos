@@ -92,6 +92,7 @@ const saveEditItemBtn = document.getElementById("saveEditItemBtn");
 ========================= */
 
 const menuRef = ref(db, "menu");
+const categoriesRef = ref(db, "categories");
 const ordersRef = ref(db, "orders");
 
 /* =========================
@@ -99,6 +100,7 @@ const ordersRef = ref(db, "orders");
 ========================= */
 
 let menuData = {};
+let categoriesData = {};
 let ordersData = {};
 let currentCategory = "全部";
 let cart = [];
@@ -111,6 +113,7 @@ let currentQuantity = 1;
 let selectedPortion = null;
 let selectedExtras = [];
 let selectedSatay = "不要";
+let selectedRequiredOption = "";
 
 let editingOrderId = null;
 let editingItems = [];
@@ -133,6 +136,12 @@ const tables = ["1", "2", "3", "4", "5", "6", "7", "8"];
 
 onValue(menuRef, snapshot => {
   menuData = snapshot.exists() ? snapshot.val() : {};
+  renderCategories();
+  renderMenu();
+});
+
+onValue(categoriesRef, snapshot => {
+  categoriesData = snapshot.exists() ? snapshot.val() : {};
   renderCategories();
   renderMenu();
 });
@@ -205,10 +214,77 @@ function formatTime(timestamp) {
   });
 }
 
+function getCategorySettings() {
+  const settings = {};
+
+  Object.entries(categoriesData || {}).forEach(([id, category]) => {
+    const name = category.name || "未分類";
+
+    settings[name] = {
+      id,
+      name,
+      enabled: category.enabled !== false,
+      sortOrder: Number(category.sortOrder ?? 999999999)
+    };
+  });
+
+  return settings;
+}
+
+function getCategorySortOrder(categoryName) {
+  const settings = getCategorySettings();
+
+  if (settings[categoryName]) {
+    return settings[categoryName].sortOrder;
+  }
+
+  if (categoryName === "其他" || categoryName === "未分類") {
+    return 999999998;
+  }
+
+  return 999999997;
+}
+
+function isCategoryVisible(categoryName) {
+  const settings = getCategorySettings();
+
+  if (settings[categoryName]) {
+    return settings[categoryName].enabled;
+  }
+
+  return true;
+}
+
+function sortMenuItems(items) {
+  return [...items].sort((a, b) => {
+    const categoryA = getItemCategory(a);
+    const categoryB = getItemCategory(b);
+
+    const categoryOrderA = getCategorySortOrder(categoryA);
+    const categoryOrderB = getCategorySortOrder(categoryB);
+
+    if (categoryOrderA !== categoryOrderB) {
+      return categoryOrderA - categoryOrderB;
+    }
+
+    const itemOrderA = Number(a.sortOrder ?? 999999999);
+    const itemOrderB = Number(b.sortOrder ?? 999999999);
+
+    if (itemOrderA !== itemOrderB) {
+      return itemOrderA - itemOrderB;
+    }
+
+    return String(a.name || "").localeCompare(String(b.name || ""), "zh-Hant");
+  });
+}
+
 function getEnabledItems() {
-  return Object.entries(menuData)
-    .map(([id, item]) => ({ id, ...item }))
-    .filter(item => item.enabled !== false);
+  return sortMenuItems(
+    Object.entries(menuData)
+      .map(([id, item]) => ({ id, ...item }))
+      .filter(item => item.enabled !== false)
+      .filter(item => isCategoryVisible(getItemCategory(item)))
+  );
 }
 
 function getItemCategory(item) {
@@ -302,6 +378,74 @@ function getExtras(item) {
 
   return [];
 }
+
+function getRequiredOption(item) {
+  if (!item || !item.requiredOption) return null;
+
+  const requiredOption = item.requiredOption;
+
+  if (!requiredOption.title) return null;
+  if (!Array.isArray(requiredOption.options)) return null;
+  if (requiredOption.options.length === 0) return null;
+
+  return requiredOption;
+}
+
+function renderRequiredOptionBox() {
+  const oldBox = document.getElementById("requiredOptionBox");
+  if (oldBox) oldBox.remove();
+
+  const requiredOption = getRequiredOption(currentItem);
+  if (!requiredOption) return;
+
+  selectedRequiredOption = "";
+
+  const box = document.createElement("div");
+  box.id = "requiredOptionBox";
+  box.className = "required-option-select-box";
+
+  box.innerHTML = `
+    <h3>${requiredOption.title} <span>必選</span></h3>
+    <div class="option-grid">
+      ${requiredOption.options.map(option => `
+        <button class="option-btn required-option-btn" type="button" data-value="${option}">
+          ${option}
+        </button>
+      `).join("")}
+    </div>
+  `;
+
+  const extrasSection = extrasBox.parentNode;
+  customModal.querySelector(".modal-card").insertBefore(box, extrasSection);
+
+  box.querySelectorAll(".required-option-btn").forEach(button => {
+    button.addEventListener("click", () => {
+      selectedRequiredOption = button.dataset.value;
+
+      box.querySelectorAll(".required-option-btn").forEach(btn => {
+        btn.classList.remove("active");
+      });
+
+      button.classList.add("active");
+    });
+  });
+}
+
+function renderItemDescriptionBox() {
+  const oldBox = document.getElementById("itemDescriptionBox");
+  if (oldBox) oldBox.remove();
+
+  if (!currentItem || !currentItem.description) return;
+
+  const box = document.createElement("div");
+  box.id = "itemDescriptionBox";
+  box.className = "item-description-box";
+  box.textContent = currentItem.description;
+
+  modalItemPrice.insertAdjacentElement("afterend", box);
+}
+
+
 
 function allowSpicy(item) {
   const category = getItemCategory(item);
@@ -510,18 +654,28 @@ takeOutBtn.addEventListener("click", () => {
 
 function renderCategories() {
   const items = getEnabledItems();
-  const categories = ["全部"];
+  const categorySet = new Set(items.map(item => getItemCategory(item)));
 
-  items.forEach(item => {
-    const category = getItemCategory(item);
-    if (!categories.includes(category)) categories.push(category);
+  const sortedCategories = [...categorySet].sort((a, b) => {
+    const orderA = getCategorySortOrder(a);
+    const orderB = getCategorySortOrder(b);
+
+    if (orderA !== orderB) return orderA - orderB;
+
+    return a.localeCompare(b, "zh-Hant");
   });
+
+  const categories = ["全部", ...sortedCategories];
 
   categoryList.innerHTML = categories.map(category => `
     <button class="${currentCategory === category ? "active" : ""}" onclick="selectCategory('${category}')">
       ${category}
     </button>
   `).join("");
+
+  if (!categories.includes(currentCategory)) {
+    currentCategory = "全部";
+  }
 }
 
 function selectCategory(category) {
@@ -530,6 +684,12 @@ function selectCategory(category) {
   renderMenu();
 }
 
+// =====================================================
+// 恩點系統 v58-3 前置修正
+// 日期：2026-05-22
+// 端別：POS 點餐端 pos.js
+// 用途：「全部」改成依分類分區顯示
+// =====================================================
 function renderMenu() {
   let items = getEnabledItems();
 
@@ -542,23 +702,61 @@ function renderMenu() {
     return;
   }
 
-  posMenuList.innerHTML = items.map(item => {
-    const imageUrl = getImageUrl(item);
+  if (currentCategory === "全部") {
+    const grouped = {};
 
-    return `
-      <button class="pos-food-btn" onclick="openCustomModal('${item.id}')">
-        <div class="food-img">
-          ${imageUrl ? `<img src="${imageUrl}" alt="${item.name || "餐點圖片"}">` : `<span>恩點</span>`}
-        </div>
+    items.forEach(item => {
+      const category = getItemCategory(item);
 
-        <div class="food-info">
-          <strong>${item.name || "未命名餐點"}</strong>
-          <small>${getItemCategory(item)}</small>
-          <b>${money(getBasePrice(item))}</b>
-        </div>
-      </button>
-    `;
-  }).join("");
+      if (!grouped[category]) {
+        grouped[category] = [];
+      }
+
+      grouped[category].push(item);
+    });
+
+    posMenuList.innerHTML = Object.entries(grouped)
+      .sort((a, b) => getCategorySortOrder(a[0]) - getCategorySortOrder(b[0]))
+      .map(([category, categoryItems]) => `
+        <section class="pos-category-section">
+          <h3>${category}</h3>
+
+          <div class="pos-category-grid">
+            ${categoryItems.map(renderPosFoodButton).join("")}
+          </div>
+        </section>
+      `).join("");
+
+    return;
+  }
+
+  posMenuList.innerHTML = `
+    <section class="pos-category-section">
+      <h3>${currentCategory}</h3>
+
+      <div class="pos-category-grid">
+        ${items.map(renderPosFoodButton).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderPosFoodButton(item) {
+  const imageUrl = getImageUrl(item);
+
+  return `
+    <button class="pos-food-btn" onclick="openCustomModal('${item.id}')">
+      <div class="food-img">
+        ${imageUrl ? `<img src="${imageUrl}" alt="${item.name || "餐點圖片"}">` : `<span>恩點</span>`}
+      </div>
+
+      <div class="food-info">
+        <strong>${item.name || "未命名餐點"}</strong>
+        <small>${getItemCategory(item)}</small>
+        <b>${money(getBasePrice(item))}</b>
+      </div>
+    </button>
+  `;
 }
 
 /* =========================
@@ -573,6 +771,7 @@ function openCustomModal(itemId) {
   currentQuantity = 1;
   selectedExtras = [];
   selectedSatay = "不要";
+  selectedRequiredOption = "";
 
   const portionOptions = getPortionOptions(currentItem);
   selectedPortion = portionOptions[0];
@@ -585,8 +784,10 @@ function openCustomModal(itemId) {
   spicySelect.value = allowSpicy(currentItem) ? "不辣" : "";
   spicySelect.disabled = !allowSpicy(currentItem);
 
+  renderItemDescriptionBox();
   renderPortionOptions();
   renderSatayOptions();
+  renderRequiredOptionBox();
   renderExtrasOptions();
 
   customModal.classList.remove("hidden");
@@ -600,12 +801,20 @@ function closeCustomModal() {
   selectedPortion = null;
   selectedExtras = [];
   selectedSatay = "不要";
+  selectedRequiredOption = "";
 
   modalQuantity.textContent = "1";
   noteInput.value = "";
   extrasBox.innerHTML = "";
   portionBox.innerHTML = "";
   satayBox.innerHTML = "";
+
+  const requiredOptionBox = document.getElementById("requiredOptionBox");
+  if (requiredOptionBox) requiredOptionBox.remove();
+
+  const itemDescriptionBox = document.getElementById("itemDescriptionBox");
+  if (itemDescriptionBox) itemDescriptionBox.remove();
+
 }
 
 function renderPortionOptions() {
@@ -703,7 +912,14 @@ customModal.addEventListener("click", event => {
 
 confirmCustomBtn.addEventListener("click", () => {
   if (!currentItem || !selectedPortion) return;
+  
+  const requiredOption = getRequiredOption(currentItem);
 
+  if (requiredOption && !selectedRequiredOption) {
+    alert(`請先選擇「${requiredOption.title}」`);
+    return;
+  }
+  
   const basePrice = Number(selectedPortion.price || getBasePrice(currentItem));
   const extrasTotal = selectedExtras.reduce((sum, extra) => sum + Number(extra.price || 0), 0);
   const unitPrice = basePrice + extrasTotal;
@@ -723,6 +939,12 @@ confirmCustomBtn.addEventListener("click", () => {
     qty: currentQuantity,
     spicy: allowSpicy(currentItem) ? spicySelect.value : "",
     satay: allowSatay(currentItem) ? selectedSatay : "",
+    requiredOption: requiredOption
+      ? {
+          title: requiredOption.title,
+          value: selectedRequiredOption
+        }
+      : null,
     extras: selectedExtras,
     addons: selectedExtras,
     note: noteInput.value.trim(),
@@ -756,6 +978,7 @@ function renderCart() {
             ${item.size && item.size !== "一般" ? `<p>份量：${item.size}</p>` : ""}
             ${item.spicy ? `<p>辣度：${item.spicy}</p>` : ""}
             ${item.satay ? `<p>沙茶：${item.satay}</p>` : ""}
+            ${item.requiredOption ? `<p>${item.requiredOption.title}：${item.requiredOption.value}</p>` : ""}
             ${extras.length ? `<p>加料：${extras.map(extra => extra.name).join("、")}</p>` : ""}
             ${item.note ? `<p>備註：${item.note}</p>` : ""}
             <p>小計：${money(itemSubtotal(item))}</p>
@@ -921,6 +1144,7 @@ function renderOrderItem(item) {
         ${item.size && item.size !== "一般" ? `<p>份量：${item.size}</p>` : ""}
         ${item.spicy ? `<p>辣度：${item.spicy}</p>` : ""}
         ${item.satay ? `<p>沙茶：${item.satay}</p>` : ""}
+        ${item.requiredOption ? `<p>${item.requiredOption.title}：${item.requiredOption.value}</p>` : ""}
         ${extras.length ? `<p>加料：${extras.map(extra => extra.name).join("、")}</p>` : ""}
         ${item.note ? `<p>備註：${item.note}</p>` : ""}
       </div>

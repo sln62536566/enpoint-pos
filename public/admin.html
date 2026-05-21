@@ -62,8 +62,20 @@
       <label>圖片網址</label>
       <input id="itemImage" type="text" placeholder="可先空白，之後可接圖片上傳" />
 
+      <label>餐點描述</label>
+      <textarea id="itemDescription" placeholder="例如：湯頭濃郁、份量充足，適合喜歡重口味的客人"></textarea>
+
+      <label>必選選項</label>
+      <div class="required-option-box">
+        <input id="requiredOptionTitle" type="text" placeholder="選項名稱，例如：湯底、甜度、冰量" />
+        <textarea id="requiredOptionChoices" placeholder="選項內容，用逗號分隔，例如：牛肉,肉骨,肉燥"></textarea>
+        <p class="form-help">留空代表此餐點沒有必選項目。</p>
+      </div>
+
+
       <label>加料選項</label>
-      <textarea id="itemOptions" placeholder="格式：加蛋:15,加肉:20,泡菜:20"></textarea>
+      <div id="addonEditor" class="addon-editor"></div>
+      <button id="addAddonRowBtn" class="secondary-btn" type="button">＋ 新增加料</button>
 
       <div class="admin-form-actions">
         <button id="addItemBtn" class="primary-btn">新增餐點</button>

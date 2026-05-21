@@ -1,3 +1,11 @@
+// =====================================================
+// 恩點系統 v58-3B
+// 日期：2026-05-22
+// 端別：QR 客人端 app.js
+// 檔案：public/js/app.js
+// 用途：QR 必選選項 + 餐點描述 + 分類排序同步
+// =====================================================
+
 import {
   db,
   ref,
@@ -48,14 +56,20 @@ const confirmTotal = document.getElementById("confirmTotal");
 const confirmSubmitBtn = document.getElementById("confirmSubmitBtn");
 const backToCartBtn = document.getElementById("backToCartBtn");
 
+const menuRef = ref(db, "menu");
+const categoriesRef = ref(db, "categories");
+
 let menuData = [];
+let categoriesData = {};
 let currentCategory = "全部";
 let cart = [];
+
 let selectedItem = null;
 let selectedSize = null;
 let selectedAddons = [];
 let selectedSpicy = "不辣";
 let selectedSatay = "不要";
+let selectedRequiredOption = "";
 let selectedQty = 1;
 
 const SPICY_OPTIONS = ["不辣", "微辣", "小辣", "中辣", "大辣"];
@@ -72,10 +86,7 @@ function normalizeMenu(raw) {
   if (!raw) return [];
 
   return Object.entries(raw)
-    .map(([id, item]) => ({
-      id,
-      ...item
-    }))
+    .map(([id, item]) => ({ id, ...item }))
     .filter(item => item.enabled !== false);
 }
 
@@ -91,6 +102,64 @@ function getImageUrl(item) {
   return item.image || item.imageUrl || item.photo || item.photoUrl || "";
 }
 
+function getCategorySettings() {
+  const settings = {};
+
+  Object.entries(categoriesData || {}).forEach(([id, category]) => {
+    const name = category.name || "未分類";
+
+    settings[name] = {
+      id,
+      name,
+      enabled: category.enabled !== false,
+      sortOrder: Number(category.sortOrder ?? 999999999)
+    };
+  });
+
+  return settings;
+}
+
+function getCategorySortOrder(categoryName) {
+  const settings = getCategorySettings();
+
+  if (settings[categoryName]) return settings[categoryName].sortOrder;
+  if (categoryName === "其他" || categoryName === "未分類") return 999999998;
+
+  return 999999997;
+}
+
+function isCategoryVisible(categoryName) {
+  const settings = getCategorySettings();
+
+  if (settings[categoryName]) return settings[categoryName].enabled;
+
+  return true;
+}
+
+function sortMenuItems(items) {
+  return [...items].sort((a, b) => {
+    const orderA = getCategorySortOrder(getItemCategory(a));
+    const orderB = getCategorySortOrder(getItemCategory(b));
+
+    if (orderA !== orderB) return orderA - orderB;
+
+    const itemOrderA = Number(a.sortOrder ?? 999999999);
+    const itemOrderB = Number(b.sortOrder ?? 999999999);
+
+    if (itemOrderA !== itemOrderB) return itemOrderA - itemOrderB;
+
+    return String(a.name || "").localeCompare(String(b.name || ""), "zh-Hant");
+  });
+}
+
+function getEnabledItems() {
+  return sortMenuItems(
+    menuData
+      .filter(item => item.enabled !== false)
+      .filter(item => isCategoryVisible(getItemCategory(item)))
+  );
+}
+
 function getSizeOptions(item) {
   const options = [];
 
@@ -101,24 +170,15 @@ function getSizeOptions(item) {
   }
 
   if (item.smallPrice || item.priceSmall) {
-    options.push({
-      name: "小份",
-      price: Number(item.smallPrice || item.priceSmall)
-    });
+    options.push({ name: "小份", price: Number(item.smallPrice || item.priceSmall) });
   }
 
   if (item.largePrice || item.priceLarge) {
-    options.push({
-      name: "大份",
-      price: Number(item.largePrice || item.priceLarge)
-    });
+    options.push({ name: "大份", price: Number(item.largePrice || item.priceLarge) });
   }
 
   if (options.length === 0) {
-    options.push({
-      name: "一般",
-      price: Number(item.price || 0)
-    });
+    options.push({ name: "一般", price: Number(item.price || 0) });
   }
 
   return options;
@@ -142,6 +202,18 @@ function getAddons(item) {
   return [];
 }
 
+function getRequiredOption(item) {
+  if (!item || !item.requiredOption) return null;
+
+  const requiredOption = item.requiredOption;
+
+  if (!requiredOption.title) return null;
+  if (!Array.isArray(requiredOption.options)) return null;
+  if (requiredOption.options.length === 0) return null;
+
+  return requiredOption;
+}
+
 function allowSpicy(item) {
   const category = getItemCategory(item);
   return (
@@ -159,7 +231,23 @@ function allowSatay(item) {
 }
 
 function renderCategories() {
-  const categories = ["全部", ...new Set(menuData.map(getItemCategory))];
+  const items = getEnabledItems();
+  const categorySet = new Set(items.map(item => getItemCategory(item)));
+
+  const sortedCategories = [...categorySet].sort((a, b) => {
+    const orderA = getCategorySortOrder(a);
+    const orderB = getCategorySortOrder(b);
+
+    if (orderA !== orderB) return orderA - orderB;
+
+    return a.localeCompare(b, "zh-Hant");
+  });
+
+  const categories = ["全部", ...sortedCategories];
+
+  if (!categories.includes(currentCategory)) {
+    currentCategory = "全部";
+  }
 
   categoryList.innerHTML = categories.map(category => `
     <button class="category-btn ${category === currentCategory ? "active" : ""}" data-category="${category}">
@@ -176,44 +264,87 @@ function renderCategories() {
   });
 }
 
-function renderMenu() {
-  const filtered = currentCategory === "全部"
-    ? menuData
-    : menuData.filter(item => getItemCategory(item) === currentCategory);
+function renderMenuCard(item) {
+  const imageUrl = getImageUrl(item);
+  const description = item.description || "";
+  const requiredOption = getRequiredOption(item);
 
-  if (filtered.length === 0) {
+  return `
+    <button class="menu-card" data-id="${item.id}">
+      <div class="menu-image">
+        ${
+          imageUrl
+            ? `<img src="${imageUrl}" alt="${item.name || "餐點圖片"}">`
+            : `<div class="no-image">恩點</div>`
+        }
+      </div>
+
+      <div class="menu-info">
+        <h3>${item.name || "未命名餐點"}</h3>
+        <p>${getItemCategory(item)}</p>
+        ${description ? `<p class="qr-menu-desc">${description}</p>` : ""}
+        ${requiredOption ? `<p class="qr-required-tag">必選：${requiredOption.title}</p>` : ""}
+        <strong>${money(getBasePrice(item))}</strong>
+      </div>
+    </button>
+  `;
+}
+
+function bindMenuCardEvents() {
+  document.querySelectorAll(".menu-card").forEach(card => {
+    card.addEventListener("click", () => {
+      const item = getEnabledItems().find(x => x.id === card.dataset.id);
+      openItemModal(item);
+    });
+  });
+}
+
+function renderMenu() {
+  let items = getEnabledItems();
+
+  if (currentCategory !== "全部") {
+    items = items.filter(item => getItemCategory(item) === currentCategory);
+  }
+
+  if (items.length === 0) {
     menuList.innerHTML = `<div class="empty">目前沒有餐點</div>`;
     return;
   }
 
-  menuList.innerHTML = filtered.map(item => {
-    const imageUrl = getImageUrl(item);
+  if (currentCategory === "全部") {
+    const grouped = {};
 
-    return `
-      <button class="menu-card" data-id="${item.id}">
-        <div class="menu-image">
-          ${
-            imageUrl
-              ? `<img src="${imageUrl}" alt="${item.name || "餐點圖片"}">`
-              : `<div class="no-image">恩點</div>`
-          }
-        </div>
-
-        <div class="menu-info">
-          <h3>${item.name || "未命名餐點"}</h3>
-          <p>${getItemCategory(item)}</p>
-          <strong>${money(getBasePrice(item))}</strong>
-        </div>
-      </button>
-    `;
-  }).join("");
-
-  document.querySelectorAll(".menu-card").forEach(card => {
-    card.addEventListener("click", () => {
-      const item = menuData.find(x => x.id === card.dataset.id);
-      openItemModal(item);
+    items.forEach(item => {
+      const category = getItemCategory(item);
+      if (!grouped[category]) grouped[category] = [];
+      grouped[category].push(item);
     });
-  });
+
+    menuList.innerHTML = Object.entries(grouped)
+      .sort((a, b) => getCategorySortOrder(a[0]) - getCategorySortOrder(b[0]))
+      .map(([category, categoryItems]) => `
+        <section class="qr-category-section">
+          <h3>${category}</h3>
+          <div class="qr-category-grid">
+            ${categoryItems.map(renderMenuCard).join("")}
+          </div>
+        </section>
+      `).join("");
+
+    bindMenuCardEvents();
+    return;
+  }
+
+  menuList.innerHTML = `
+    <section class="qr-category-section">
+      <h3>${currentCategory}</h3>
+      <div class="qr-category-grid">
+        ${items.map(renderMenuCard).join("")}
+      </div>
+    </section>
+  `;
+
+  bindMenuCardEvents();
 }
 
 function openItemModal(item) {
@@ -223,6 +354,7 @@ function openItemModal(item) {
   selectedAddons = [];
   selectedSpicy = "不辣";
   selectedSatay = "不要";
+  selectedRequiredOption = "";
   selectedQty = 1;
   itemNote.value = "";
 
@@ -241,10 +373,11 @@ function renderModalOptions() {
   const sizeOptions = getSizeOptions(selectedItem);
 
   sizeSection.innerHTML = `
+    ${selectedItem.description ? `<div class="qr-item-description-box">${selectedItem.description}</div>` : ""}
     <h3>份量</h3>
     <div class="option-grid">
       ${sizeOptions.map(opt => `
-        <button class="option-btn size-btn ${selectedSize?.name === opt.name ? "active" : ""}"
+        <button type="button" class="option-btn size-btn ${selectedSize?.name === opt.name ? "active" : ""}"
           data-name="${opt.name}"
           data-price="${opt.price}">
           ${opt.name} ${money(opt.price)}
@@ -265,13 +398,32 @@ function renderModalOptions() {
     });
   });
 
+  const requiredOption = getRequiredOption(selectedItem);
   const addons = getAddons(selectedItem);
 
-  addonsSection.innerHTML = addons.length ? `
+  const requiredHtml = requiredOption ? `
+    <div class="qr-required-option-box">
+      <h3>${requiredOption.title} <span>必選</span></h3>
+      <div class="option-grid">
+        ${requiredOption.options.map(option => `
+          <button
+            type="button"
+            class="option-btn required-option-btn ${selectedRequiredOption === option ? "active" : ""}"
+            data-value="${option}">
+            ${option}
+          </button>
+        `).join("")}
+      </div>
+    </div>
+  ` : "";
+
+  const addonsHtml = addons.length ? `
     <h3>加料</h3>
     <div class="option-grid">
       ${addons.map(addon => `
-        <button class="option-btn addon-btn ${selectedAddons.some(a => a.name === addon.name) ? "active" : ""}"
+        <button
+          type="button"
+          class="option-btn addon-btn ${selectedAddons.some(a => a.name === addon.name) ? "active" : ""}"
           data-name="${addon.name}"
           data-price="${addon.price}">
           ${addon.name} +${addon.price}
@@ -279,6 +431,16 @@ function renderModalOptions() {
       `).join("")}
     </div>
   ` : "";
+
+  addonsSection.innerHTML = requiredHtml + addonsHtml;
+
+  document.querySelectorAll(".required-option-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      selectedRequiredOption = btn.dataset.value;
+      renderModalOptions();
+      updateModalSubtotal();
+    });
+  });
 
   document.querySelectorAll(".addon-btn").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -302,7 +464,7 @@ function renderModalOptions() {
     <h3>辣度</h3>
     <div class="option-grid">
       ${SPICY_OPTIONS.map(level => `
-        <button class="option-btn spicy-btn ${selectedSpicy === level ? "active" : ""}" data-level="${level}">
+        <button type="button" class="option-btn spicy-btn ${selectedSpicy === level ? "active" : ""}" data-level="${level}">
           ${level}
         </button>
       `).join("")}
@@ -319,8 +481,8 @@ function renderModalOptions() {
   sataySection.innerHTML = allowSatay(selectedItem) ? `
     <h3>沙茶</h3>
     <div class="option-grid">
-      <button class="option-btn satay-btn ${selectedSatay === "要" ? "active" : ""}" data-value="要">要沙茶</button>
-      <button class="option-btn satay-btn ${selectedSatay === "不要" ? "active" : ""}" data-value="不要">不要沙茶</button>
+      <button type="button" class="option-btn satay-btn ${selectedSatay === "要" ? "active" : ""}" data-value="要">要沙茶</button>
+      <button type="button" class="option-btn satay-btn ${selectedSatay === "不要" ? "active" : ""}" data-value="不要">不要沙茶</button>
     </div>
   ` : "";
 
@@ -357,6 +519,13 @@ closeModalBtn.addEventListener("click", () => {
 });
 
 addToCartBtn.addEventListener("click", () => {
+  const requiredOption = getRequiredOption(selectedItem);
+
+  if (requiredOption && !selectedRequiredOption) {
+    alert(`請先選擇「${requiredOption.title}」`);
+    return;
+  }
+
   const basePrice = Number(selectedSize?.price || 0);
   const addonsTotal = selectedAddons.reduce((sum, addon) => sum + Number(addon.price || 0), 0);
   const unitPrice = basePrice + addonsTotal;
@@ -370,6 +539,12 @@ addToCartBtn.addEventListener("click", () => {
     basePrice,
     price: unitPrice,
     unitPrice,
+    requiredOption: requiredOption
+      ? {
+          title: requiredOption.title,
+          value: selectedRequiredOption
+        }
+      : null,
     addons: selectedAddons,
     extras: selectedAddons,
     spicy: allowSpicy(selectedItem) ? selectedSpicy : "",
@@ -384,6 +559,17 @@ addToCartBtn.addEventListener("click", () => {
   renderCart();
 });
 
+function renderItemDetail(item) {
+  return `
+    ${item.size && item.size !== "一般" ? `<p>份量：${item.size}</p>` : ""}
+    ${item.requiredOption ? `<p>${item.requiredOption.title}：${item.requiredOption.value}</p>` : ""}
+    ${item.spicy ? `<p>辣度：${item.spicy}</p>` : ""}
+    ${item.satay ? `<p>沙茶：${item.satay}</p>` : ""}
+    ${item.addons?.length ? `<p>加料：${item.addons.map(a => a.name).join("、")}</p>` : ""}
+    ${item.note ? `<p>備註：${item.note}</p>` : ""}
+  `;
+}
+
 function renderCart() {
   if (cart.length === 0) {
     cartList.innerHTML = `<div class="empty">尚未選擇餐點</div>`;
@@ -396,11 +582,7 @@ function renderCart() {
       <div>
         <strong>${item.name} × ${item.qty}</strong>
         <div class="cart-detail">
-          ${item.size && item.size !== "一般" ? `<p>份量：${item.size}</p>` : ""}
-          ${item.spicy ? `<p>辣度：${item.spicy}</p>` : ""}
-          ${item.satay ? `<p>沙茶：${item.satay}</p>` : ""}
-          ${item.addons?.length ? `<p>加料：${item.addons.map(a => a.name).join("、")}</p>` : ""}
-          ${item.note ? `<p>備註：${item.note}</p>` : ""}
+          ${renderItemDetail(item)}
         </div>
       </div>
 
@@ -434,11 +616,7 @@ function renderConfirmModal() {
         <div class="confirm-item-main">• ${item.name} × ${item.qty}</div>
 
         <div class="confirm-item-detail">
-          ${item.size && item.size !== "一般" ? `<p>份量：${item.size}</p>` : ""}
-          ${item.spicy ? `<p>辣度：${item.spicy}</p>` : ""}
-          ${item.satay ? `<p>沙茶：${item.satay}</p>` : ""}
-          ${item.addons?.length ? `<p>加料：${item.addons.map(a => a.name).join("、")}</p>` : ""}
-          ${item.note ? `<p>備註：${item.note}</p>` : ""}
+          ${renderItemDetail(item)}
           <p>小計：${money(item.subtotal)}</p>
         </div>
       </div>
@@ -518,49 +696,24 @@ confirmSubmitBtn.addEventListener("click", async () => {
 function getOrderStatusText(order) {
   if (!order) return "等待櫃檯確認付款";
 
-  if (
-    order.status === "cancelled" ||
-    order.kitchenStatus === "cancelled" ||
-    order.cancelled === true
-  ) {
+  if (order.status === "cancelled" || order.kitchenStatus === "cancelled" || order.cancelled === true) {
     return "訂單已取消，請洽櫃檯";
   }
 
-  if (
-    order.status === "closed" ||
-    order.closed === true
-  ) {
+  if (order.status === "closed" || order.closed === true) {
     return "訂單已結案，謝謝光臨";
   }
 
-  if (
-    order.kitchenStatus === "done" ||
-    order.status === "done"
-  ) {
+  if (order.kitchenStatus === "done" || order.status === "done") {
     return "餐點已完成，請留意取餐或送餐";
   }
 
-  if (
-    order.kitchenStatus === "cooking" ||
-    order.status === "cooking"
-  ) {
+  if (order.kitchenStatus === "cooking" || order.status === "cooking") {
     return "餐點製作中，請耐心等候";
   }
 
-  if (
-    order.kitchenStatus === "confirmed" ||
-    order.status === "confirmed" ||
-    order.paymentStatus === "paid"
-  ) {
+  if (order.kitchenStatus === "confirmed" || order.status === "confirmed" || order.paymentStatus === "paid") {
     return "已確認付款，餐點安排製作中";
-  }
-
-  if (
-    order.status === "pending_payment" ||
-    order.status === "pending" ||
-    order.paymentStatus === "unpaid"
-  ) {
-    return "等待櫃檯確認付款";
   }
 
   return "等待櫃檯確認付款";
@@ -584,11 +737,7 @@ function showSuccessPage(order) {
         <div class="success-item-main">• ${item.name} × ${item.qty || item.quantity || 1}</div>
 
         <div class="success-item-detail">
-          ${item.size && item.size !== "一般" ? `<p>份量：${item.size}</p>` : ""}
-          ${item.spicy ? `<p>辣度：${item.spicy}</p>` : ""}
-          ${item.satay ? `<p>沙茶：${item.satay}</p>` : ""}
-          ${(item.addons || item.extras || []).length ? `<p>加料：${(item.addons || item.extras || []).map(a => a.name).join("、")}</p>` : ""}
-          ${item.note ? `<p>備註：${item.note}</p>` : ""}
+          ${renderItemDetail(item)}
           <p>小計：${money(item.subtotal || (Number(item.price || item.unitPrice || 0) * Number(item.qty || item.quantity || 1)))}</p>
         </div>
       </div>
@@ -641,10 +790,14 @@ function loadLastOrderIfExists() {
 }
 
 function loadMenu() {
-  const menuRef = ref(db, "menu");
-
   onValue(menuRef, snapshot => {
     menuData = normalizeMenu(snapshot.val());
+    renderCategories();
+    renderMenu();
+  });
+
+  onValue(categoriesRef, snapshot => {
+    categoriesData = snapshot.exists() ? snapshot.val() : {};
     renderCategories();
     renderMenu();
   });

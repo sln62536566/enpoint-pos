@@ -1,9 +1,9 @@
 // =====================================================
-// 恩點系統 v58-1
+// 恩點系統 v58-2.5
 // 日期：2026-05-22
 // 端別：菜單後台 admin.js
 // 檔案：public/js/admin.js
-// 用途：分類管理器 + 菜單管理 + 餐點排序
+// 用途：分類管理器 + 加料 UI 編輯器 + 餐點描述 + 必選選項
 // =====================================================
 
 import {
@@ -20,10 +20,16 @@ const itemName = document.getElementById("itemName");
 const itemCategory = document.getElementById("itemCategory");
 const itemPrice = document.getElementById("itemPrice");
 const itemImage = document.getElementById("itemImage");
-const itemOptions = document.getElementById("itemOptions");
+const itemDescription = document.getElementById("itemDescription");
+const requiredOptionTitle = document.getElementById("requiredOptionTitle");
+const requiredOptionChoices = document.getElementById("requiredOptionChoices");
+
 const addItemBtn = document.getElementById("addItemBtn");
 const cancelEditBtn = document.getElementById("cancelEditBtn");
 const formTitle = document.getElementById("formTitle");
+
+const addonEditor = document.getElementById("addonEditor");
+const addAddonRowBtn = document.getElementById("addAddonRowBtn");
 
 const newCategoryName = document.getElementById("newCategoryName");
 const addCategoryBtn = document.getElementById("addCategoryBtn");
@@ -45,6 +51,8 @@ let draggedCategoryId = null;
 let draggedItemId = null;
 let draggedItemCategory = null;
 
+let addonRows = [];
+
 /* =========================
    Helpers
 ========================= */
@@ -62,33 +70,140 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
-function parseOptions(text) {
+function getRequiredOptionFromForm() {
+  if (!requiredOptionTitle || !requiredOptionChoices) return null;
+
+  const title = requiredOptionTitle.value.trim();
+  const choices = requiredOptionChoices.value
+    .split(",")
+    .map(item => item.trim())
+    .filter(Boolean);
+
+  if (!title || choices.length === 0) {
+    return null;
+  }
+
+  return {
+    title,
+    options: choices,
+    required: true
+  };
+}
+
+function setRequiredOptionToForm(requiredOption) {
+  if (!requiredOptionTitle || !requiredOptionChoices) return;
+
+  if (!requiredOption) {
+    requiredOptionTitle.value = "";
+    requiredOptionChoices.value = "";
+    return;
+  }
+
+  requiredOptionTitle.value = requiredOption.title || "";
+  requiredOptionChoices.value = Array.isArray(requiredOption.options)
+    ? requiredOption.options.join(",")
+    : "";
+}
+
+/* =========================
+   加料 UI 編輯器
+========================= */
+
+function renderAddonEditor() {
+  if (!addonEditor) return;
+
+  if (addonRows.length === 0) {
+    addonEditor.innerHTML = `<div class="empty small-empty">尚未設定加料</div>`;
+    return;
+  }
+
+  addonEditor.innerHTML = addonRows.map((addon, index) => `
+    <div class="addon-row">
+      <input
+        type="text"
+        placeholder="加料名稱，例如：加蛋"
+        value="${escapeHtml(addon.name || "")}"
+        data-index="${index}"
+        data-field="name"
+      />
+
+      <input
+        type="number"
+        placeholder="價格"
+        value="${Number(addon.price || 0)}"
+        data-index="${index}"
+        data-field="price"
+      />
+
+      <button class="danger-btn" type="button" data-index="${index}">
+        刪除
+      </button>
+    </div>
+  `).join("");
+
+  addonEditor.querySelectorAll("input").forEach(input => {
+    input.addEventListener("input", () => {
+      const index = Number(input.dataset.index);
+      const field = input.dataset.field;
+
+      if (!addonRows[index]) return;
+
+      if (field === "name") {
+        addonRows[index].name = input.value;
+      }
+
+      if (field === "price") {
+        addonRows[index].price = Number(input.value || 0);
+      }
+    });
+  });
+
+  addonEditor.querySelectorAll("button").forEach(button => {
+    button.addEventListener("click", () => {
+      const index = Number(button.dataset.index);
+      addonRows.splice(index, 1);
+      renderAddonEditor();
+    });
+  });
+}
+
+function addAddonRow() {
+  addonRows.push({
+    name: "",
+    price: 0
+  });
+
+  renderAddonEditor();
+}
+
+function getOptionsFromAddonRows() {
   const options = {};
 
-  if (!text || !text.trim()) return options;
+  addonRows.forEach(addon => {
+    const name = String(addon.name || "").trim();
+    const price = Number(addon.price || 0);
 
-  text.split(",").forEach(part => {
-    const [name, price] = part.split(":");
+    if (!name) return;
+    if (Number.isNaN(price)) return;
 
-    if (!name || price === undefined) return;
-
-    const cleanName = name.trim();
-    const cleanPrice = Number(price);
-
-    if (!cleanName) return;
-    if (Number.isNaN(cleanPrice)) return;
-
-    options[cleanName] = cleanPrice;
+    options[name] = price;
   });
 
   return options;
 }
 
-function optionsToText(options = {}) {
-  return Object.entries(options)
-    .map(([name, price]) => `${name}:${price}`)
-    .join(",");
+function setAddonRowsFromOptions(options = {}) {
+  addonRows = Object.entries(options).map(([name, price]) => ({
+    name,
+    price: Number(price || 0)
+  }));
+
+  renderAddonEditor();
 }
+
+/* =========================
+   Menu / Category Helpers
+========================= */
 
 function getMenuItems() {
   return Object.entries(menuData).map(([id, item]) => ({
@@ -131,10 +246,6 @@ function getCategoryItems() {
     if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
     return a.name.localeCompare(b.name, "zh-Hant");
   });
-}
-
-function getCategoryNames() {
-  return getCategoryItems().map(category => category.name);
 }
 
 function findCategoryByName(name) {
@@ -236,13 +347,10 @@ async function renameCategory(categoryId, oldName) {
   if (!category && !String(categoryId).startsWith("legacy-")) return;
 
   const nextName = prompt("請輸入新的分類名稱", oldName);
-
   if (!nextName) return;
 
   const cleanName = nextName.trim();
-
   if (!cleanName) return;
-
   if (cleanName === oldName) return;
 
   const duplicate = getCategoryItems().some(category => category.name === cleanName);
@@ -405,7 +513,12 @@ function resetForm() {
   itemName.value = "";
   itemPrice.value = "";
   itemImage.value = "";
-  itemOptions.value = "";
+
+  if (itemDescription) itemDescription.value = "";
+  setRequiredOptionToForm(null);
+
+  addonRows = [];
+  renderAddonEditor();
 
   formTitle.textContent = "新增餐點";
   addItemBtn.textContent = "新增餐點";
@@ -440,7 +553,9 @@ async function saveItem() {
   const category = itemCategory.value.trim();
   const price = Number(itemPrice.value);
   const image = itemImage.value.trim();
-  const options = parseOptions(itemOptions.value);
+  const description = itemDescription ? itemDescription.value.trim() : "";
+  const options = getOptionsFromAddonRows();
+  const requiredOption = getRequiredOptionFromForm();
 
   if (!name) {
     alert("請輸入餐點名稱");
@@ -466,7 +581,9 @@ async function saveItem() {
     category,
     price,
     image,
+    description,
     options,
+    requiredOption,
     enabled: oldItem ? oldItem.enabled !== false : true,
     categoryOrder: getCategoryOrderByName(category),
     sortOrder: oldItem ? Number(oldItem.sortOrder ?? now) : now,
@@ -532,7 +649,13 @@ function editItem(id) {
   itemCategory.value = item.category || "";
   itemPrice.value = item.price || "";
   itemImage.value = item.image || "";
-  itemOptions.value = optionsToText(item.options || {});
+
+  if (itemDescription) {
+    itemDescription.value = item.description || "";
+  }
+
+  setRequiredOptionToForm(item.requiredOption || null);
+  setAddonRowsFromOptions(item.options || {});
 
   formTitle.textContent = `編輯餐點｜${item.name || ""}`;
   addItemBtn.textContent = "更新餐點";
@@ -708,6 +831,7 @@ function renderMenu() {
     renderCategoryManager();
     renderCategorySelect();
     renderCategoryFilters();
+    renderAddonEditor();
     return;
   }
 
@@ -741,10 +865,18 @@ function renderMenu() {
   renderCategoryManager();
   renderCategorySelect();
   renderCategoryFilters();
+  renderAddonEditor();
 }
 
 function renderMenuCard(item, category) {
   const image = item.image || item.imageUrl || "";
+
+  const descriptionText = item.description || "尚未填寫餐點描述";
+
+  const requiredOptionText = item.requiredOption?.title
+    ? `${item.requiredOption.title}：${(item.requiredOption.options || []).join("、")}`
+    : "無必選項目";
+
   const optionsText =
     item.options && Object.keys(item.options).length > 0
       ? Object.entries(item.options).map(([name, price]) => `${name} +${price}`).join("、")
@@ -778,8 +910,16 @@ function renderMenuCard(item, category) {
 
         <div class="admin-price">${money(item.price)}</div>
 
+        <div class="admin-description">
+          ${escapeHtml(descriptionText)}
+        </div>
+
+        <div class="admin-required-option">
+          必選：${escapeHtml(requiredOptionText)}
+        </div>
+
         <div class="admin-options">
-          ${escapeHtml(optionsText)}
+          加料：${escapeHtml(optionsText)}
         </div>
 
         <div class="admin-actions">
@@ -861,6 +1001,10 @@ newCategoryName.addEventListener("keydown", event => {
     addCategory();
   }
 });
+
+if (addAddonRowBtn) {
+  addAddonRowBtn.addEventListener("click", addAddonRow);
+}
 
 addItemBtn.addEventListener("click", saveItem);
 cancelEditBtn.addEventListener("click", resetForm);

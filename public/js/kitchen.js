@@ -49,6 +49,7 @@ function renderItem(item) {
 
       <div class="item-detail">
         ${item.size && item.size !== "一般" ? `<p>份量：${item.size}</p>` : ""}
+        ${item.requiredOption ? `<p>${item.requiredOption.title}：${item.requiredOption.value}</p>` : ""}
         ${item.spicy ? `<p>辣度：${item.spicy}</p>` : ""}
         ${item.satay ? `<p>沙茶：${item.satay}</p>` : ""}
         ${addons.length ? `<p>加料：${addons.map(a => a.name).join("、")}</p>` : ""}
@@ -66,6 +67,7 @@ function buildOrderConfirmText(order) {
 
     const details = [
       item.size && item.size !== "一般" ? `份量：${item.size}` : "",
+      item.requiredOption ? `${item.requiredOption.title}：${item.requiredOption.value}` : "",
       item.spicy ? `辣度：${item.spicy}` : "",
       item.satay ? `沙茶：${item.satay}` : "",
       addons.length ? `加料：${addons.map(a => a.name).join("、")}` : "",
