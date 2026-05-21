@@ -517,3 +517,290 @@ body {
   font-size: 12px;
   margin-left: 6px;
 }
+
+/* =========================
+   恩點系統 v58-5
+   日期：2026-05-22
+   端別：QR 客人端 qr.css
+   用途：內用 / 外帶選擇
+========================= */
+
+.qr-order-type-box {
+  background: #fff7ed;
+  border: 1px solid #ffd9a8;
+  border-radius: 18px;
+  padding: 14px;
+  margin-bottom: 14px;
+}
+
+.qr-order-type-box label {
+  display: block;
+  font-weight: 900;
+  color: #9a3412;
+  margin-bottom: 10px;
+}
+
+.qr-order-type-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.qr-type-btn {
+  border: 1px solid #ffb347;
+  background: #fff;
+  color: #9a3412;
+  border-radius: 14px;
+  padding: 12px;
+  font-weight: 900;
+  font-size: 16px;
+}
+
+.qr-type-btn.active {
+  background: #ff8a00;
+  color: #fff;
+}
+
+.qr-order-type-hint {
+  margin: 6px 0 0;
+  color: #7c5c45;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* =========================
+   恩點系統 v58-5 修正
+   日期：2026-05-22
+   端別：QR 客人端 qr.css
+   用途：修正內用/外帶加入後 QR UI 跑版
+========================= */
+
+.qr-layout {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: 18px;
+  padding: 16px;
+  align-items: start;
+}
+
+.menu-area,
+.cart-area {
+  min-width: 0;
+}
+
+.cart-area {
+  position: sticky;
+  top: 86px;
+  background: #fff;
+  border: 1px solid #ffe0b2;
+  border-radius: 22px;
+  padding: 16px;
+  box-shadow: 0 6px 18px rgba(130, 70, 20, 0.12);
+}
+
+.category-list {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 10px 0 14px;
+  margin-bottom: 14px;
+}
+
+.category-list button {
+  flex: 0 0 auto;
+  border: 1px solid #ffb347;
+  background: #fff;
+  color: #b45309;
+  border-radius: 999px;
+  padding: 9px 14px;
+  font-weight: 800;
+}
+
+.category-list button.active {
+  background: #ff8a00;
+  color: #fff;
+}
+
+.cart-area h2 {
+  margin-top: 0;
+  margin-bottom: 12px;
+  color: #9a3412;
+}
+
+.cart-list {
+  margin-top: 12px;
+}
+
+.cart-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 14px 0;
+  padding: 12px;
+  background: #fff7ed;
+  border-radius: 16px;
+  font-size: 18px;
+}
+
+.cart-total strong {
+  color: #d35400;
+  font-size: 22px;
+}
+
+@media (max-width: 900px) {
+  .qr-layout {
+    grid-template-columns: 1fr;
+    padding: 12px;
+  }
+
+  .cart-area {
+    position: static;
+  }
+}
+
+/* =========================
+   恩點系統 v58-5 UI強化
+   日期：2026-05-22
+   端別：QR 客人端 qr.css
+   用途：餐點卡片亮燈/動畫/美化
+========================= */
+
+.qr-category-grid .menu-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #ffe0b2 !important;
+  background: linear-gradient(180deg, #ffffff 0%, #fffaf4 100%) !important;
+  border-radius: 22px !important;
+  transition:
+    transform 0.16s ease,
+    box-shadow 0.16s ease,
+    border-color 0.16s ease,
+    background 0.16s ease;
+}
+
+.qr-category-grid .menu-card:hover {
+  transform: translateY(-3px);
+  border-color: #ff9800 !important;
+  box-shadow:
+    0 10px 24px rgba(255, 152, 0, 0.18),
+    0 0 0 2px rgba(255, 152, 0, 0.12);
+}
+
+.qr-category-grid .menu-card:active {
+  transform: scale(0.97);
+  background: linear-gradient(180deg, #fff3e0 0%, #ffe0b2 100%) !important;
+}
+
+.qr-category-grid .menu-card::after {
+  content: "";
+  position: absolute;
+  top: -120%;
+  left: -40%;
+  width: 60%;
+  height: 300%;
+  background: rgba(255,255,255,0.36);
+  transform: rotate(24deg);
+  transition: 0.5s;
+}
+
+.qr-category-grid .menu-card:hover::after {
+  left: 130%;
+}
+
+.menu-image {
+  height: 130px;
+  background: #fff7ed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.menu-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.no-image {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 34px;
+  font-weight: 900;
+  color: #ff9800;
+  background:
+    linear-gradient(
+      135deg,
+      #fff3e0,
+      #ffe0b2
+    );
+}
+
+.menu-info {
+  padding: 14px;
+}
+
+.menu-info h3 {
+  margin: 0 0 6px;
+  font-size: 18px;
+  color: #4e342e;
+}
+
+.menu-info strong {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 20px;
+  color: #d35400;
+}
+
+.option-btn.active,
+.category-btn.active,
+.qr-type-btn.active {
+  background: linear-gradient(
+    180deg,
+    #ff9800,
+    #f57c00
+  ) !important;
+
+  color: #fff !important;
+
+  border-color: #fb8c00 !important;
+
+  box-shadow:
+    0 6px 16px rgba(255, 152, 0, 0.28),
+    0 0 0 2px rgba(255, 152, 0, 0.12);
+}
+
+/* v58-5 QR 按鈕美化｜2026-05-22｜QR 客人端 */
+
+.category-list button,
+.option-btn,
+.qr-type-btn {
+  border: 1px solid #ffb347 !important;
+  background: linear-gradient(180deg, #fffaf2, #fff1d6) !important;
+  color: #8a3f00 !important;
+  border-radius: 16px !important;
+  padding: 11px 16px !important;
+  font-weight: 900 !important;
+  box-shadow: 0 4px 10px rgba(130, 70, 20, 0.10);
+  transition: 0.15s ease;
+}
+
+.category-list button.active,
+.option-btn.active,
+.qr-type-btn.active {
+  background: linear-gradient(180deg, #ffb347, #ff8a00) !important;
+  color: #fff !important;
+  border-color: #ff8a00 !important;
+  box-shadow: 0 6px 16px rgba(255, 138, 0, 0.32);
+}
+
+.category-list button:active,
+.option-btn:active,
+.qr-type-btn:active,
+.menu-card:active {
+  transform: scale(0.97);
+}

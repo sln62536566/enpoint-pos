@@ -124,6 +124,7 @@ let editingMenuItem = null;
 let editSelectedPortion = null;
 let editSelectedExtras = [];
 let editSelectedSatay = "不要";
+let editSelectedRequiredOption = "";
 let editQuantity = 1;
 
 let businessDayCloseData = null;
@@ -1214,6 +1215,7 @@ function renderEditOrderItems() {
             ${item.size && item.size !== "一般" ? `<p>份量：${item.size}</p>` : ""}
             ${item.spicy ? `<p>辣度：${item.spicy}</p>` : ""}
             ${item.satay ? `<p>沙茶：${item.satay}</p>` : ""}
+            ${item.requiredOption ? `<p>${item.requiredOption.title}：${item.requiredOption.value}</p>` : ""}
             ${extras.length ? `<p>加料：${extras.map(extra => extra.name).join("、")}</p>` : ""}
             ${item.note ? `<p>備註：${item.note}</p>` : ""}
             <p>小計：${money(itemSubtotal(item))}</p>
@@ -1308,6 +1310,7 @@ function openEditItemModal(index) {
   editQuantity = itemQty(item);
   editSelectedExtras = [...(item.addons || item.extras || [])];
   editSelectedSatay = item.satay || "不要";
+  editSelectedRequiredOption = item.requiredOption?.value || "";
 
   editSelectedPortion = {
     name: item.size || "一般",
@@ -1323,6 +1326,10 @@ function openEditItemModal(index) {
 
   renderEditItemPortions();
   renderEditItemSatay();
+  renderEditItemRequiredOption();
+
+
+
   renderEditItemExtras();
   updateEditItemSubtotal();
 
@@ -1331,6 +1338,11 @@ function openEditItemModal(index) {
 
 function closeEditItemModal() {
   editItemModal.classList.add("hidden");
+
+  editSelectedRequiredOption = "";
+
+  const editRequiredOptionBox = document.getElementById("editRequiredOptionBox");
+  if (editRequiredOptionBox) editRequiredOptionBox.remove();
 
   editingItemIndex = null;
   editingItemData = null;
@@ -1393,6 +1405,40 @@ function renderEditItemSatay() {
 function selectEditSatay(value) {
   editSelectedSatay = value;
   renderEditItemSatay();
+}
+
+function renderEditItemRequiredOption() {
+  const requiredOption = getRequiredOption(editingMenuItem || editingItemData);
+
+  const oldBox = document.getElementById("editRequiredOptionBox");
+  if (oldBox) oldBox.remove();
+
+  if (!requiredOption) return;
+
+  const box = document.createElement("div");
+  box.id = "editRequiredOptionBox";
+  box.className = "required-option-select-box";
+
+  box.innerHTML = `
+    <h3>${requiredOption.title} <span>必選</span></h3>
+    <div class="option-grid">
+      ${requiredOption.options.map(option => `
+        <button
+          type="button"
+          class="option-btn ${editSelectedRequiredOption === option ? "active" : ""}"
+          onclick="selectEditRequiredOption('${option}')">
+          ${option}
+        </button>
+      `).join("")}
+    </div>
+  `;
+
+  editItemExtrasBox.parentNode.insertBefore(box, editItemExtrasBox);
+}
+
+function selectEditRequiredOption(value) {
+  editSelectedRequiredOption = value;
+  renderEditItemRequiredOption();
 }
 
 function renderEditItemExtras() {
@@ -1461,6 +1507,13 @@ editItemPlusBtn.addEventListener("click", () => {
 cancelEditItemBtn.addEventListener("click", closeEditItemModal);
 
 saveEditItemBtn.addEventListener("click", () => {
+  const requiredOption = getRequiredOption(editingMenuItem || editingItemData);
+
+  if (requiredOption && !editSelectedRequiredOption) {
+    alert(`請先選擇「${requiredOption.title}」`);
+    return;
+  }
+
   if (editingItemIndex === null || !editingItems[editingItemIndex]) return;
 
   const extrasTotal = editSelectedExtras.reduce((sum, extra) => {
@@ -1479,6 +1532,14 @@ saveEditItemBtn.addEventListener("click", () => {
     unitPrice,
     spicy: editItemSpicySelect.value,
     satay: editSelectedSatay,
+
+    requiredOption: requiredOption
+      ? {
+        title: requiredOption.title,
+        value: editSelectedRequiredOption
+        }
+      : null,
+    
     addons: editSelectedExtras,
     extras: editSelectedExtras,
     note: editItemNoteInput.value.trim(),
@@ -1928,3 +1989,5 @@ window.openEditItemModal = openEditItemModal;
 window.selectEditPortion = selectEditPortion;
 window.selectEditSatay = selectEditSatay;
 window.toggleEditExtra = toggleEditExtra;
+
+window.selectEditRequiredOption = selectEditRequiredOption;

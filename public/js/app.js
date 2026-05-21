@@ -1,9 +1,8 @@
 // =====================================================
-// 恩點系統 v58-3B
+// 恩點系統 v58-5
 // 日期：2026-05-22
 // 端別：QR 客人端 app.js
-// 檔案：public/js/app.js
-// 用途：QR 必選選項 + 餐點描述 + 分類排序同步
+// 用途：QR 內用/外帶 + 與 POS 共用每日訂單號 + 必選選項
 // =====================================================
 
 import {
@@ -11,7 +10,9 @@ import {
   ref,
   onValue,
   push,
-  set
+  set,
+  getBusinessDate,
+  generateDailyOrderNumber
 } from "./firebase.js";
 
 const STORE_ID = "defaultStore";
@@ -34,6 +35,11 @@ const cartTotal = document.getElementById("cartTotal");
 const submitOrderBtn = document.getElementById("submitOrderBtn");
 const customerNameInput = document.getElementById("customerName");
 const orderNoteInput = document.getElementById("orderNote");
+
+const qrDineInBtn = document.getElementById("qrDineInBtn");
+const qrTakeOutBtn = document.getElementById("qrTakeOutBtn");
+const qrTableInput = document.getElementById("qrTableInput");
+const qrOrderTypeHint = document.getElementById("qrOrderTypeHint");
 
 const itemModal = document.getElementById("itemModal");
 const closeModalBtn = document.getElementById("closeModalBtn");
@@ -64,6 +70,8 @@ let categoriesData = {};
 let currentCategory = "全部";
 let cart = [];
 
+let currentOrderType = table ? "內用" : "內用";
+
 let selectedItem = null;
 let selectedSize = null;
 let selectedAddons = [];
@@ -74,13 +82,58 @@ let selectedQty = 1;
 
 const SPICY_OPTIONS = ["不辣", "微辣", "小辣", "中辣", "大辣"];
 
-if (table && tableInfo) {
-  tableInfo.textContent = `桌號：${table}`;
-}
-
 function money(n) {
   return `$${Number(n || 0)}`;
 }
+
+function initOrderTypeUI() {
+  if (table && tableInfo) {
+    tableInfo.textContent = `桌號：${table}`;
+  }
+
+  if (table) {
+    currentOrderType = "內用";
+    qrTableInput.value = table;
+    qrTableInput.readOnly = true;
+    qrDineInBtn.classList.add("active");
+    qrTakeOutBtn.classList.remove("active");
+    qrOrderTypeHint.textContent = `已鎖定內用 ${table} 桌`;
+    return;
+  }
+
+  tableInfo.textContent = "掃碼點餐";
+  qrTableInput.value = "";
+  qrTableInput.readOnly = false;
+  qrOrderTypeHint.textContent = "請確認桌號或選擇外帶。";
+}
+
+function setOrderType(type) {
+  currentOrderType = type;
+
+  if (type === "內用") {
+    qrDineInBtn.classList.add("active");
+    qrTakeOutBtn.classList.remove("active");
+    qrTableInput.style.display = "block";
+    qrOrderTypeHint.textContent = "請輸入桌號，或改選外帶。";
+    return;
+  }
+
+  qrTakeOutBtn.classList.add("active");
+  qrDineInBtn.classList.remove("active");
+  qrTableInput.style.display = "none";
+  qrTableInput.value = "";
+  qrOrderTypeHint.textContent = "已選擇外帶，送出後請至櫃檯確認付款。";
+}
+
+qrDineInBtn.addEventListener("click", () => {
+  if (table) return;
+  setOrderType("內用");
+});
+
+qrTakeOutBtn.addEventListener("click", () => {
+  if (table) return;
+  setOrderType("外帶");
+});
 
 function normalizeMenu(raw) {
   if (!raw) return [];
@@ -604,12 +657,47 @@ function renderCart() {
   cartTotal.textContent = money(total);
 }
 
+function getOrderMeta() {
+  if (currentOrderType === "內用") {
+    const tableValue = (table || qrTableInput.value.trim()).trim();
+
+    return {
+      type: "內用",
+      table: tableValue,
+      customerLabel: customerNameInput.value.trim() || (tableValue ? `${tableValue}桌` : "內用客人")
+    };
+  }
+
+  return {
+    type: "外帶",
+    table: "",
+    customerLabel: customerNameInput.value.trim() || "外帶客人"
+  };
+}
+
+function validateOrderType() {
+  if (currentOrderType === "內用") {
+    const tableValue = (table || qrTableInput.value.trim()).trim();
+
+    if (!tableValue) {
+      alert("請輸入桌號，或改選外帶。");
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function renderConfirmModal() {
+  if (!validateOrderType()) return;
+
   const total = cart.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
+  const meta = getOrderMeta();
+
   confirmTotal.textContent = money(total);
 
   confirmContent.innerHTML = `
-    <div class="confirm-table">${table ? `桌號：${table}桌` : "QR 點餐"}</div>
+    <div class="confirm-table">${meta.type}${meta.table ? `｜${meta.table}桌` : ""}</div>
 
     ${cart.map(item => `
       <div class="confirm-item">
@@ -640,6 +728,8 @@ backToCartBtn.addEventListener("click", () => {
 });
 
 confirmSubmitBtn.addEventListener("click", async () => {
+  if (!validateOrderType()) return;
+
   confirmSubmitBtn.disabled = true;
   confirmSubmitBtn.textContent = "送出中...";
 
@@ -647,16 +737,20 @@ confirmSubmitBtn.addEventListener("click", async () => {
     const total = cart.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
     const orderRef = push(ref(db, "orders"));
     const now = Date.now();
+    const businessDate = getBusinessDate();
+    const orderNumber = await generateDailyOrderNumber();
+    const meta = getOrderMeta();
 
     const order = {
       id: orderRef.key,
-      orderNumber: now.toString().slice(-6),
+      orderNumber,
+      businessDate,
       storeId: STORE_ID,
       source: "QR",
-      type: table ? "內用" : "線上",
-      table: table || "",
+      type: meta.type,
+      table: meta.table,
       customerName: customerNameInput.value.trim(),
-      customerLabel: customerNameInput.value.trim() || (table ? `${table}桌` : "QR客人"),
+      customerLabel: meta.customerLabel,
       note: orderNoteInput.value.trim(),
       items: cart,
       total,
@@ -683,6 +777,9 @@ confirmSubmitBtn.addEventListener("click", async () => {
     cart = [];
     customerNameInput.value = "";
     orderNoteInput.value = "";
+    if (!table && currentOrderType === "內用") {
+      qrTableInput.value = "";
+    }
     renderCart();
   } catch (error) {
     console.error(error);
@@ -730,7 +827,7 @@ function showSuccessPage(order) {
   successContent.innerHTML = `
     <div class="success-order-id">訂單編號：${order.orderNumber || order.id}</div>
     <div class="success-time">時間：${new Date(order.createdAt).toLocaleString("zh-TW", { hour12: false })}</div>
-    <div class="success-table">${order.table ? `桌號：${order.table}桌` : "QR 點餐"}</div>
+    <div class="success-table">${order.type || "QR 點餐"}${order.table ? `｜${order.table}桌` : ""}</div>
 
     ${Array.isArray(order.items) ? order.items.map(item => `
       <div class="success-item">
@@ -803,6 +900,7 @@ function loadMenu() {
   });
 }
 
+initOrderTypeUI();
 loadMenu();
 renderCart();
 loadLastOrderIfExists();

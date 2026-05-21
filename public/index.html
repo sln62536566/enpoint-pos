@@ -1,10 +1,17 @@
+<!--
+  恩點系統 v58-5
+  日期：2026-05-22
+  端別：QR 客人端 index.html
+  用途：補回內用 / 外帶選擇 + 保留 QR 點餐流程
+-->
+
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>恩點系統｜QR 點餐</title>
-  <link rel="stylesheet" href="./css/style.css" />
+  <link rel="stylesheet" href="./css/qr.css" />
 </head>
 
 <body class="qr-page">
@@ -21,6 +28,18 @@
 
     <aside class="cart-area">
       <h2>我的餐點</h2>
+
+      <div id="orderTypeBox" class="qr-order-type-box">
+        <label>用餐方式</label>
+        <div class="qr-order-type-row">
+          <button id="qrDineInBtn" class="qr-type-btn active" type="button">內用</button>
+          <button id="qrTakeOutBtn" class="qr-type-btn" type="button">外帶</button>
+        </div>
+
+        <input id="qrTableInput" class="input" placeholder="請輸入桌號，例如：5" />
+        <p id="qrOrderTypeHint" class="qr-order-type-hint">請確認桌號或選擇外帶。</p>
+      </div>
+
       <div id="cartList" class="cart-list"></div>
 
       <div class="cart-total">
@@ -40,7 +59,7 @@
       <p>請至櫃檯確認付款，店員確認付款後將立即安排製作餐點。</p>
 
       <div id="successContent"></div>
-      
+
       <div id="orderStatusBox" class="order-status-box">
         狀態：等待櫃檯確認付款
       </div>
@@ -93,12 +112,12 @@
       </div>
 
       <div class="confirm-actions">
-        <button id="backToCartBtn" class="secondary-btn">返回修改</button>
-        <button id="confirmSubmitBtn" class="primary-btn">確認送出</button>
+        <button id="backToCartBtn" class="secondary-btn" type="button">返回修改</button>
+        <button id="confirmSubmitBtn" class="primary-btn" type="button">確認送出</button>
       </div>
     </div>
   </div>
 
-  <script type="module" src="./js/app.js?v=20260516"></script>
+  <script type="module" src="./js/app.js?v=20260522-v58-5"></script>
 </body>
 </html>
