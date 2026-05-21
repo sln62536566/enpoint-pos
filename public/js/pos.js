@@ -4,19 +4,17 @@ import {
   push,
   set,
   update,
-  onValue
+  onValue,
+  getBusinessDate,
+  generateDailyOrderNumber
 } from "./firebase.js";
 
 /* =========================
-   v55 設定
+   v56 設定
 ========================= */
 
-// pro：專業版，QR + POS + 後台，POS 自己控製作流程
-// pro_plus：專業 Plus 版，QR + POS + 後台 + 廚房 KDS
 const STORE_MODE = "pro_plus";
-
 const STORE_ID = "defaultStore";
-
 
 /* =========================
    DOM
@@ -124,6 +122,8 @@ let editSelectedExtras = [];
 let editSelectedSatay = "不要";
 let editQuantity = 1;
 
+let businessDayCloseData = null;
+
 const tables = ["1", "2", "3", "4", "5", "6", "7", "8"];
 
 /* =========================
@@ -184,6 +184,18 @@ function isToday(timestamp) {
   );
 }
 
+function getOrderBusinessDate(order) {
+  return order.businessDate || "";
+}
+
+function isTodayOrder(order) {
+  if (getOrderBusinessDate(order)) {
+    return getOrderBusinessDate(order) === getBusinessDate();
+  }
+
+  return isToday(order.createdAt);
+}
+
 function formatTime(timestamp) {
   if (!timestamp) return "-";
 
@@ -213,17 +225,10 @@ function getBasePrice(item) {
 function getMenuItemByOrderItem(item) {
   if (!item) return null;
 
-  const possibleId =
-    item.itemId ||
-    item.id ||
-    item.menuId ||
-    item.productId;
+  const possibleId = item.itemId || item.id || item.menuId || item.productId;
 
   if (possibleId && menuData[possibleId]) {
-    return {
-      id: possibleId,
-      ...menuData[possibleId]
-    };
+    return { id: possibleId, ...menuData[possibleId] };
   }
 
   const found = Object.entries(menuData).find(([id, menuItem]) => {
@@ -231,10 +236,7 @@ function getMenuItemByOrderItem(item) {
   });
 
   if (found) {
-    return {
-      id: found[0],
-      ...found[1]
-    };
+    return { id: found[0], ...found[1] };
   }
 
   return item;
@@ -245,10 +247,7 @@ function getPortionOptions(item) {
 
   if (item.sizes && typeof item.sizes === "object") {
     Object.entries(item.sizes).forEach(([name, price]) => {
-      options.push({
-        name,
-        price: Number(price)
-      });
+      options.push({ name, price: Number(price) });
     });
   }
 
@@ -318,10 +317,7 @@ function allowSpicy(item) {
 function allowSatay(item) {
   const category = getItemCategory(item);
 
-  return (
-    category.includes("鍋燒") ||
-    category.includes("炒麵")
-  );
+  return category.includes("鍋燒") || category.includes("炒麵");
 }
 
 function isCancelled(order) {
@@ -404,10 +400,14 @@ function canEditOrder(order) {
   );
 }
 
+function isBusinessDayClosed() {
+  return businessDayCloseData && businessDayCloseData.closed === true;
+}
+
 function getTodayOrders() {
   return Object.entries(ordersData)
     .map(([id, order]) => ({ id, ...order }))
-    .filter(order => isToday(order.createdAt))
+    .filter(order => isTodayOrder(order))
     .sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
 }
 
@@ -423,24 +423,13 @@ function getPendingOrders() {
 
 function getProcessingOrders() {
   return getTodayOrders().filter(order => {
-    return (
-      !isCancelled(order) &&
-      !isClosed(order) &&
-      isPaid(order) &&
-      !isDone(order)
-    );
+    return !isCancelled(order) && !isClosed(order) && isPaid(order) && !isDone(order);
   });
 }
 
 function getDoneOrders() {
   return getTodayOrders().filter(order => {
     return !isCancelled(order) && isDone(order) && !isClosed(order);
-  });
-}
-
-function getClosedOrders() {
-  return getTodayOrders().filter(order => {
-    return !isCancelled(order) && isClosed(order);
   });
 }
 
@@ -498,20 +487,16 @@ function selectTable(table) {
 
 dineInBtn.addEventListener("click", () => {
   currentOrderType = "內用";
-
   dineInBtn.classList.add("active");
   takeOutBtn.classList.remove("active");
-
   tableSelectBox.style.display = "block";
   takeOutInfo.style.display = "none";
 });
 
 takeOutBtn.addEventListener("click", () => {
   currentOrderType = "外帶";
-
   takeOutBtn.classList.add("active");
   dineInBtn.classList.remove("active");
-
   tableSelectBox.style.display = "none";
   takeOutInfo.style.display = "block";
 });
@@ -526,10 +511,7 @@ function renderCategories() {
 
   items.forEach(item => {
     const category = getItemCategory(item);
-
-    if (!categories.includes(category)) {
-      categories.push(category);
-    }
+    if (!categories.includes(category)) categories.push(category);
   });
 
   categoryList.innerHTML = categories.map(category => `
@@ -563,11 +545,7 @@ function renderMenu() {
     return `
       <button class="pos-food-btn" onclick="openCustomModal('${item.id}')">
         <div class="food-img">
-          ${
-            imageUrl
-              ? `<img src="${imageUrl}" alt="${item.name || "餐點圖片"}">`
-              : `<span>恩點</span>`
-          }
+          ${imageUrl ? `<img src="${imageUrl}" alt="${item.name || "餐點圖片"}">` : `<span>恩點</span>`}
         </div>
 
         <div class="food-info">
@@ -644,11 +622,7 @@ function renderPortionOptions() {
 }
 
 function selectPortion(name, price) {
-  selectedPortion = {
-    name,
-    price: Number(price)
-  };
-
+  selectedPortion = { name, price: Number(price) };
   renderPortionOptions();
 }
 
@@ -702,10 +676,7 @@ function toggleExtra(name, price) {
   if (exists) {
     selectedExtras = selectedExtras.filter(extra => extra.name !== name);
   } else {
-    selectedExtras.push({
-      name,
-      price: Number(price)
-    });
+    selectedExtras.push({ name, price: Number(price) });
   }
 
   renderExtrasOptions();
@@ -724,9 +695,7 @@ modalPlusBtn.addEventListener("click", () => {
 cancelCustomBtn.addEventListener("click", closeCustomModal);
 
 customModal.addEventListener("click", event => {
-  if (event.target === customModal) {
-    closeCustomModal();
-  }
+  if (event.target === customModal) closeCustomModal();
 });
 
 confirmCustomBtn.addEventListener("click", () => {
@@ -818,13 +787,19 @@ async function submitOrder() {
     return;
   }
 
+  if (isBusinessDayClosed()) {
+    alert("今日已收班，不能再建立新的今日訂單。請明日營業日再開始點餐。");
+    return;
+  }
+
   submitOrderBtn.disabled = true;
   submitOrderBtn.textContent = "建立中...";
 
   try {
     const newOrderRef = push(ordersRef);
     const now = Date.now();
-    const orderNumber = now.toString().slice(-6);
+    const businessDate = getBusinessDate();
+    const orderNumber = await generateDailyOrderNumber();
 
     const customerLabel =
       currentOrderType === "內用"
@@ -834,6 +809,8 @@ async function submitOrder() {
     const order = {
       id: newOrderRef.key,
       orderNumber,
+      businessDate,
+      storeId: STORE_ID,
       storeMode: STORE_MODE,
       source: "店員POS",
       type: currentOrderType,
@@ -874,22 +851,14 @@ async function submitOrder() {
 ========================= */
 
 function renderAllOrders() {
-  const pendingOrders = getPendingOrders();
-  const processingOrders = getProcessingOrders();
-  const doneOrders = getDoneOrders();
-  const cancelledOrders = getCancelledOrders();
-
-  pendingOrderList.innerHTML = renderOrderList(pendingOrders, "目前沒有待確認訂單");
-  processingOrderList.innerHTML = renderOrderList(processingOrders, "目前沒有製作中訂單");
-  doneOrderList.innerHTML = renderOrderList(doneOrders, "目前沒有已完成訂單");
-  cancelledOrderList.innerHTML = renderOrderList(cancelledOrders, "目前沒有已取消訂單");
+  pendingOrderList.innerHTML = renderOrderList(getPendingOrders(), "目前沒有待確認訂單");
+  processingOrderList.innerHTML = renderOrderList(getProcessingOrders(), "目前沒有製作中訂單");
+  doneOrderList.innerHTML = renderOrderList(getDoneOrders(), "目前沒有已完成訂單");
+  cancelledOrderList.innerHTML = renderOrderList(getCancelledOrders(), "目前沒有已取消訂單");
 }
 
 function renderOrderList(orders, emptyText) {
-  if (orders.length === 0) {
-    return `<div class="empty">${emptyText}</div>`;
-  }
-
+  if (orders.length === 0) return `<div class="empty">${emptyText}</div>`;
   return orders.map(order => renderOrderCard(order)).join("");
 }
 
@@ -922,35 +891,15 @@ function renderOrderCard(order) {
       <div class="order-total">總金額：${money(order.total)}</div>
 
       <div class="order-actions">
-        ${
-          editable
-            ? `<button class="secondary-btn" onclick="openEditOrderModal('${order.id}')">編輯 / 改單</button>`
-            : ""
-        }
+        ${editable ? `<button class="secondary-btn" onclick="openEditOrderModal('${order.id}')">編輯 / 改單</button>` : ""}
 
-        ${
-          canConfirm
-            ? `<button class="primary-btn" onclick="confirmPaidAndProcess('${order.id}')">${STORE_MODE === "pro" ? "確認結帳並開始製作" : "確認結帳並送廚房"}</button>`
-            : ""
-        }
+        ${canConfirm ? `<button class="primary-btn" onclick="confirmPaidAndProcess('${order.id}')">${STORE_MODE === "pro" ? "確認結帳並開始製作" : "確認結帳並送廚房"}</button>` : ""}
 
-        ${
-          STORE_MODE === "pro" && order.status === "cooking"
-            ? `<button class="primary-btn" onclick="markOrderDoneByPOS('${order.id}')">POS 標記完成</button>`
-            : ""
-        }
+        ${STORE_MODE === "pro" && order.status === "cooking" ? `<button class="primary-btn" onclick="markOrderDoneByPOS('${order.id}')">POS 標記完成</button>` : ""}
 
-        ${
-          canClose
-            ? `<button class="primary-btn" onclick="closeOrder('${order.id}')">結案</button>`
-            : ""
-        }
+        ${canClose ? `<button class="primary-btn" onclick="closeOrder('${order.id}')">結案</button>` : ""}
 
-        ${
-          canCancel
-            ? `<button class="danger-btn" onclick="cancelOrder('${order.id}')">取消</button>`
-            : ""
-        }
+        ${canCancel ? `<button class="danger-btn" onclick="cancelOrder('${order.id}')">取消</button>` : ""}
       </div>
     </article>
   `;
@@ -1110,9 +1059,7 @@ cancelEditOrderBtn.addEventListener("click", closeEditOrderModal);
 saveEditOrderBtn.addEventListener("click", saveEditOrder);
 
 editOrderModal.addEventListener("click", event => {
-  if (event.target === editOrderModal) {
-    closeEditOrderModal();
-  }
+  if (event.target === editOrderModal) closeEditOrderModal();
 });
 
 /* =========================
@@ -1121,7 +1068,6 @@ editOrderModal.addEventListener("click", event => {
 
 function openEditItemModal(index) {
   const item = editingItems[index];
-
   if (!item) return;
 
   const sourceMenuItem = getMenuItemByOrderItem(item);
@@ -1144,7 +1090,6 @@ function openEditItemModal(index) {
   editItemNoteInput.value = item.note || "";
   editItemSpicySelect.value = item.spicy || "";
   editItemQuantity.textContent = editQuantity;
-
   editItemSpicySelect.disabled = !allowSpicy(editingMenuItem);
 
   renderEditItemPortions();
@@ -1186,11 +1131,7 @@ function renderEditItemPortions() {
 }
 
 function selectEditPortion(name, price) {
-  editSelectedPortion = {
-    name,
-    price: Number(price)
-  };
-
+  editSelectedPortion = { name, price: Number(price) };
   renderEditItemPortions();
   updateEditItemSubtotal();
 }
@@ -1256,10 +1197,7 @@ function toggleEditExtra(name, price) {
   if (exists) {
     editSelectedExtras = editSelectedExtras.filter(extra => extra.name !== name);
   } else {
-    editSelectedExtras.push({
-      name,
-      price: Number(price)
-    });
+    editSelectedExtras.push({ name, price: Number(price) });
   }
 
   renderEditItemExtras();
@@ -1325,9 +1263,7 @@ saveEditItemBtn.addEventListener("click", () => {
 });
 
 editItemModal.addEventListener("click", event => {
-  if (event.target === editItemModal) {
-    closeEditItemModal();
-  }
+  if (event.target === editItemModal) closeEditItemModal();
 });
 
 /* =========================
@@ -1466,7 +1402,7 @@ async function cancelOrder(orderId) {
 }
 
 /* =========================
-   v56 Stats
+   v56 Stats / Closing
 ========================= */
 
 const statCancelledOrders = document.getElementById("statCancelledOrders");
@@ -1485,8 +1421,6 @@ const closingStatus = document.getElementById("closingStatus");
 const closingTime = document.getElementById("closingTime");
 const closeBusinessDayBtn = document.getElementById("closeBusinessDayBtn");
 
-let businessDayCloseData = null;
-
 const reportRangeButtons = document.querySelectorAll(".report-range-btn");
 
 let currentReportRange = "day";
@@ -1502,15 +1436,13 @@ reportRangeButtons.forEach(button => {
   });
 });
 
-
-
-
 function isThisWeek(timestamp) {
   const date = new Date(timestamp);
   const now = new Date();
 
   const firstDay = new Date(now);
   firstDay.setDate(now.getDate() - now.getDay());
+  firstDay.setHours(0, 0, 0, 0);
 
   const lastDay = new Date(firstDay);
   lastDay.setDate(firstDay.getDate() + 7);
@@ -1522,21 +1454,14 @@ function isThisMonth(timestamp) {
   const date = new Date(timestamp);
   const now = new Date();
 
-  return (
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth()
-  );
+  return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
 }
 
 function getOrdersByRange() {
-  const orders = Object.entries(ordersData)
-    .map(([id, order]) => ({
-      id,
-      ...order
-    }));
+  const orders = Object.entries(ordersData).map(([id, order]) => ({ id, ...order }));
 
   if (currentReportRange === "day") {
-    return orders.filter(order => isToday(order.createdAt));
+    return orders.filter(order => isTodayOrder(order));
   }
 
   if (currentReportRange === "week") {
@@ -1560,7 +1485,6 @@ function renderTopItems(orders) {
 
     items.forEach(item => {
       const name = item.name || "未命名";
-
       counter[name] = (counter[name] || 0) + itemQty(item);
     });
   });
@@ -1599,18 +1523,13 @@ function renderStats() {
     return isDone(order) || isClosed(order);
   });
 
-  const cancelledOrders = orders.filter(order => {
-    return isCancelled(order);
-  });
+  const cancelledOrders = orders.filter(order => isCancelled(order));
 
   const revenue = doneOrders.reduce((sum, order) => {
     return sum + Number(order.total || 0);
   }, 0);
 
-  const average =
-    effectiveOrders.length > 0
-      ? revenue / effectiveOrders.length
-      : 0;
+  const average = effectiveOrders.length > 0 ? revenue / effectiveOrders.length : 0;
 
   if (currentReportRange === "day") {
     statRevenueLabel.textContent = "今日營收";
@@ -1644,11 +1563,7 @@ function renderStats() {
 }
 
 function getTodayKey() {
-  const date = new Date();
-  const yyyy = date.getFullYear();
-  const mm = String(date.getMonth() + 1).padStart(2, "0");
-  const dd = String(date.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
+  return getBusinessDate();
 }
 
 function renderClosingStatus() {
@@ -1659,6 +1574,7 @@ function renderClosingStatus() {
     closingTime.textContent = "-";
     closeBusinessDayBtn.disabled = false;
     closeBusinessDayBtn.textContent = "確認今日收班";
+    submitOrderBtn.disabled = false;
     return;
   }
 
@@ -1666,6 +1582,7 @@ function renderClosingStatus() {
   closingTime.textContent = formatTime(businessDayCloseData.closedAt);
   closeBusinessDayBtn.disabled = true;
   closeBusinessDayBtn.textContent = "今日已收班";
+  submitOrderBtn.disabled = true;
 }
 
 function watchBusinessDayClose() {
@@ -1678,10 +1595,10 @@ function watchBusinessDayClose() {
 }
 
 async function closeBusinessDay() {
-  const ok = confirm("確認今天已完成營收與訂單核對，要執行收班嗎？");
+  const ok = confirm("確認今天已完成營收與訂單核對，要執行收班嗎？收班後今天不能再新增訂單。");
   if (!ok) return;
 
-  const orders = getOrdersByRange();
+  const orders = getTodayOrders();
   const effectiveOrders = orders.filter(order => !isCancelled(order));
   const cancelledOrders = orders.filter(order => isCancelled(order));
   const doneOrders = effectiveOrders.filter(order => isDone(order) || isClosed(order));
@@ -1701,18 +1618,18 @@ async function closeBusinessDay() {
       revenue,
       validOrders: effectiveOrders.length,
       cancelledOrders: cancelledOrders.length,
-      note: "v56 每日收班基礎版",
+      totalOrders: orders.length,
+      note: "v56 每日收班穩定版",
       createdAt: now,
       updatedAt: now
     });
 
-    alert("今日收班已完成");
+    alert("今日收班已完成，已禁止新增今日訂單。");
   } catch (error) {
     console.error("收班失敗：", error);
     alert("收班失敗，請稍後再試");
   }
 }
-
 
 /* =========================
    Events / Window
@@ -1726,7 +1643,6 @@ if (closeBusinessDayBtn) {
 }
 
 watchBusinessDayClose();
-
 
 window.selectCategory = selectCategory;
 window.selectTable = selectTable;
