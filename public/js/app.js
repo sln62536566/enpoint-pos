@@ -323,7 +323,7 @@ function renderMenuCard(item) {
   const requiredOption = getRequiredOption(item);
 
   return `
-    <div class="menu-card" data-id="${item.id}" role="button"><div class="menu-card" data-id="${item.id}" role="button" onclick="alert('有點到餐點')">
+    <button type="button" class="menu-card" data-id="${item.id}" onclick="window.openItemModalById('${item.id}')">
       <div class="menu-image">
         ${
           imageUrl
@@ -339,7 +339,7 @@ function renderMenuCard(item) {
         ${requiredOption ? `<p class="qr-required-tag">必選：${requiredOption.title}</p>` : ""}
         <strong>${money(getBasePrice(item))}</strong>
       </div>
-    </div>
+    </button>
   `;
 }
 
@@ -378,6 +378,8 @@ function openItemModalById(itemId) {
 
   openItemModal(item);
 }
+
+window.openItemModalById = openItemModalById;
 
 function renderMenu() {
   let items = getEnabledItems();
