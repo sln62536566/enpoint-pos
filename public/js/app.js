@@ -1046,7 +1046,7 @@ loadLastOrderIfExists();
     return false;
   };
 
-  legacyDebug("legacy patch loaded v58-42");
+  legacyDebug("legacy patch loaded v58-43");
 
   if (typeof EventTarget !== "undefined" && EventTarget.prototype && !window.__ENPOINT_QR_EVENT_PATCHED__) {
     window.__ENPOINT_QR_EVENT_PATCHED__ = true;
@@ -1744,7 +1744,6 @@ loadLastOrderIfExists();
 
   function markTap(event) {
     if (isInsideOrderOrCart(event.target)) return;
-    if (!isInsideMenuList(event.target)) return;
     var card = findMenuCard(event.target);
     if (!card || !getCardId(card)) return;
     lastTouchAt = Date.now();
@@ -1755,7 +1754,6 @@ loadLastOrderIfExists();
   function replayClick(event) {
     if (replaying) return;
     if (isInsideOrderOrCart(event.target)) return;
-    if (!isInsideMenuList(event.target)) return;
     var card = findMenuCard(event.target) || lastTouchCard;
     if (!card || !getCardId(card)) return;
     legacyDebug("replay card: " + getCardId(card));
