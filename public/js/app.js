@@ -466,10 +466,7 @@ function openItemModal(item) {
   modalItemPrice.textContent = "起價 " + money(getBasePrice(item));
 
   itemModal.classList.remove("hidden");
-  itemModal.style.display = "flex";
-  itemModal.style.visibility = "visible";
-  itemModal.style.opacity = "1";
-  itemModal.style.zIndex = "99999";
+  itemModal.classList.add("show-force");
 
   try {
     renderModalOptions();
@@ -627,9 +624,7 @@ qtyPlusBtn.addEventListener("click", () => {
 
 closeModalBtn.addEventListener("click", function () {
   itemModal.classList.add("hidden");
-  itemModal.style.display = "";
-  itemModal.style.visibility = "";
-  itemModal.style.opacity = "";
+  itemModal.classList.remove("show-force");
 });
 
 addToCartBtn.addEventListener("click", () => {

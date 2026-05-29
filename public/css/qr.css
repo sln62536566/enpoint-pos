@@ -804,3 +804,36 @@ body {
 .menu-card:active {
   transform: scale(0.97);
 }
+
+
+/* =========================
+   v58-16 舊 iPad modal 強制修正
+========================= */
+
+#itemModal {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 999999 !important;
+  background: rgba(0,0,0,0.55) !important;
+
+  display: none;
+
+  align-items: center !important;
+  justify-content: center !important;
+
+  padding: 16px !important;
+}
+
+#itemModal.show-force {
+  display: flex !important;
+}
+
+#itemModal .modal-card {
+  width: 100% !important;
+  max-width: 520px !important;
+  max-height: 90vh !important;
+  overflow-y: auto !important;
+
+  background: #fff !important;
+  border-radius: 24px !important;
+}
