@@ -323,7 +323,7 @@ function renderMenuCard(item) {
   const requiredOption = getRequiredOption(item);
 
   return `
-    <div class="menu-card" data-id="${item.id}" role="button">
+    <div class="menu-card" data-id="${item.id}" role="button"><div class="menu-card" data-id="${item.id}" role="button" onclick="alert('有點到餐點')">
       <div class="menu-image">
         ${
           imageUrl
