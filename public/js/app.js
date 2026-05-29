@@ -1865,3 +1865,25 @@ if (submitOrderBtn) {
   document.addEventListener("mouseup", replayLegacyModalControl, true);
   document.addEventListener("mouseup", replayClick, true);
 })();
+
+
+// =========================
+// v58-48 最終舊平板送單修正
+// =========================
+
+window.forceLegacySubmitOrder = function () {
+  try {
+    if (!cart || cart.length === 0) {
+      alert("購物車目前是空的");
+      return false;
+    }
+
+    renderConfirmModal();
+
+    return false;
+  } catch (error) {
+    alert("送單失敗：" + error.message);
+    console.error(error);
+    return false;
+  }
+};
