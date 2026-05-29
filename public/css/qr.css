@@ -869,6 +869,32 @@ body {
   -webkit-user-select: none;
   user-select: none;
 }
+#qrLegacyModalHost {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483000 !important;
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  overflow: auto !important;
+  -webkit-overflow-scrolling: touch;
+  background: rgba(0, 0, 0, 0.42) !important;
+  pointer-events: auto !important;
+}
+
+#qrLegacyModalHost #itemModal.show-force,
+#qrLegacyModalHost #item-modal.show-force,
+#qrLegacyModalHost #itemDetailModal.show-force,
+#qrLegacyModalHost #item-detail-modal.show-force,
+#qrLegacyModalHost .item-modal.show-force {
+  position: relative !important;
+  inset: auto !important;
+  z-index: 2147483001 !important;
+  width: 100% !important;
+  min-height: 100% !important;
+  background: transparent !important;
+}
+
 dialog[open],
 #itemModal[open],
 #itemModal.show-force,

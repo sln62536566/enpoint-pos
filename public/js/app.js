@@ -1027,7 +1027,7 @@ loadLastOrderIfExists();
     return false;
   };
 
-  legacyDebug("legacy patch loaded v58-29");
+  legacyDebug("legacy patch loaded v58-30");
 
   if (typeof EventTarget !== "undefined" && EventTarget.prototype && !window.__ENPOINT_QR_EVENT_PATCHED__) {
     window.__ENPOINT_QR_EVENT_PATCHED__ = true;
@@ -1148,6 +1148,39 @@ loadLastOrderIfExists();
       return;
     }
 
+    if (!modal.getAttribute("data-legacy-original-parent") && modal.parentNode) {
+      var originalId = modal.parentNode.id || "";
+      if (!originalId) {
+        originalId = "qrLegacyOriginalParent";
+        modal.parentNode.id = originalId;
+      }
+      modal.setAttribute("data-legacy-original-parent", originalId);
+    }
+
+    var host = document.getElementById("qrLegacyModalHost");
+    if (!host) {
+      host = document.createElement("div");
+      host.id = "qrLegacyModalHost";
+      document.body.appendChild(host);
+    }
+    if (modal.parentNode !== host) {
+      host.appendChild(modal);
+    }
+
+    host.style.display = "block";
+    host.style.position = "fixed";
+    host.style.left = "0";
+    host.style.top = "0";
+    host.style.right = "0";
+    host.style.bottom = "0";
+    host.style.width = "100%";
+    host.style.height = "100%";
+    host.style.zIndex = "2147483000";
+    host.style.overflow = "auto";
+    host.style.webkitOverflowScrolling = "touch";
+    host.style.background = "rgba(0, 0, 0, 0.42)";
+    host.style.pointerEvents = "auto";
+
     modal.setAttribute("open", "");
     modal.removeAttribute("hidden");
     modal.hidden = false;
@@ -1155,12 +1188,16 @@ loadLastOrderIfExists();
     modal.style.visibility = "visible";
     modal.style.opacity = "1";
     modal.style.pointerEvents = "auto";
-    modal.style.position = "fixed";
-    modal.style.zIndex = "99999";
-    modal.style.inset = "0";
+    modal.style.position = "relative";
+    modal.style.zIndex = "2147483001";
+    modal.style.left = "auto";
+    modal.style.top = "auto";
+    modal.style.right = "auto";
+    modal.style.bottom = "auto";
     modal.style.width = "100%";
-    modal.style.height = "100%";
+    modal.style.minHeight = "100%";
     modal.style.overflow = "auto";
+    modal.style.background = "transparent";
     modal.setAttribute("aria-modal", "true");
     modal.removeAttribute("aria-hidden");
 
