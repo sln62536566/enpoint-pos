@@ -1027,7 +1027,7 @@ loadLastOrderIfExists();
     return false;
   };
 
-  legacyDebug("legacy patch loaded v58-28");
+  legacyDebug("legacy patch loaded v58-29");
 
   if (typeof EventTarget !== "undefined" && EventTarget.prototype && !window.__ENPOINT_QR_EVENT_PATCHED__) {
     window.__ENPOINT_QR_EVENT_PATCHED__ = true;
@@ -1135,10 +1135,18 @@ loadLastOrderIfExists();
   function forceOpenItemModal(card) {
     var modal =
       document.getElementById("itemModal") ||
+      document.getElementById("item-modal") ||
+      document.getElementById("itemDetailModal") ||
+      document.getElementById("item-detail-modal") ||
       document.querySelector(".item-modal") ||
+      document.querySelector(".itemModal") ||
+      document.querySelector("[data-item-modal]") ||
       document.querySelector("dialog");
 
-    if (!modal || modalLooksOpen(modal)) return;
+    if (!modal) {
+      legacyDebug("modal not found: " + getCardId(card));
+      return;
+    }
 
     modal.setAttribute("open", "");
     modal.removeAttribute("hidden");
@@ -1149,9 +1157,48 @@ loadLastOrderIfExists();
     modal.style.pointerEvents = "auto";
     modal.style.position = "fixed";
     modal.style.zIndex = "99999";
+    modal.style.inset = "0";
+    modal.style.width = "100%";
+    modal.style.height = "100%";
+    modal.style.overflow = "auto";
+    modal.setAttribute("aria-modal", "true");
+    modal.removeAttribute("aria-hidden");
+
+    if ((" " + modal.className + " ").indexOf(" show ") === -1) {
+      modal.className += " show";
+    }
     if ((" " + modal.className + " ").indexOf(" show-force ") === -1) {
       modal.className += " show-force";
     }
+
+    var dialog = modal.querySelector(".modal-dialog") || modal.querySelector("[role='document']");
+    if (dialog) {
+      dialog.style.display = "block";
+      dialog.style.visibility = "visible";
+      dialog.style.opacity = "1";
+      dialog.style.transform = "none";
+      dialog.style.margin = "24px auto";
+      dialog.style.maxWidth = "520px";
+      dialog.style.width = "92%";
+      dialog.style.pointerEvents = "auto";
+    }
+
+    var content = modal.querySelector(".modal-content") || modal.firstElementChild;
+    if (content) {
+      content.style.display = "block";
+      content.style.visibility = "visible";
+      content.style.opacity = "1";
+      content.style.pointerEvents = "auto";
+    }
+
+    var backdrop = document.getElementById("qrLegacyBackdrop");
+    if (!backdrop) {
+      backdrop = document.createElement("div");
+      backdrop.id = "qrLegacyBackdrop";
+      backdrop.className = "modal-backdrop fade show qr-legacy-backdrop";
+      document.body.appendChild(backdrop);
+    }
+    backdrop.style.display = "block";
 
     document.documentElement.className += " modal-open";
     document.body.className += " modal-open";

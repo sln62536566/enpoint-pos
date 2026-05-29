@@ -872,6 +872,9 @@ body {
 dialog[open],
 #itemModal[open],
 #itemModal.show-force,
+#item-modal.show-force,
+#itemDetailModal.show-force,
+#item-detail-modal.show-force,
 .item-modal[open],
 .item-modal.show-force {
   display: block !important;
@@ -880,6 +883,51 @@ dialog[open],
   pointer-events: auto !important;
   position: fixed !important;
   z-index: 99999 !important;
+}
+
+#itemModal.show-force,
+#item-modal.show-force,
+#itemDetailModal.show-force,
+#item-detail-modal.show-force,
+.item-modal.show-force {
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  overflow: auto !important;
+  background: rgba(0, 0, 0, 0.42) !important;
+}
+
+#itemModal.show-force .modal-dialog,
+#item-modal.show-force .modal-dialog,
+#itemDetailModal.show-force .modal-dialog,
+#item-detail-modal.show-force .modal-dialog,
+.item-modal.show-force .modal-dialog {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  transform: none !important;
+  width: 92% !important;
+  max-width: 520px !important;
+  margin: 24px auto !important;
+  pointer-events: auto !important;
+}
+
+#itemModal.show-force .modal-content,
+#item-modal.show-force .modal-content,
+#itemDetailModal.show-force .modal-content,
+#item-detail-modal.show-force .modal-content,
+.item-modal.show-force .modal-content {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+.qr-legacy-backdrop {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 99998 !important;
+  background: rgba(0, 0, 0, 0.42) !important;
 }
 
 dialog#itemModal[open],
