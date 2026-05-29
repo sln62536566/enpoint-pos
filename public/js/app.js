@@ -1017,7 +1017,17 @@ loadLastOrderIfExists();
     badge.innerHTML = message;
   }
 
-  legacyDebug("legacy patch loaded v58-27");
+  window.onerror = function (message, source, line, column, error) {
+    legacyDebug(
+      "js error: " +
+        message +
+        (line ? " @" + line : "") +
+        (error && error.name ? " " + error.name : "")
+    );
+    return false;
+  };
+
+  legacyDebug("legacy patch loaded v58-28");
 
   if (typeof EventTarget !== "undefined" && EventTarget.prototype && !window.__ENPOINT_QR_EVENT_PATCHED__) {
     window.__ENPOINT_QR_EVENT_PATCHED__ = true;
@@ -1113,6 +1123,41 @@ loadLastOrderIfExists();
     replaying = false;
   }
 
+  function modalLooksOpen(modal) {
+    if (!modal) return false;
+    if (modal.hasAttribute && modal.hasAttribute("open")) return true;
+    var className = typeof modal.className === "string" ? modal.className : "";
+    if (className.indexOf("show-force") !== -1) return true;
+    if (modal.style && modal.style.display && modal.style.display !== "none") return true;
+    return false;
+  }
+
+  function forceOpenItemModal(card) {
+    var modal =
+      document.getElementById("itemModal") ||
+      document.querySelector(".item-modal") ||
+      document.querySelector("dialog");
+
+    if (!modal || modalLooksOpen(modal)) return;
+
+    modal.setAttribute("open", "");
+    modal.removeAttribute("hidden");
+    modal.hidden = false;
+    modal.style.display = "block";
+    modal.style.visibility = "visible";
+    modal.style.opacity = "1";
+    modal.style.pointerEvents = "auto";
+    modal.style.position = "fixed";
+    modal.style.zIndex = "99999";
+    if ((" " + modal.className + " ").indexOf(" show-force ") === -1) {
+      modal.className += " show-force";
+    }
+
+    document.documentElement.className += " modal-open";
+    document.body.className += " modal-open";
+    legacyDebug("force modal open: " + getCardId(card));
+  }
+
   function markTap(event) {
     var card = findMenuCard(event.target);
     if (!card || !getCardId(card)) return;
@@ -1163,6 +1208,10 @@ loadLastOrderIfExists();
       });
 
       callOriginalHandlers(card, event);
+
+      window.setTimeout(function () {
+        forceOpenItemModal(card);
+      }, 120);
     }, 0);
   }
 
