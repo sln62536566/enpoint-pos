@@ -991,6 +991,44 @@ menuList.addEventListener("touchend", function (event) {
 
 renderCart();
 loadLastOrderIfExists();
+
+// =========================
+// v58-46 舊平板送單強制修正
+// =========================
+
+function legacySubmitOrder() {
+  if (cart.length === 0) {
+    alert("購物車目前是空的");
+    return;
+  }
+
+  renderConfirmModal();
+}
+
+window.legacySubmitOrder = legacySubmitOrder;
+
+if (submitOrderBtn) {
+  submitOrderBtn.onclick = function (event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+
+    legacySubmitOrder();
+    return false;
+  };
+
+  submitOrderBtn.ontouchend = function (event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+
+    legacySubmitOrder();
+    return false;
+  };
+}
+
 /* QR legacy tablet tap bridge.
    Older iPad/Android WebKit can show :active on a card but fail the later delegated click path.
    This bridge records real menu-card touches in capture phase and replays one clean click on the card. */
