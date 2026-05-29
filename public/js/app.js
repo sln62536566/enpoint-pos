@@ -1002,6 +1002,23 @@ loadLastOrderIfExists();
   var replaying = false;
   var capturedHandlers = [];
 
+  function legacyDebug(message) {
+    window.__ENPOINT_QR_LEGACY_DEBUG__ = message;
+    if (window.location.search.indexOf("qrdebug=1") === -1) return;
+
+    var badge = document.getElementById("qrLegacyDebug");
+    if (!badge) {
+      badge = document.createElement("div");
+      badge.id = "qrLegacyDebug";
+      badge.style.cssText =
+        "position:fixed;left:8px;bottom:8px;z-index:2147483647;background:#111;color:#fff;padding:8px 10px;border-radius:6px;font:12px/1.3 -apple-system,BlinkMacSystemFont,sans-serif;max-width:85vw;box-shadow:0 2px 10px rgba(0,0,0,.25);";
+      document.body.appendChild(badge);
+    }
+    badge.innerHTML = message;
+  }
+
+  legacyDebug("legacy patch loaded v58-27");
+
   if (typeof EventTarget !== "undefined" && EventTarget.prototype && !window.__ENPOINT_QR_EVENT_PATCHED__) {
     window.__ENPOINT_QR_EVENT_PATCHED__ = true;
     var nativeAddEventListener = EventTarget.prototype.addEventListener;
@@ -1101,12 +1118,14 @@ loadLastOrderIfExists();
     if (!card || !getCardId(card)) return;
     lastTouchAt = Date.now();
     lastTouchCard = card;
+    legacyDebug("touch card: " + getCardId(card));
   }
 
   function replayClick(event) {
     if (replaying) return;
     var card = findMenuCard(event.target) || lastTouchCard;
     if (!card || !getCardId(card)) return;
+    legacyDebug("replay card: " + getCardId(card));
 
     if (Date.now() - lastTouchAt > 900) return;
     window.setTimeout(function () {

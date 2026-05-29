@@ -164,6 +164,10 @@
         };
       }
 
+      if (typeof window.HTMLDialogElement === "undefined" && typeof HTMLElement !== "undefined") {
+        window.HTMLDialogElement = HTMLElement;
+      }
+
       if (typeof HTMLElement !== "undefined" && !HTMLElement.prototype.show) {
         HTMLElement.prototype.show = HTMLElement.prototype.showModal;
       }
@@ -179,6 +183,6 @@
       }
     })();
   </script>
-  <script type="module" src="./js/app.js?v=20260529-v58-25"></script>
+  <script type="module" src="./js/app.js?v=20260529-v58-27"></script>
 </body>
 </html>
