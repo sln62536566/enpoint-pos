@@ -53,7 +53,8 @@
         id="submitOrderBtn"
         class="primary-btn"
         type="button"
-        onclick="window.forceLegacySubmitOrder()">
+        onclick="return window.forceLegacySubmitOrder(event)"
+        ontouchend="return window.forceLegacySubmitOrder(event)"
         送出訂單
       </button>
     </aside>
@@ -189,6 +190,6 @@
       }
     })();
   </script>
-  <script type="module" src="./js/app.js?v=20260530-v58-47"></script>
+  <script type="module" src="./js/app.js?v=20260530-v58-48"></script>
 </body>
 </html>
