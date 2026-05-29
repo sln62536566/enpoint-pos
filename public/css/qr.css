@@ -869,3 +869,34 @@ body {
   -webkit-user-select: none;
   user-select: none;
 }
+dialog[open],
+#itemModal[open],
+#itemModal.show-force,
+.item-modal[open],
+.item-modal.show-force {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  position: fixed !important;
+  z-index: 99999 !important;
+}
+
+dialog#itemModal[open],
+dialog#itemModal.show-force,
+dialog.item-modal[open],
+dialog.item-modal.show-force {
+  top: 50% !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: min(92vw, 520px) !important;
+  max-height: 86vh !important;
+  overflow: auto !important;
+  transform: translate(-50%, -50%) !important;
+}
+
+html.modal-open,
+body.modal-open {
+  overflow: hidden;
+}

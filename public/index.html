@@ -146,8 +146,39 @@
           return null;
         };
       }
+
+      if (typeof HTMLElement !== "undefined" && !HTMLElement.prototype.showModal) {
+        HTMLElement.prototype.showModal = function () {
+          this.setAttribute("open", "");
+          this.removeAttribute("hidden");
+          this.hidden = false;
+          this.style.display = "block";
+          this.style.visibility = "visible";
+          this.style.opacity = "1";
+          this.className = (this.className || "").replace(/\bis-hidden\b/g, "");
+          if ((" " + this.className + " ").indexOf(" show-force ") === -1) {
+            this.className += " show-force";
+          }
+          document.documentElement.className += " modal-open";
+          document.body.className += " modal-open";
+        };
+      }
+
+      if (typeof HTMLElement !== "undefined" && !HTMLElement.prototype.show) {
+        HTMLElement.prototype.show = HTMLElement.prototype.showModal;
+      }
+
+      if (typeof HTMLElement !== "undefined" && !HTMLElement.prototype.close) {
+        HTMLElement.prototype.close = function () {
+          this.removeAttribute("open");
+          this.style.display = "none";
+          this.className = (this.className || "").replace(/\bshow-force\b/g, "");
+          document.documentElement.className = document.documentElement.className.replace(/\bmodal-open\b/g, "");
+          document.body.className = document.body.className.replace(/\bmodal-open\b/g, "");
+        };
+      }
     })();
   </script>
-  <script type="module" src="./js/app.js?v=20260529-v58-24"></script>
+  <script type="module" src="./js/app.js?v=20260529-v58-25"></script>
 </body>
 </html>
