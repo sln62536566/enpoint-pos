@@ -323,7 +323,7 @@ function renderMenuCard(item) {
   const requiredOption = getRequiredOption(item);
 
   return `
-    <button type="button" class="menu-card" data-id="${item.id}" onclick="window.openItemModalById('${item.id}')">
+    <button type="button" class="menu-card" data-id="${item.id}">
       <div class="menu-image">
         ${
           imageUrl
@@ -344,22 +344,7 @@ function renderMenuCard(item) {
 }
 
 function bindMenuCardEvents() {
-  var cards = document.querySelectorAll(".menu-card");
-
-  for (var i = 0; i < cards.length; i++) {
-    cards[i].onclick = function () {
-      forceOpenMenuCard(this);
-    };
-
-    cards[i].ontouchend = function (event) {
-      if (event) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
-
-      forceOpenMenuCard(this);
-    };
-  }
+  // 舊 iPad 相容：不用每張卡片單獨綁，改由 menuList 父層接收
 }
 
 function forceOpenMenuCard(card) {
@@ -978,5 +963,36 @@ function loadMenu() {
 
 initOrderTypeUI();
 loadMenu();
+
+menuList.addEventListener("click", function (event) {
+  var target = event.target;
+
+  while (target && target !== menuList) {
+    if (target.classList && target.classList.contains("menu-card")) {
+      var itemId = target.getAttribute("data-id");
+      openItemModalById(itemId);
+      return;
+    }
+
+    target = target.parentNode;
+  }
+}, true);
+
+menuList.addEventListener("touchend", function (event) {
+  var target = event.target;
+
+  while (target && target !== menuList) {
+    if (target.classList && target.classList.contains("menu-card")) {
+      event.preventDefault();
+
+      var itemId = target.getAttribute("data-id");
+      openItemModalById(itemId);
+      return;
+    }
+
+    target = target.parentNode;
+  }
+}, true);
+
 renderCart();
 loadLastOrderIfExists();
