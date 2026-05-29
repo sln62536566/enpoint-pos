@@ -1046,7 +1046,7 @@ loadLastOrderIfExists();
     return false;
   };
 
-  legacyDebug("legacy patch loaded v58-44");
+  legacyDebug("legacy patch loaded v58-45");
 
   if (typeof EventTarget !== "undefined" && EventTarget.prototype && !window.__ENPOINT_QR_EVENT_PATCHED__) {
     window.__ENPOINT_QR_EVENT_PATCHED__ = true;
@@ -1092,18 +1092,22 @@ loadLastOrderIfExists();
       var id = el.id || "";
       var className = typeof el.className === "string" ? el.className : "";
       if (
-        id.indexOf("cart") !== -1 ||
-        id.indexOf("Cart") !== -1 ||
-        id.indexOf("order") !== -1 ||
-        id.indexOf("Order") !== -1 ||
-        id.indexOf("checkout") !== -1 ||
-        id.indexOf("Checkout") !== -1 ||
         id === "submitOrderBTN" ||
-        className.indexOf("cart") !== -1 ||
-        className.indexOf("order") !== -1 ||
-        className.indexOf("checkout") !== -1 ||
-        className.indexOf("submit") !== -1 ||
-        className.indexOf("footer") !== -1
+        id === "submitOrderBtn" ||
+        id === "sendOrderBTN" ||
+        id === "checkoutBTN" ||
+        id === "checkoutBtn" ||
+        id === "cartDrawer" ||
+        id === "cartPanel" ||
+        id === "cartModal" ||
+        id === "cartItems" ||
+        id === "qrLegacyModalHost" ||
+        className.indexOf("submit-order") !== -1 ||
+        className.indexOf("send-order") !== -1 ||
+        className.indexOf("checkout-btn") !== -1 ||
+        className.indexOf("cart-drawer") !== -1 ||
+        className.indexOf("cart-panel") !== -1 ||
+        className.indexOf("cart-modal") !== -1
       ) {
         return true;
       }
