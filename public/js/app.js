@@ -323,7 +323,7 @@ function renderMenuCard(item) {
   const requiredOption = getRequiredOption(item);
 
   return `
-    <button class="menu-card" data-id="${item.id}">
+    <div class="menu-card" data-id="${item.id}" role="button">
       <div class="menu-image">
         ${
           imageUrl
@@ -339,7 +339,7 @@ function renderMenuCard(item) {
         ${requiredOption ? `<p class="qr-required-tag">必選：${requiredOption.title}</p>` : ""}
         <strong>${money(getBasePrice(item))}</strong>
       </div>
-    </button>
+    </div>
   `;
 }
 
@@ -349,24 +349,34 @@ function bindMenuCardEvents() {
   for (var i = 0; i < cards.length; i++) {
     cards[i].onclick = function () {
       var itemId = this.getAttribute("data-id");
-      var items = getEnabledItems();
-      var item = null;
+      openItemModalById(itemId);
+    };
 
-      for (var j = 0; j < items.length; j++) {
-        if (items[j].id === itemId) {
-          item = items[j];
-          break;
-        }
-      }
-
-      if (!item) {
-        alert("找不到餐點資料：" + itemId);
-        return;
-      }
-
-      openItemModal(item);
+    cards[i].ontouchend = function (event) {
+      event.preventDefault();
+      var itemId = this.getAttribute("data-id");
+      openItemModalById(itemId);
     };
   }
+}
+
+function openItemModalById(itemId) {
+  var items = getEnabledItems();
+  var item = null;
+
+  for (var i = 0; i < items.length; i++) {
+    if (items[i].id === itemId) {
+      item = items[i];
+      break;
+    }
+  }
+
+  if (!item) {
+    alert("找不到餐點資料：" + itemId);
+    return;
+  }
+
+  openItemModal(item);
 }
 
 function renderMenu() {
