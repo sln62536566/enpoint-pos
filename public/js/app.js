@@ -1871,14 +1871,24 @@ if (submitOrderBtn) {
 // v58-48 最終舊平板送單修正
 // =========================
 
-window.forceLegacySubmitOrder = function () {
+window.forceLegacySubmitOrder = function (event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
   try {
     if (!cart || cart.length === 0) {
       alert("購物車目前是空的");
       return false;
     }
 
+    alert("準備打開確認訂單");
+
     renderConfirmModal();
+
+    confirmModal.classList.remove("hidden");
+    confirmModal.classList.add("show-force");
 
     return false;
   } catch (error) {
