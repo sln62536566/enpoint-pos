@@ -347,17 +347,21 @@ function bindMenuCardEvents() {
   var cards = document.querySelectorAll(".menu-card");
 
   for (var i = 0; i < cards.length; i++) {
-    cards[i].onclick = function () {
-      var itemId = this.getAttribute("data-id");
-      openItemModalById(itemId);
-    };
-
-    cards[i].ontouchend = function (event) {
-      event.preventDefault();
-      var itemId = this.getAttribute("data-id");
-      openItemModalById(itemId);
-    };
+    cards[i].onclick = handleMenuCardTap;
+    cards[i].ontouchstart = handleMenuCardTap;
   }
+}
+
+function handleMenuCardTap(event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  var card = this;
+  var itemId = card.getAttribute("data-id");
+
+  openItemModalById(itemId);
 }
 
 function openItemModalById(itemId) {
@@ -380,6 +384,7 @@ function openItemModalById(itemId) {
 }
 
 window.openItemModalById = openItemModalById;
+
 
 function renderMenu() {
   let items = getEnabledItems();
