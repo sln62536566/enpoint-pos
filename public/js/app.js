@@ -999,6 +999,23 @@ loadLastOrderIfExists();
 
   var lastTouchAt = 0;
   var lastTouchCard = null;
+  var replaying = false;
+  var capturedHandlers = [];
+
+  if (typeof EventTarget !== "undefined" && EventTarget.prototype && !window.__ENPOINT_QR_EVENT_PATCHED__) {
+    window.__ENPOINT_QR_EVENT_PATCHED__ = true;
+    var nativeAddEventListener = EventTarget.prototype.addEventListener;
+    EventTarget.prototype.addEventListener = function (type, listener, options) {
+      if ((type === "click" || type === "touchend" || type === "pointerup") && listener) {
+        capturedHandlers.push({
+          target: this,
+          type: type,
+          listener: listener,
+        });
+      }
+      return nativeAddEventListener.call(this, type, listener, options);
+    };
+  }
 
   function hasClass(el, className) {
     return !!(
@@ -1023,6 +1040,62 @@ loadLastOrderIfExists();
     return "";
   }
 
+  function shouldReplayHandler(target) {
+    if (!target) return false;
+    if (target === document || target === window) return true;
+    var id = target.id || "";
+    var className = typeof target.className === "string" ? target.className : "";
+    return (
+      id === "menuList" ||
+      id === "menu-list" ||
+      id === "menuGrid" ||
+      id === "menu-grid" ||
+      className.indexOf("menu-list") !== -1 ||
+      className.indexOf("menu-grid") !== -1 ||
+      className.indexOf("menu-card") !== -1
+    );
+  }
+
+  function callOriginalHandlers(card, sourceEvent) {
+    if (replaying) return;
+    replaying = true;
+
+    var fakeEvent = {
+      type: "click",
+      target: card,
+      currentTarget: card,
+      srcElement: card,
+      bubbles: true,
+      cancelable: true,
+      defaultPrevented: false,
+      preventDefault: function () {
+        this.defaultPrevented = true;
+      },
+      stopPropagation: function () {},
+      stopImmediatePropagation: function () {},
+      originalEvent: sourceEvent || null,
+    };
+
+    capturedHandlers.forEach(function (entry) {
+      if (entry.type !== "click" && entry.type !== "touchend" && entry.type !== "pointerup") return;
+      if (!shouldReplayHandler(entry.target)) return;
+      try {
+        fakeEvent.type = entry.type;
+        if (typeof entry.listener === "function") {
+          fakeEvent.currentTarget = entry.target;
+          entry.listener.call(entry.target, fakeEvent);
+        } else if (entry.listener && typeof entry.listener.handleEvent === "function") {
+          fakeEvent.currentTarget = entry.target;
+          entry.listener.handleEvent(fakeEvent);
+        }
+      } catch (err) {
+        window.__ENPOINT_QR_LAST_REPLAY_ERROR__ = err;
+      }
+    });
+
+    replaying = false;
+  }
+
   function markTap(event) {
     var card = findMenuCard(event.target);
     if (!card || !getCardId(card)) return;
@@ -1031,46 +1104,51 @@ loadLastOrderIfExists();
   }
 
   function replayClick(event) {
+    if (replaying) return;
     var card = findMenuCard(event.target) || lastTouchCard;
     if (!card || !getCardId(card)) return;
 
     if (Date.now() - lastTouchAt > 900) return;
-    if (event && event.cancelable) event.preventDefault();
-
     window.setTimeout(function () {
       if (!card.parentNode) return;
 
-      var clickEvent;
-      if (typeof MouseEvent === "function") {
-        clickEvent = new MouseEvent("click", {
-          bubbles: true,
-          cancelable: true,
-          view: window,
-        });
-      } else {
-        clickEvent = document.createEvent("MouseEvents");
-        clickEvent.initMouseEvent(
-          "click",
-          true,
-          true,
-          window,
-          1,
-          0,
-          0,
-          0,
-          0,
-          false,
-          false,
-          false,
-          false,
-          0,
-          null
-        );
-      }
-      card.dispatchEvent(clickEvent);
+      ["mousedown", "mouseup", "click"].forEach(function (type) {
+        var mouseEvent;
+        if (typeof MouseEvent === "function") {
+          mouseEvent = new MouseEvent(type, {
+            bubbles: true,
+            cancelable: true,
+            view: window,
+          });
+        } else {
+          mouseEvent = document.createEvent("MouseEvents");
+          mouseEvent.initMouseEvent(
+            type,
+            true,
+            true,
+            window,
+            1,
+            0,
+            0,
+            0,
+            0,
+            false,
+            false,
+            false,
+            false,
+            0,
+            null
+          );
+        }
+        card.dispatchEvent(mouseEvent);
+      });
+
+      callOriginalHandlers(card, event);
     }, 0);
   }
 
   document.addEventListener("touchstart", markTap, true);
   document.addEventListener("touchend", replayClick, true);
+  document.addEventListener("pointerup", replayClick, true);
+  document.addEventListener("mouseup", replayClick, true);
 })();
