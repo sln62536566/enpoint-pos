@@ -1046,7 +1046,7 @@ loadLastOrderIfExists();
     return false;
   };
 
-  legacyDebug("legacy patch loaded v58-40");
+  legacyDebug("legacy patch loaded v58-42");
 
   if (typeof EventTarget !== "undefined" && EventTarget.prototype && !window.__ENPOINT_QR_EVENT_PATCHED__) {
     window.__ENPOINT_QR_EVENT_PATCHED__ = true;
@@ -1084,6 +1084,52 @@ loadLastOrderIfExists();
     if (!card) return "";
     if (card.getAttribute) return card.getAttribute("data-id") || "";
     return "";
+  }
+
+  function isInsideOrderOrCart(target) {
+    var el = target;
+    while (el && el !== document) {
+      var id = el.id || "";
+      var className = typeof el.className === "string" ? el.className : "";
+      if (
+        id.indexOf("cart") !== -1 ||
+        id.indexOf("Cart") !== -1 ||
+        id.indexOf("order") !== -1 ||
+        id.indexOf("Order") !== -1 ||
+        id.indexOf("checkout") !== -1 ||
+        id.indexOf("Checkout") !== -1 ||
+        id === "submitOrderBTN" ||
+        className.indexOf("cart") !== -1 ||
+        className.indexOf("order") !== -1 ||
+        className.indexOf("checkout") !== -1 ||
+        className.indexOf("submit") !== -1 ||
+        className.indexOf("footer") !== -1
+      ) {
+        return true;
+      }
+      el = el.parentNode;
+    }
+    return false;
+  }
+
+  function isInsideMenuList(target) {
+    var el = target;
+    while (el && el !== document) {
+      var id = el.id || "";
+      var className = typeof el.className === "string" ? el.className : "";
+      if (
+        id === "menuList" ||
+        id === "menu-list" ||
+        id === "menuGrid" ||
+        id === "menu-grid" ||
+        className.indexOf("menu-list") !== -1 ||
+        className.indexOf("menu-grid") !== -1
+      ) {
+        return true;
+      }
+      el = el.parentNode;
+    }
+    return false;
   }
 
   function shouldReplayHandler(target) {
@@ -1292,27 +1338,21 @@ loadLastOrderIfExists();
 
   function findLegacyOrderControl(target) {
     var el = target;
-    var fallback = null;
     while (el && el !== document) {
       var tag = el.tagName ? el.tagName.toLowerCase() : "";
-      if ((tag === "button" || tag === "a" || tag === "input") && isLegacyOrderControl(el)) {
+      if (
+        (tag === "button" || tag === "a" || tag === "input") &&
+        (el.id === "submitOrderBTN" ||
+          el.id === "submitOrderBtn" ||
+          el.id === "sendOrderBTN" ||
+          el.id === "checkoutBTN" ||
+          el.id === "checkoutBtn")
+      ) {
         return el;
-      }
-      if (!fallback && isLegacyOrderControl(el)) {
-        fallback = el;
       }
       el = el.parentNode;
     }
-
-    if (fallback && fallback.querySelectorAll) {
-      var controls = fallback.querySelectorAll("button,a,input");
-      for (var i = 0; i < controls.length; i += 1) {
-        if (isLegacyOrderControl(controls[i])) return controls[i];
-      }
-      if (controls.length === 1) return controls[0];
-    }
-
-    return fallback;
+    return null;
   }
 
   function dispatchLegacyMouseSequence(control) {
@@ -1465,6 +1505,7 @@ loadLastOrderIfExists();
   function replayLegacyOrderControl(event) {
     if (orderControlReplaying || modalControlReplaying) return;
     if (event && event.type && event.type !== "touchend" && event.type !== "click") return;
+    lastTouchCard = null;
 
     var host = document.getElementById("qrLegacyModalHost");
     if (host && host.style.display !== "none" && host.contains(event.target)) return;
@@ -1702,6 +1743,8 @@ loadLastOrderIfExists();
   }
 
   function markTap(event) {
+    if (isInsideOrderOrCart(event.target)) return;
+    if (!isInsideMenuList(event.target)) return;
     var card = findMenuCard(event.target);
     if (!card || !getCardId(card)) return;
     lastTouchAt = Date.now();
@@ -1711,6 +1754,8 @@ loadLastOrderIfExists();
 
   function replayClick(event) {
     if (replaying) return;
+    if (isInsideOrderOrCart(event.target)) return;
+    if (!isInsideMenuList(event.target)) return;
     var card = findMenuCard(event.target) || lastTouchCard;
     if (!card || !getCardId(card)) return;
     legacyDebug("replay card: " + getCardId(card));
