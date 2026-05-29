@@ -165,7 +165,7 @@ function getCategorySettings() {
       id,
       name,
       enabled: category.enabled !== false,
-      sortOrder: Number(category.sortOrder !== undefined ? category.sortOrder : 999999999)
+      sortOrder: Number(category.sortOrder ?? 999999999)
     };
   });
 
@@ -196,8 +196,8 @@ function sortMenuItems(items) {
 
     if (orderA !== orderB) return orderA - orderB;
 
-    const itemOrderA = Number(a.sortOrder !== undefined ? a.sortOrder : 999999999);
-    const itemOrderB = Number(b.sortOrder !== undefined ? b.sortOrder : 999999999);
+    const itemOrderA = Number(a.sortOrder ?? 999999999);
+    const itemOrderB = Number(b.sortOrder ?? 999999999);
 
     if (itemOrderA !== itemOrderB) return itemOrderA - itemOrderB;
 
@@ -344,22 +344,10 @@ function renderMenuCard(item) {
 }
 
 function bindMenuCardEvents() {
-  document.querySelectorAll(".menu-card").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const itemId = btn.getAttribute("data-id");
-      const item = getEnabledItems().find(x => x.id === itemId);
-
-      if (!item) {
-        alert("有點到餐點，但找不到餐點資料：" + itemId);
-        return;
-      }
-
-      try {
-        openItemModal(item);
-      } catch (error) {
-        console.error("開啟餐點視窗失敗：", error);
-        alert("開啟餐點視窗失敗：" + error.message);
-      }
+  document.querySelectorAll(".menu-card").forEach(card => {
+    card.addEventListener("click", () => {
+      const item = getEnabledItems().find(x => x.id === card.dataset.id);
+      openItemModal(item);
     });
   });
 }
@@ -413,10 +401,7 @@ function renderMenu() {
 }
 
 function openItemModal(item) {
-  if (!item) {
-    alert("找不到這個餐點，請重新整理頁面再試一次。");
-    return;
-  }
+  if (!item) return;
 
   selectedItem = item;
   selectedAddons = [];
@@ -424,25 +409,17 @@ function openItemModal(item) {
   selectedSatay = "不要";
   selectedRequiredOption = "";
   selectedQty = 1;
+  itemNote.value = "";
 
-  if (itemNote) {
-    itemNote.value = "";
-  }
-
-  const sizes = getSizeOptions(item);
-  selectedSize = sizes.length > 0 ? sizes[0] : {
-    name: "一般",
-    price: getBasePrice(item)
-  };
+  selectedSize = getSizeOptions(item)[0];
 
   modalItemName.textContent = item.name || "未命名餐點";
-  modalItemPrice.textContent = "起價 " + money(getBasePrice(item));
+  modalItemPrice.textContent = `起價 ${money(getBasePrice(item))}`;
 
   renderModalOptions();
   updateModalSubtotal();
 
   itemModal.classList.remove("hidden");
-  itemModal.style.display = "flex";
 }
 
 function renderModalOptions() {
@@ -453,7 +430,7 @@ function renderModalOptions() {
     <h3>份量</h3>
     <div class="option-grid">
       ${sizeOptions.map(opt => `
-        <button type="button" class="option-btn size-btn ${selectedSize && selectedSize.name === opt.name ? "active" : ""}"
+        <button type="button" class="option-btn size-btn ${selectedSize?.name === opt.name ? "active" : ""}"
           data-name="${opt.name}"
           data-price="${opt.price}">
           ${opt.name} ${money(opt.price)}
@@ -573,7 +550,7 @@ function renderModalOptions() {
 }
 
 function updateModalSubtotal() {
-  const base = Number(selectedSize && selectedSize.price || 0);
+  const base = Number(selectedSize?.price || 0);
   const addonsTotal = selectedAddons.reduce((sum, addon) => sum + Number(addon.price || 0), 0);
   modalSubtotal.textContent = money((base + addonsTotal) * selectedQty);
 }
@@ -592,7 +569,6 @@ qtyPlusBtn.addEventListener("click", () => {
 
 closeModalBtn.addEventListener("click", () => {
   itemModal.classList.add("hidden");
-  itemModal.style.display = "";
 });
 
 addToCartBtn.addEventListener("click", () => {
@@ -603,7 +579,7 @@ addToCartBtn.addEventListener("click", () => {
     return;
   }
 
-  const basePrice = Number(selectedSize && selectedSize.price || 0);
+  const basePrice = Number(selectedSize?.price || 0);
   const addonsTotal = selectedAddons.reduce((sum, addon) => sum + Number(addon.price || 0), 0);
   const unitPrice = basePrice + addonsTotal;
 
@@ -612,7 +588,7 @@ addToCartBtn.addEventListener("click", () => {
     itemId: selectedItem.id,
     name: selectedItem.name,
     category: getItemCategory(selectedItem),
-    size: selectedSize && selectedSize.name || "一般",
+    size: selectedSize?.name || "一般",
     basePrice,
     price: unitPrice,
     unitPrice,
@@ -642,7 +618,7 @@ function renderItemDetail(item) {
     ${item.requiredOption ? `<p>${item.requiredOption.title}：${item.requiredOption.value}</p>` : ""}
     ${item.spicy ? `<p>辣度：${item.spicy}</p>` : ""}
     ${item.satay ? `<p>沙茶：${item.satay}</p>` : ""}
-    ${item.addons && item.addons.length ? `<p>加料：${item.addons.map(a => a.name).join("、")}</p>` : ""}
+    ${item.addons?.length ? `<p>加料：${item.addons.map(a => a.name).join("、")}</p>` : ""}
     ${item.note ? `<p>備註：${item.note}</p>` : ""}
   `;
 }
