@@ -323,7 +323,7 @@ function renderMenuCard(item) {
   const requiredOption = getRequiredOption(item);
 
   return `
-    <button type="button" class="menu-card" data-id="${item.id}">
+  <a href="javascript:void(0)" role="button" class="menu-card" data-id="${item.id}">
       <div class="menu-image">
         ${
           imageUrl
@@ -339,7 +339,7 @@ function renderMenuCard(item) {
         ${requiredOption ? `<p class="qr-required-tag">必選：${requiredOption.title}</p>` : ""}
         <strong>${money(getBasePrice(item))}</strong>
       </div>
-    </button>
+  </a>
   `;
 }
 
