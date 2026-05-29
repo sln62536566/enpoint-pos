@@ -1044,7 +1044,7 @@ loadLastOrderIfExists();
     return false;
   };
 
-  legacyDebug("legacy patch loaded v58-36");
+  legacyDebug("legacy patch loaded v58-37");
 
   if (typeof EventTarget !== "undefined" && EventTarget.prototype && !window.__ENPOINT_QR_EVENT_PATCHED__) {
     window.__ENPOINT_QR_EVENT_PATCHED__ = true;
@@ -1314,17 +1314,32 @@ loadLastOrderIfExists();
   }
 
   function dispatchLegacyMouseSequence(control) {
-    ["mousedown", "mouseup", "click"].forEach(function (type) {
+    ["touchstart", "touchend", "mousedown", "mouseup", "click", "input", "change"].forEach(function (type) {
       var mouseEvent;
-      if (typeof MouseEvent === "function") {
+      if (type.indexOf("touch") === 0 && typeof Event === "function") {
+        mouseEvent = new Event(type, {
+          bubbles: true,
+          cancelable: true,
+        });
+      } else if (typeof MouseEvent === "function" && (type === "mousedown" || type === "mouseup" || type === "click")) {
         mouseEvent = new MouseEvent(type, {
           bubbles: true,
           cancelable: true,
           view: window,
         });
+      } else if (typeof Event === "function") {
+        mouseEvent = new Event(type, {
+          bubbles: true,
+          cancelable: true,
+        });
       } else {
-        mouseEvent = document.createEvent("MouseEvents");
-        mouseEvent.initMouseEvent(type, true, true, window, 1, 0, 0, 0, 0, false, false, false, false, 0, null);
+        if (type === "mousedown" || type === "mouseup" || type === "click") {
+          mouseEvent = document.createEvent("MouseEvents");
+          mouseEvent.initMouseEvent(type, true, true, window, 1, 0, 0, 0, 0, false, false, false, false, 0, null);
+        } else {
+          mouseEvent = document.createEvent("Event");
+          mouseEvent.initEvent(type, true, true);
+        }
       }
       control.dispatchEvent(mouseEvent);
     });
@@ -1401,6 +1416,13 @@ loadLastOrderIfExists();
 
     window.setTimeout(function () {
       orderControlReplaying = true;
+      if (typeof control.click === "function") {
+        try {
+          control.click();
+        } catch (err) {
+          window.__ENPOINT_QR_LAST_ORDER_CLICK_ERROR__ = err;
+        }
+      }
       dispatchLegacyMouseSequence(control);
 
       var form = control.form || (control.closest && control.closest("form"));
@@ -1410,6 +1432,13 @@ loadLastOrderIfExists();
           cancelable: true,
         });
         form.dispatchEvent(submitEvent);
+        if (typeof form.submit === "function") {
+          try {
+            form.submit();
+          } catch (err) {
+            window.__ENPOINT_QR_LAST_ORDER_SUBMIT_ERROR__ = err;
+          }
+        }
       }
 
       var replayed = replayCapturedOrderHandlers(control);
