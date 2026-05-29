@@ -1046,7 +1046,7 @@ loadLastOrderIfExists();
     return false;
   };
 
-  legacyDebug("legacy patch loaded v58-43");
+  legacyDebug("legacy patch loaded v58-44");
 
   if (typeof EventTarget !== "undefined" && EventTarget.prototype && !window.__ENPOINT_QR_EVENT_PATCHED__) {
     window.__ENPOINT_QR_EVENT_PATCHED__ = true;
@@ -1505,13 +1505,13 @@ loadLastOrderIfExists();
   function replayLegacyOrderControl(event) {
     if (orderControlReplaying || modalControlReplaying) return;
     if (event && event.type && event.type !== "touchend" && event.type !== "click") return;
-    lastTouchCard = null;
 
     var host = document.getElementById("qrLegacyModalHost");
     if (host && host.style.display !== "none" && host.contains(event.target)) return;
 
     var control = findLegacyOrderControl(event.target);
     if (!control) return;
+    lastTouchCard = null;
 
     var now = Date.now();
     if (lastOrderReplayControl === control && now - lastOrderReplayAt < 1200) return;
