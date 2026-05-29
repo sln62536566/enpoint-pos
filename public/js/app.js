@@ -344,24 +344,29 @@ function renderMenuCard(item) {
 }
 
 function bindMenuCardEvents() {
-  document.querySelectorAll(".menu-card").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const itemId = btn.getAttribute("data-id");
-      const item = getEnabledItems().find(x => x.id === itemId);
+  var cards = document.querySelectorAll(".menu-card");
+
+  for (var i = 0; i < cards.length; i++) {
+    cards[i].onclick = function () {
+      var itemId = this.getAttribute("data-id");
+      var items = getEnabledItems();
+      var item = null;
+
+      for (var j = 0; j < items.length; j++) {
+        if (items[j].id === itemId) {
+          item = items[j];
+          break;
+        }
+      }
 
       if (!item) {
-        alert("有點到餐點，但找不到餐點資料：" + itemId);
+        alert("找不到餐點資料：" + itemId);
         return;
       }
 
-      try {
-        openItemModal(item);
-      } catch (error) {
-        console.error("開啟餐點視窗失敗：", error);
-        alert("開啟餐點視窗失敗：" + error.message);
-      }
-    });
-  });
+      openItemModal(item);
+    };
+  }
 }
 
 function renderMenu() {
@@ -414,7 +419,7 @@ function renderMenu() {
 
 function openItemModal(item) {
   if (!item) {
-    alert("找不到這個餐點，請重新整理頁面再試一次。");
+    alert("找不到這個餐點");
     return;
   }
 
@@ -429,11 +434,16 @@ function openItemModal(item) {
     itemNote.value = "";
   }
 
-  const sizes = getSizeOptions(item);
-  selectedSize = sizes.length > 0 ? sizes[0] : {
-    name: "一般",
-    price: getBasePrice(item)
-  };
+  var sizes = getSizeOptions(item);
+
+  if (sizes && sizes.length > 0) {
+    selectedSize = sizes[0];
+  } else {
+    selectedSize = {
+      name: "一般",
+      price: getBasePrice(item)
+    };
+  }
 
   modalItemName.textContent = item.name || "未命名餐點";
   modalItemPrice.textContent = "起價 " + money(getBasePrice(item));
@@ -443,6 +453,9 @@ function openItemModal(item) {
 
   itemModal.classList.remove("hidden");
   itemModal.style.display = "flex";
+  itemModal.style.visibility = "visible";
+  itemModal.style.opacity = "1";
+  itemModal.style.zIndex = "99999";
 }
 
 function renderModalOptions() {
@@ -590,9 +603,11 @@ qtyPlusBtn.addEventListener("click", () => {
   updateModalSubtotal();
 });
 
-closeModalBtn.addEventListener("click", () => {
+closeModalBtn.addEventListener("click", function () {
   itemModal.classList.add("hidden");
   itemModal.style.display = "";
+  itemModal.style.visibility = "";
+  itemModal.style.opacity = "";
 });
 
 addToCartBtn.addEventListener("click", () => {
