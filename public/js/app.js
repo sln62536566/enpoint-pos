@@ -1028,7 +1028,7 @@ loadLastOrderIfExists();
     return false;
   };
 
-  legacyDebug("legacy patch loaded v58-31");
+  legacyDebug("legacy patch loaded v58-32");
 
   if (typeof EventTarget !== "undefined" && EventTarget.prototype && !window.__ENPOINT_QR_EVENT_PATCHED__) {
     window.__ENPOINT_QR_EVENT_PATCHED__ = true;
@@ -1284,7 +1284,6 @@ loadLastOrderIfExists();
         control.dispatchEvent(mouseEvent);
       });
       modalControlReplaying = false;
-      callModalHandlers(control, event);
       legacyDebug("modal control click: " + (control.id || control.className || control.tagName));
     }, 0);
   }
@@ -1456,8 +1455,6 @@ loadLastOrderIfExists();
         }
         card.dispatchEvent(mouseEvent);
       });
-
-      callOriginalHandlers(card, event);
 
       window.setTimeout(function () {
         forceOpenItemModal(card);
