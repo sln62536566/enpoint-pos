@@ -1004,6 +1004,21 @@ loadLastOrderIfExists();
   var orderControlReplaying = false;
   var capturedHandlers = [];
 
+  if (typeof EventTarget !== "undefined" && EventTarget.prototype && !window.__ENPOINT_QR_EVENT_PATCHED__) {
+    window.__ENPOINT_QR_EVENT_PATCHED__ = true;
+    var nativeAddEventListener = EventTarget.prototype.addEventListener;
+    EventTarget.prototype.addEventListener = function (type, listener, options) {
+      if ((type === "click" || type === "submit") && listener) {
+        capturedHandlers.push({
+          target: this,
+          type: type,
+          listener: listener,
+        });
+      }
+      return nativeAddEventListener.call(this, type, listener, options);
+    };
+  }
+
   function legacyDebug(message) {
     window.__ENPOINT_QR_LEGACY_DEBUG__ = message;
     if (window.location.search.indexOf("qrdebug=1") === -1) return;
@@ -1029,7 +1044,7 @@ loadLastOrderIfExists();
     return false;
   };
 
-  legacyDebug("legacy patch loaded v58-34");
+  legacyDebug("legacy patch loaded v58-35");
 
   if (typeof EventTarget !== "undefined" && EventTarget.prototype && !window.__ENPOINT_QR_EVENT_PATCHED__) {
     window.__ENPOINT_QR_EVENT_PATCHED__ = true;
@@ -1302,6 +1317,66 @@ loadLastOrderIfExists();
     });
   }
 
+  function shouldReplayOrderHandler(target, control) {
+    if (!target) return false;
+    if (target === document || target === window) return true;
+    if (target === control) return true;
+
+    var id = target.id || "";
+    var className = typeof target.className === "string" ? target.className : "";
+    return (
+      id.indexOf("cart") !== -1 ||
+      id.indexOf("Cart") !== -1 ||
+      id.indexOf("order") !== -1 ||
+      id.indexOf("Order") !== -1 ||
+      id.indexOf("checkout") !== -1 ||
+      id.indexOf("Checkout") !== -1 ||
+      className.indexOf("cart") !== -1 ||
+      className.indexOf("order") !== -1 ||
+      className.indexOf("checkout") !== -1 ||
+      className.indexOf("footer") !== -1 ||
+      className.indexOf("bar") !== -1
+    );
+  }
+
+  function replayCapturedOrderHandlers(control) {
+    var replayed = 0;
+
+    capturedHandlers.forEach(function (entry) {
+      if (entry.type !== "click" && entry.type !== "submit") return;
+      if (!shouldReplayOrderHandler(entry.target, control)) return;
+
+      var fakeEvent = {
+        type: entry.type,
+        target: control,
+        currentTarget: entry.target,
+        srcElement: control,
+        bubbles: true,
+        cancelable: true,
+        defaultPrevented: false,
+        preventDefault: function () {
+          this.defaultPrevented = true;
+        },
+        stopPropagation: function () {},
+        stopImmediatePropagation: function () {},
+      };
+
+      try {
+        if (typeof entry.listener === "function") {
+          entry.listener.call(entry.target, fakeEvent);
+        } else if (entry.listener && typeof entry.listener.handleEvent === "function") {
+          entry.listener.handleEvent(fakeEvent);
+        }
+        replayed += 1;
+      } catch (err) {
+        window.__ENPOINT_QR_LAST_ORDER_REPLAY_ERROR__ = err;
+        legacyDebug("order handler error: " + (err.message || err));
+      }
+    });
+
+    return replayed;
+  }
+
   function replayLegacyOrderControl(event) {
     if (orderControlReplaying || modalControlReplaying) return;
 
@@ -1326,8 +1401,10 @@ loadLastOrderIfExists();
         form.dispatchEvent(submitEvent);
       }
 
+      var replayed = replayCapturedOrderHandlers(control);
+
       orderControlReplaying = false;
-      legacyDebug("order control click: " + (control.id || control.className || control.tagName));
+      legacyDebug("order control click: " + (control.id || control.className || control.tagName) + " handlers:" + replayed);
     }, 0);
   }
 
