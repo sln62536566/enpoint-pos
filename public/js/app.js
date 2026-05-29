@@ -1000,6 +1000,7 @@ loadLastOrderIfExists();
   var lastTouchAt = 0;
   var lastTouchCard = null;
   var replaying = false;
+  var modalControlReplaying = false;
   var capturedHandlers = [];
 
   function legacyDebug(message) {
@@ -1027,7 +1028,7 @@ loadLastOrderIfExists();
     return false;
   };
 
-  legacyDebug("legacy patch loaded v58-30");
+  legacyDebug("legacy patch loaded v58-31");
 
   if (typeof EventTarget !== "undefined" && EventTarget.prototype && !window.__ENPOINT_QR_EVENT_PATCHED__) {
     window.__ENPOINT_QR_EVENT_PATCHED__ = true;
@@ -1083,6 +1084,25 @@ loadLastOrderIfExists();
     );
   }
 
+  function shouldReplayModalHandler(target) {
+    if (!target) return false;
+    if (target === document || target === window) return true;
+    var id = target.id || "";
+    var className = typeof target.className === "string" ? target.className : "";
+    return (
+      id === "itemModal" ||
+      id === "item-modal" ||
+      id === "itemDetailModal" ||
+      id === "item-detail-modal" ||
+      id === "qrLegacyModalHost" ||
+      className.indexOf("modal") !== -1 ||
+      className.indexOf("item-modal") !== -1 ||
+      className.indexOf("cart") !== -1 ||
+      className.indexOf("option") !== -1 ||
+      className.indexOf("addon") !== -1
+    );
+  }
+
   function callOriginalHandlers(card, sourceEvent) {
     if (replaying) return;
     replaying = true;
@@ -1121,6 +1141,152 @@ loadLastOrderIfExists();
     });
 
     replaying = false;
+  }
+
+  function callModalHandlers(target, sourceEvent) {
+    if (replaying) return;
+    replaying = true;
+
+    var fakeEvent = {
+      type: "click",
+      target: target,
+      currentTarget: target,
+      srcElement: target,
+      bubbles: true,
+      cancelable: true,
+      defaultPrevented: false,
+      preventDefault: function () {
+        this.defaultPrevented = true;
+      },
+      stopPropagation: function () {},
+      stopImmediatePropagation: function () {},
+      originalEvent: sourceEvent || null,
+    };
+
+    capturedHandlers.forEach(function (entry) {
+      if (entry.type !== "click" && entry.type !== "touchend" && entry.type !== "pointerup") return;
+      if (!shouldReplayModalHandler(entry.target) && entry.target !== target) return;
+      try {
+        fakeEvent.type = entry.type;
+        fakeEvent.currentTarget = entry.target;
+        if (typeof entry.listener === "function") {
+          entry.listener.call(entry.target, fakeEvent);
+        } else if (entry.listener && typeof entry.listener.handleEvent === "function") {
+          entry.listener.handleEvent(fakeEvent);
+        }
+      } catch (err) {
+        window.__ENPOINT_QR_LAST_MODAL_REPLAY_ERROR__ = err;
+        legacyDebug("modal handler error: " + (err.message || err));
+      }
+    });
+
+    replaying = false;
+  }
+
+  function findLegacyModalControl(target) {
+    var el = target;
+    while (el && el !== document) {
+      var tag = el.tagName ? el.tagName.toLowerCase() : "";
+      var id = el.id || "";
+      var className = typeof el.className === "string" ? el.className : "";
+      if (
+        tag === "button" ||
+        tag === "a" ||
+        tag === "input" ||
+        id.indexOf("cart") !== -1 ||
+        id.indexOf("Cart") !== -1 ||
+        className.indexOf("btn") !== -1 ||
+        className.indexOf("close") !== -1 ||
+        className.indexOf("cart") !== -1
+      ) {
+        return el;
+      }
+      el = el.parentNode;
+    }
+    return null;
+  }
+
+  function isLegacyCloseControl(el) {
+    if (!el) return false;
+    var text = (el.textContent || el.value || "").replace(/\s+/g, "");
+    var id = el.id || "";
+    var className = typeof el.className === "string" ? el.className : "";
+    var dismiss =
+      (el.getAttribute && (el.getAttribute("data-dismiss") || el.getAttribute("data-bs-dismiss"))) || "";
+    return (
+      dismiss === "modal" ||
+      id.indexOf("close") !== -1 ||
+      id.indexOf("Close") !== -1 ||
+      className.indexOf("close") !== -1 ||
+      className.indexOf("btn-close") !== -1 ||
+      text === "×" ||
+      text === "x" ||
+      text === "X" ||
+      text === "取消"
+    );
+  }
+
+  function closeLegacyModal() {
+    var host = document.getElementById("qrLegacyModalHost");
+    var modal =
+      document.getElementById("itemModal") ||
+      document.getElementById("item-modal") ||
+      document.getElementById("itemDetailModal") ||
+      document.getElementById("item-detail-modal") ||
+      document.querySelector(".item-modal");
+    var backdrop = document.getElementById("qrLegacyBackdrop");
+
+    if (modal) {
+      modal.removeAttribute("open");
+      modal.setAttribute("aria-hidden", "true");
+      modal.removeAttribute("aria-modal");
+      modal.style.display = "none";
+      modal.className = (modal.className || "").replace(/\bshow-force\b/g, "").replace(/\bshow\b/g, "");
+    }
+    if (host) host.style.display = "none";
+    if (backdrop) backdrop.style.display = "none";
+
+    document.documentElement.className = document.documentElement.className.replace(/\bmodal-open\b/g, "");
+    document.body.className = document.body.className.replace(/\bmodal-open\b/g, "");
+    legacyDebug("legacy modal closed");
+  }
+
+  function replayLegacyModalControl(event) {
+    if (modalControlReplaying) return;
+    var host = document.getElementById("qrLegacyModalHost");
+    if (!host || host.style.display === "none") return;
+    if (!host.contains(event.target)) return;
+
+    var control = findLegacyModalControl(event.target);
+    if (!control) return;
+
+    if (event && event.cancelable) event.preventDefault();
+
+    if (isLegacyCloseControl(control)) {
+      closeLegacyModal();
+      return;
+    }
+
+    window.setTimeout(function () {
+      modalControlReplaying = true;
+      ["mousedown", "mouseup", "click"].forEach(function (type) {
+        var mouseEvent;
+        if (typeof MouseEvent === "function") {
+          mouseEvent = new MouseEvent(type, {
+            bubbles: true,
+            cancelable: true,
+            view: window,
+          });
+        } else {
+          mouseEvent = document.createEvent("MouseEvents");
+          mouseEvent.initMouseEvent(type, true, true, window, 1, 0, 0, 0, 0, false, false, false, false, 0, null);
+        }
+        control.dispatchEvent(mouseEvent);
+      });
+      modalControlReplaying = false;
+      callModalHandlers(control, event);
+      legacyDebug("modal control click: " + (control.id || control.className || control.tagName));
+    }, 0);
   }
 
   function modalLooksOpen(modal) {
@@ -1300,7 +1466,10 @@ loadLastOrderIfExists();
   }
 
   document.addEventListener("touchstart", markTap, true);
+  document.addEventListener("touchend", replayLegacyModalControl, true);
   document.addEventListener("touchend", replayClick, true);
+  document.addEventListener("pointerup", replayLegacyModalControl, true);
   document.addEventListener("pointerup", replayClick, true);
+  document.addEventListener("mouseup", replayLegacyModalControl, true);
   document.addEventListener("mouseup", replayClick, true);
 })();
