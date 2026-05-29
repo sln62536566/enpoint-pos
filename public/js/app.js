@@ -1002,6 +1002,8 @@ loadLastOrderIfExists();
   var replaying = false;
   var modalControlReplaying = false;
   var orderControlReplaying = false;
+  var lastOrderReplayAt = 0;
+  var lastOrderReplayControl = null;
   var capturedHandlers = [];
 
   if (typeof EventTarget !== "undefined" && EventTarget.prototype && !window.__ENPOINT_QR_EVENT_PATCHED__) {
@@ -1044,7 +1046,7 @@ loadLastOrderIfExists();
     return false;
   };
 
-  legacyDebug("legacy patch loaded v58-37");
+  legacyDebug("legacy patch loaded v58-40");
 
   if (typeof EventTarget !== "undefined" && EventTarget.prototype && !window.__ENPOINT_QR_EVENT_PATCHED__) {
     window.__ENPOINT_QR_EVENT_PATCHED__ = true;
@@ -1405,14 +1407,75 @@ loadLastOrderIfExists();
     return replayed;
   }
 
+  function callKnownOrderFunctions(control) {
+    var names = [
+      "submitOrder",
+      "sendOrder",
+      "placeOrder",
+      "checkout",
+      "confirmOrder",
+      "handleSubmitOrder",
+      "handleSendOrder",
+      "submitCart",
+      "sendCart",
+      "createOrder",
+      "createQrOrder",
+      "submitQrOrder",
+    ];
+    var called = 0;
+
+    names.forEach(function (name) {
+      if (typeof window[name] !== "function") return;
+      try {
+        window[name]({
+          type: "click",
+          target: control,
+          currentTarget: control,
+          preventDefault: function () {},
+          stopPropagation: function () {},
+        });
+        called += 1;
+      } catch (err) {
+        window.__ENPOINT_QR_LAST_ORDER_FUNCTION_ERROR__ = err;
+        legacyDebug("order function error: " + name + " " + (err.message || err));
+      }
+    });
+
+    return called;
+  }
+
+  function callOrderOnclick(control) {
+    if (!control || typeof control.onclick !== "function") return 0;
+    try {
+      control.onclick.call(control, {
+        type: "click",
+        target: control,
+        currentTarget: control,
+        preventDefault: function () {},
+        stopPropagation: function () {},
+      });
+      return 1;
+    } catch (err) {
+      window.__ENPOINT_QR_LAST_ORDER_ONCLICK_ERROR__ = err;
+      legacyDebug("order onclick error: " + (err.message || err));
+      return 0;
+    }
+  }
+
   function replayLegacyOrderControl(event) {
     if (orderControlReplaying || modalControlReplaying) return;
+    if (event && event.type && event.type !== "touchend" && event.type !== "click") return;
 
     var host = document.getElementById("qrLegacyModalHost");
     if (host && host.style.display !== "none" && host.contains(event.target)) return;
 
     var control = findLegacyOrderControl(event.target);
     if (!control) return;
+
+    var now = Date.now();
+    if (lastOrderReplayControl === control && now - lastOrderReplayAt < 1200) return;
+    lastOrderReplayControl = control;
+    lastOrderReplayAt = now;
 
     window.setTimeout(function () {
       orderControlReplaying = true;
@@ -1441,7 +1504,9 @@ loadLastOrderIfExists();
         }
       }
 
+      var onclickCalled = callOrderOnclick(control);
       var replayed = replayCapturedOrderHandlers(control);
+      var called = callKnownOrderFunctions(control);
 
       orderControlReplaying = false;
       legacyDebug(
@@ -1452,7 +1517,11 @@ loadLastOrderIfExists();
           "." +
           (control.className || "") +
           " handlers:" +
-          replayed
+          replayed +
+          " onclick:" +
+          onclickCalled +
+          " funcs:" +
+          called
       );
     }, 0);
   }
@@ -1692,9 +1761,7 @@ loadLastOrderIfExists();
   document.addEventListener("touchend", replayLegacyOrderControl, true);
   document.addEventListener("touchend", replayClick, true);
   document.addEventListener("pointerup", replayLegacyModalControl, true);
-  document.addEventListener("pointerup", replayLegacyOrderControl, true);
   document.addEventListener("pointerup", replayClick, true);
   document.addEventListener("mouseup", replayLegacyModalControl, true);
-  document.addEventListener("mouseup", replayLegacyOrderControl, true);
   document.addEventListener("mouseup", replayClick, true);
 })();
