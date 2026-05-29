@@ -347,19 +347,33 @@ function bindMenuCardEvents() {
   var cards = document.querySelectorAll(".menu-card");
 
   for (var i = 0; i < cards.length; i++) {
-    cards[i].onclick = handleMenuCardTap;
-    cards[i].ontouchstart = handleMenuCardTap;
+    cards[i].onclick = function () {
+      forceOpenMenuCard(this);
+    };
+
+    cards[i].ontouchend = function (event) {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+
+      forceOpenMenuCard(this);
+    };
   }
 }
 
-function handleMenuCardTap(event) {
-  if (event) {
-    event.preventDefault();
-    event.stopPropagation();
+function forceOpenMenuCard(card) {
+  if (!card) {
+    alert("沒有抓到餐點卡片");
+    return;
   }
 
-  var card = this;
   var itemId = card.getAttribute("data-id");
+
+  if (!itemId) {
+    alert("餐點沒有 data-id");
+    return;
+  }
 
   openItemModalById(itemId);
 }
@@ -369,7 +383,7 @@ function openItemModalById(itemId) {
   var item = null;
 
   for (var i = 0; i < items.length; i++) {
-    if (items[i].id === itemId) {
+    if (String(items[i].id) === String(itemId)) {
       item = items[i];
       break;
     }
@@ -384,6 +398,7 @@ function openItemModalById(itemId) {
 }
 
 window.openItemModalById = openItemModalById;
+window.forceOpenMenuCard = forceOpenMenuCard;
 
 
 function renderMenu() {
@@ -465,14 +480,19 @@ function openItemModal(item) {
   modalItemName.textContent = item.name || "未命名餐點";
   modalItemPrice.textContent = "起價 " + money(getBasePrice(item));
 
-  renderModalOptions();
-  updateModalSubtotal();
-
   itemModal.classList.remove("hidden");
   itemModal.style.display = "flex";
   itemModal.style.visibility = "visible";
   itemModal.style.opacity = "1";
   itemModal.style.zIndex = "99999";
+
+  try {
+    renderModalOptions();
+    updateModalSubtotal();
+  } catch (error) {
+    console.error("餐點視窗內容載入失敗：", error);
+    alert("餐點視窗內容載入失敗：" + error.message);
+  }
 }
 
 function renderModalOptions() {
