@@ -1028,7 +1028,7 @@ loadLastOrderIfExists();
     return false;
   };
 
-  legacyDebug("legacy patch loaded v58-32");
+  legacyDebug("legacy patch loaded v58-33");
 
   if (typeof EventTarget !== "undefined" && EventTarget.prototype && !window.__ENPOINT_QR_EVENT_PATCHED__) {
     window.__ENPOINT_QR_EVENT_PATCHED__ = true;
@@ -1226,6 +1226,26 @@ loadLastOrderIfExists();
     );
   }
 
+  function isLegacyAddToCartControl(el) {
+    if (!el) return false;
+    var text = (el.textContent || el.value || "").replace(/\s+/g, "");
+    var id = el.id || "";
+    var className = typeof el.className === "string" ? el.className : "";
+    var action = (el.getAttribute && (el.getAttribute("data-action") || el.getAttribute("data-role"))) || "";
+    return (
+      id.indexOf("addToCart") !== -1 ||
+      id.indexOf("add-to-cart") !== -1 ||
+      id.indexOf("cart") !== -1 ||
+      className.indexOf("add-to-cart") !== -1 ||
+      className.indexOf("addToCart") !== -1 ||
+      className.indexOf("cart") !== -1 ||
+      action.indexOf("cart") !== -1 ||
+      text.indexOf("加入購物車") !== -1 ||
+      text.indexOf("加入餐車") !== -1 ||
+      text.indexOf("加入") !== -1
+    );
+  }
+
   function closeLegacyModal() {
     var host = document.getElementById("qrLegacyModalHost");
     var modal =
@@ -1267,6 +1287,8 @@ loadLastOrderIfExists();
       return;
     }
 
+    var shouldCloseAfterClick = isLegacyAddToCartControl(control);
+
     window.setTimeout(function () {
       modalControlReplaying = true;
       ["mousedown", "mouseup", "click"].forEach(function (type) {
@@ -1285,6 +1307,11 @@ loadLastOrderIfExists();
       });
       modalControlReplaying = false;
       legacyDebug("modal control click: " + (control.id || control.className || control.tagName));
+      if (shouldCloseAfterClick) {
+        window.setTimeout(function () {
+          closeLegacyModal();
+        }, 180);
+      }
     }, 0);
   }
 
