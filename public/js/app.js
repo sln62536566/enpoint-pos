@@ -1001,6 +1001,7 @@ loadLastOrderIfExists();
   var lastTouchCard = null;
   var replaying = false;
   var modalControlReplaying = false;
+  var orderControlReplaying = false;
   var capturedHandlers = [];
 
   function legacyDebug(message) {
@@ -1028,7 +1029,7 @@ loadLastOrderIfExists();
     return false;
   };
 
-  legacyDebug("legacy patch loaded v58-33");
+  legacyDebug("legacy patch loaded v58-34");
 
   if (typeof EventTarget !== "undefined" && EventTarget.prototype && !window.__ENPOINT_QR_EVENT_PATCHED__) {
     window.__ENPOINT_QR_EVENT_PATCHED__ = true;
@@ -1246,6 +1247,90 @@ loadLastOrderIfExists();
     );
   }
 
+  function isLegacyOrderControl(el) {
+    if (!el) return false;
+    var text = (el.textContent || el.value || "").replace(/\s+/g, "");
+    var id = el.id || "";
+    var className = typeof el.className === "string" ? el.className : "";
+    var action = (el.getAttribute && (el.getAttribute("data-action") || el.getAttribute("data-role"))) || "";
+    return (
+      id.indexOf("submitOrder") !== -1 ||
+      id.indexOf("submit-order") !== -1 ||
+      id.indexOf("sendOrder") !== -1 ||
+      id.indexOf("send-order") !== -1 ||
+      id.indexOf("checkout") !== -1 ||
+      className.indexOf("submit-order") !== -1 ||
+      className.indexOf("send-order") !== -1 ||
+      className.indexOf("checkout") !== -1 ||
+      action.indexOf("submit") !== -1 ||
+      action.indexOf("order") !== -1 ||
+      action.indexOf("checkout") !== -1 ||
+      text.indexOf("送出訂單") !== -1 ||
+      text.indexOf("送出") !== -1 ||
+      text.indexOf("送單") !== -1 ||
+      text.indexOf("結帳") !== -1 ||
+      text.indexOf("確認訂單") !== -1
+    );
+  }
+
+  function findLegacyOrderControl(target) {
+    var el = target;
+    while (el && el !== document) {
+      var tag = el.tagName ? el.tagName.toLowerCase() : "";
+      if ((tag === "button" || tag === "a" || tag === "input" || tag === "div") && isLegacyOrderControl(el)) {
+        return el;
+      }
+      el = el.parentNode;
+    }
+    return null;
+  }
+
+  function dispatchLegacyMouseSequence(control) {
+    ["mousedown", "mouseup", "click"].forEach(function (type) {
+      var mouseEvent;
+      if (typeof MouseEvent === "function") {
+        mouseEvent = new MouseEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          view: window,
+        });
+      } else {
+        mouseEvent = document.createEvent("MouseEvents");
+        mouseEvent.initMouseEvent(type, true, true, window, 1, 0, 0, 0, 0, false, false, false, false, 0, null);
+      }
+      control.dispatchEvent(mouseEvent);
+    });
+  }
+
+  function replayLegacyOrderControl(event) {
+    if (orderControlReplaying || modalControlReplaying) return;
+
+    var host = document.getElementById("qrLegacyModalHost");
+    if (host && host.style.display !== "none" && host.contains(event.target)) return;
+
+    var control = findLegacyOrderControl(event.target);
+    if (!control) return;
+
+    if (event && event.cancelable) event.preventDefault();
+
+    window.setTimeout(function () {
+      orderControlReplaying = true;
+      dispatchLegacyMouseSequence(control);
+
+      var form = control.form || (control.closest && control.closest("form"));
+      if (form && typeof Event === "function") {
+        var submitEvent = new Event("submit", {
+          bubbles: true,
+          cancelable: true,
+        });
+        form.dispatchEvent(submitEvent);
+      }
+
+      orderControlReplaying = false;
+      legacyDebug("order control click: " + (control.id || control.className || control.tagName));
+    }, 0);
+  }
+
   function closeLegacyModal() {
     var host = document.getElementById("qrLegacyModalHost");
     var modal =
@@ -1291,20 +1376,7 @@ loadLastOrderIfExists();
 
     window.setTimeout(function () {
       modalControlReplaying = true;
-      ["mousedown", "mouseup", "click"].forEach(function (type) {
-        var mouseEvent;
-        if (typeof MouseEvent === "function") {
-          mouseEvent = new MouseEvent(type, {
-            bubbles: true,
-            cancelable: true,
-            view: window,
-          });
-        } else {
-          mouseEvent = document.createEvent("MouseEvents");
-          mouseEvent.initMouseEvent(type, true, true, window, 1, 0, 0, 0, 0, false, false, false, false, 0, null);
-        }
-        control.dispatchEvent(mouseEvent);
-      });
+      dispatchLegacyMouseSequence(control);
       modalControlReplaying = false;
       legacyDebug("modal control click: " + (control.id || control.className || control.tagName));
       if (shouldCloseAfterClick) {
@@ -1491,9 +1563,12 @@ loadLastOrderIfExists();
 
   document.addEventListener("touchstart", markTap, true);
   document.addEventListener("touchend", replayLegacyModalControl, true);
+  document.addEventListener("touchend", replayLegacyOrderControl, true);
   document.addEventListener("touchend", replayClick, true);
   document.addEventListener("pointerup", replayLegacyModalControl, true);
+  document.addEventListener("pointerup", replayLegacyOrderControl, true);
   document.addEventListener("pointerup", replayClick, true);
   document.addEventListener("mouseup", replayLegacyModalControl, true);
+  document.addEventListener("mouseup", replayLegacyOrderControl, true);
   document.addEventListener("mouseup", replayClick, true);
 })();
