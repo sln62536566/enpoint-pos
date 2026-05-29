@@ -118,6 +118,36 @@
     </div>
   </div>
 
-  <script type="module" src="./js/app.js?v=20260529-v58-18"></script>
+  <script>
+    (function () {
+      if (typeof window === "undefined" || typeof Element === "undefined") return;
+
+      var proto = Element.prototype;
+
+      if (!proto.matches) {
+        proto.matches =
+          proto.msMatchesSelector ||
+          proto.webkitMatchesSelector ||
+          function (selector) {
+            var nodes = (this.document || this.ownerDocument).querySelectorAll(selector);
+            var i = nodes.length;
+            while (--i >= 0 && nodes.item(i) !== this) {}
+            return i > -1;
+          };
+      }
+
+      if (!proto.closest) {
+        proto.closest = function (selector) {
+          var el = this;
+          while (el && el.nodeType === 1) {
+            if (el.matches(selector)) return el;
+            el = el.parentElement || el.parentNode;
+          }
+          return null;
+        };
+      }
+    })();
+  </script>
+  <script type="module" src="./js/app.js?v=20260529-v58-19"></script>
 </body>
 </html>

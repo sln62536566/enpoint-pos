@@ -850,10 +850,17 @@ body {
   -webkit-user-select: none !important;
 }
 
-.menu-card * {
-  pointer-events: none !important;
-}
-
 .qr-category-grid .menu-card::after {
   pointer-events: none !important;
+}
+.menu-card {
+  cursor: pointer;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.08);
+  touch-action: manipulation;
+}
+
+.menu-card,
+.menu-card * {
+  -webkit-user-select: none;
+  user-select: none;
 }

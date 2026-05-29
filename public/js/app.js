@@ -991,3 +991,86 @@ menuList.addEventListener("touchend", function (event) {
 
 renderCart();
 loadLastOrderIfExists();
+/* QR legacy tablet tap bridge.
+   Older iPad/Android WebKit can show :active on a card but fail the later delegated click path.
+   This bridge records real menu-card touches in capture phase and replays one clean click on the card. */
+(function () {
+  if (typeof window === "undefined" || typeof document === "undefined") return;
+
+  var lastTouchAt = 0;
+  var lastTouchCard = null;
+
+  function hasClass(el, className) {
+    return !!(
+      el &&
+      typeof el.className === "string" &&
+      (" " + el.className + " ").indexOf(" " + className + " ") !== -1
+    );
+  }
+
+  function findMenuCard(target) {
+    var el = target;
+    while (el && el !== document) {
+      if (hasClass(el, "menu-card")) return el;
+      el = el.parentNode;
+    }
+    return null;
+  }
+
+  function getCardId(card) {
+    if (!card) return "";
+    if (card.getAttribute) return card.getAttribute("data-id") || "";
+    return "";
+  }
+
+  function markTap(event) {
+    var card = findMenuCard(event.target);
+    if (!card || !getCardId(card)) return;
+    lastTouchAt = Date.now();
+    lastTouchCard = card;
+  }
+
+  function replayClick(event) {
+    var card = findMenuCard(event.target) || lastTouchCard;
+    if (!card || !getCardId(card)) return;
+
+    if (Date.now() - lastTouchAt > 900) return;
+    if (event && event.cancelable) event.preventDefault();
+
+    window.setTimeout(function () {
+      if (!card.parentNode) return;
+
+      var clickEvent;
+      if (typeof MouseEvent === "function") {
+        clickEvent = new MouseEvent("click", {
+          bubbles: true,
+          cancelable: true,
+          view: window,
+        });
+      } else {
+        clickEvent = document.createEvent("MouseEvents");
+        clickEvent.initMouseEvent(
+          "click",
+          true,
+          true,
+          window,
+          1,
+          0,
+          0,
+          0,
+          0,
+          false,
+          false,
+          false,
+          false,
+          0,
+          null
+        );
+      }
+      card.dispatchEvent(clickEvent);
+    }, 0);
+  }
+
+  document.addEventListener("touchstart", markTap, true);
+  document.addEventListener("touchend", replayClick, true);
+})();
