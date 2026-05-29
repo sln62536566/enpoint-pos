@@ -1044,7 +1044,7 @@ loadLastOrderIfExists();
     return false;
   };
 
-  legacyDebug("legacy patch loaded v58-35");
+  legacyDebug("legacy patch loaded v58-36");
 
   if (typeof EventTarget !== "undefined" && EventTarget.prototype && !window.__ENPOINT_QR_EVENT_PATCHED__) {
     window.__ENPOINT_QR_EVENT_PATCHED__ = true;
@@ -1290,14 +1290,27 @@ loadLastOrderIfExists();
 
   function findLegacyOrderControl(target) {
     var el = target;
+    var fallback = null;
     while (el && el !== document) {
       var tag = el.tagName ? el.tagName.toLowerCase() : "";
-      if ((tag === "button" || tag === "a" || tag === "input" || tag === "div") && isLegacyOrderControl(el)) {
+      if ((tag === "button" || tag === "a" || tag === "input") && isLegacyOrderControl(el)) {
         return el;
+      }
+      if (!fallback && isLegacyOrderControl(el)) {
+        fallback = el;
       }
       el = el.parentNode;
     }
-    return null;
+
+    if (fallback && fallback.querySelectorAll) {
+      var controls = fallback.querySelectorAll("button,a,input");
+      for (var i = 0; i < controls.length; i += 1) {
+        if (isLegacyOrderControl(controls[i])) return controls[i];
+      }
+      if (controls.length === 1) return controls[0];
+    }
+
+    return fallback;
   }
 
   function dispatchLegacyMouseSequence(control) {
@@ -1386,8 +1399,6 @@ loadLastOrderIfExists();
     var control = findLegacyOrderControl(event.target);
     if (!control) return;
 
-    if (event && event.cancelable) event.preventDefault();
-
     window.setTimeout(function () {
       orderControlReplaying = true;
       dispatchLegacyMouseSequence(control);
@@ -1404,7 +1415,16 @@ loadLastOrderIfExists();
       var replayed = replayCapturedOrderHandlers(control);
 
       orderControlReplaying = false;
-      legacyDebug("order control click: " + (control.id || control.className || control.tagName) + " handlers:" + replayed);
+      legacyDebug(
+        "order control click: " +
+          (control.tagName || "") +
+          "#" +
+          (control.id || "") +
+          "." +
+          (control.className || "") +
+          " handlers:" +
+          replayed
+      );
     }, 0);
   }
 
