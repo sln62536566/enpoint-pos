@@ -49,7 +49,7 @@
       <input id="customerName" class="input" placeholder="名字或綽號，可不填" />
       <textarea id="orderNote" class="input" placeholder="整張訂單備註，例如：餐具、取餐需求"></textarea>
 
-      <button id="submitOrderBtn" class="primary-btn">送出訂單</button>
+      <button id="submitOrderBtn" class="primary-btn" type="button" onclick="return window.qrSubmitOrderNow(event)" ontouchend="return window.qrSubmitOrderNow(event)">送出訂單</button>
     </aside>
   </main>
 
@@ -183,6 +183,6 @@
       }
     })();
   </script>
-  <script type="module" src="./js/app.js?v=20260530-v58-46"></script>
+  <script type="module" src="./js/app.js?v=20260530-v58-47"></script>
 </body>
 </html>

@@ -770,6 +770,21 @@ function renderConfirmModal() {
   confirmModal.classList.remove("hidden");
 }
 
+window.qrSubmitOrderNow = function (event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  if (cart.length === 0) {
+    alert("購物車目前是空的");
+    return false;
+  }
+
+  renderConfirmModal();
+  return false;
+};
+
 submitOrderBtn.addEventListener("click", () => {
   if (cart.length === 0) {
     alert("購物車目前是空的");
