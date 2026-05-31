@@ -15,6 +15,24 @@ import {
   generateDailyOrderNumber
 } from "./firebase.js";
 
+
+/* =========================
+   v59-5 EARLY QR HARD ADD
+   舊平板：加入購物車按鈕直接走這個，不依賴後面事件綁定
+========================= */
+window.qrHardAddToCart = function(event){
+  if (event) {
+    if (event.preventDefault) event.preventDefault();
+    if (event.stopPropagation) event.stopPropagation();
+  }
+  try {
+    return qrAddCurrentItemToCart(event);
+  } catch (error) {
+    alert("加入購物車失敗：" + (error && error.message ? error.message : error));
+    return false;
+  }
+};
+
 const STORE_ID = "defaultStore";
 const LAST_ORDER_KEY = "enpoint_last_qr_order_id";
 
@@ -24,6 +42,46 @@ const table = params.get("table") || "";
 const orderPage = document.getElementById("orderPage");
 const successPage = document.getElementById("successPage");
 const successContent = document.getElementById("successContent");
+const topOrderPanel = document.getElementById("topOrderPanel");
+const topOrderContent = document.getElementById("topOrderContent");
+
+function qrIsViewOrderMode() {
+  try {
+    return String(window.location.search || "").indexOf("view=last") >= 0;
+  } catch (e) {
+    return false;
+  }
+}
+
+function qrShowOrderMode() {
+  if (orderPage) {
+    orderPage.className = (orderPage.className || "") + " hidden";
+    orderPage.style.display = "none";
+  }
+  if (successPage) {
+    successPage.className = (successPage.className || "") + " hidden";
+    successPage.style.display = "none";
+  }
+  if (topOrderPanel) {
+    topOrderPanel.className = String(topOrderPanel.className || "").replace(/\bhidden\b/g, "");
+    topOrderPanel.style.display = "block";
+  }
+  var orderTab = document.getElementById("qrOrderTabLink");
+  var viewTab = document.getElementById("qrViewOrderPlainLink");
+  if (orderTab) orderTab.className = String(orderTab.className || "").replace(/\bactive\b/g, "");
+  if (viewTab && String(viewTab.className || "").indexOf("active") === -1) viewTab.className += " active";
+}
+
+function qrShowMenuMode() {
+  if (topOrderPanel) {
+    topOrderPanel.className = (topOrderPanel.className || "") + " hidden";
+    topOrderPanel.style.display = "none";
+  }
+  var orderTab = document.getElementById("qrOrderTabLink");
+  var viewTab = document.getElementById("qrViewOrderPlainLink");
+  if (viewTab) viewTab.className = String(viewTab.className || "").replace(/\bactive\b/g, "");
+  if (orderTab && String(orderTab.className || "").indexOf("active") === -1) orderTab.className += " active";
+}
 const orderStatusBox = document.getElementById("orderStatusBox");
 const newOrderBtn = document.getElementById("newOrderBtn");
 
@@ -55,6 +113,9 @@ const modalQty = document.getElementById("modalQty");
 const itemNote = document.getElementById("itemNote");
 const modalSubtotal = document.getElementById("modalSubtotal");
 const addToCartBtn = document.getElementById("addToCartBtn");
+const qrCartPanel = document.getElementById("qrCartPanel");
+const floatingCartBtn = document.getElementById("floatingCartBtn");
+const closeCartBtn = document.getElementById("closeCartBtn");
 
 const confirmModal = document.getElementById("confirmModal");
 const confirmContent = document.getElementById("confirmContent");
@@ -323,7 +384,7 @@ function renderMenuCard(item) {
   const requiredOption = getRequiredOption(item);
 
   return `
-  <a href="javascript:void(0)" role="button" class="menu-card" data-id="${item.id}">
+  <button type="button" class="menu-card" data-id="${item.id}" onclick="return window.qrOpenMenuItem(this,event)" ontouchend="return window.qrOpenMenuItem(this,event)">
       <div class="menu-image">
         ${
           imageUrl
@@ -339,7 +400,7 @@ function renderMenuCard(item) {
         ${requiredOption ? `<p class="qr-required-tag">必選：${requiredOption.title}</p>` : ""}
         <strong>${money(getBasePrice(item))}</strong>
       </div>
-  </a>
+  </button>
   `;
 }
 
@@ -627,62 +688,228 @@ closeModalBtn.addEventListener("click", function () {
   itemModal.classList.remove("show-force");
 });
 
-addToCartBtn.addEventListener("click", () => {
-  const requiredOption = getRequiredOption(selectedItem);
 
-  if (requiredOption && !selectedRequiredOption) {
-    alert(`請先選擇「${requiredOption.title}」`);
+
+/* =========================
+   v59-6 QR legacy cart renderer
+   舊平板保險：不用 template/arrow/dataset，直接重畫購物車
+========================= */
+function legacyRenderQrCart() {
+  var list = document.getElementById("cartList");
+  var totalEl = document.getElementById("cartTotal");
+  if (!list) return;
+
+  if (!cart || cart.length === 0) {
+    list.innerHTML = '<div class="empty">尚未選擇餐點</div>';
+    if (totalEl) totalEl.innerHTML = '$0';
+    updateFloatingCartButton && updateFloatingCartButton();
     return;
   }
 
-  const basePrice = Number(selectedSize && selectedSize.price || 0);
-  const addonsTotal = selectedAddons.reduce((sum, addon) => sum + Number(addon.price || 0), 0);
-  const unitPrice = basePrice + addonsTotal;
+  var html = '';
+  var total = 0;
+  for (var i = 0; i < cart.length; i++) {
+    var item = cart[i] || {};
+    var qty = Number(item.qty || item.quantity || 1);
+    var subtotal = Number(item.subtotal || 0);
+    total += subtotal;
+    html += '<div class="cart-item">';
+    html += '<div><strong>' + (item.name || '餐點') + ' × ' + qty + '</strong>';
+    html += '<div class="cart-detail">';
+    if (item.size) html += '<p>份量：' + item.size + '</p>';
+    if (item.requiredOption && item.requiredOption.title) html += '<p>' + item.requiredOption.title + '：' + item.requiredOption.value + '</p>';
+    if (item.spicy) html += '<p>辣度：' + item.spicy + '</p>';
+    if (item.satay) html += '<p>沙茶：' + item.satay + '</p>';
+    var extras = item.addons || item.extras || [];
+    if (extras && extras.length) {
+      var names = [];
+      for (var j = 0; j < extras.length; j++) names.push(extras[j].name || extras[j].label || String(extras[j]));
+      html += '<p>加料：' + names.join('、') + '</p>';
+    }
+    if (item.note) html += '<p>備註：' + item.note + '</p>';
+    html += '</div></div>';
+    html += '<div class="cart-price"><strong>$' + subtotal + '</strong>';
+    html += '<button class="remove-btn" type="button" onclick="return window.legacyRemoveQrCartItem(' + i + ')">刪除</button>';
+    html += '</div></div>';
+  }
+  list.innerHTML = html;
+  if (totalEl) totalEl.innerHTML = '$' + total;
+  updateFloatingCartButton && updateFloatingCartButton();
+}
+
+window.legacyRenderQrCart = legacyRenderQrCart;
+window.legacyRemoveQrCartItem = function(index) {
+  cart.splice(Number(index), 1);
+  legacyRenderQrCart();
+  return false;
+};
+
+var qrLastAddCartAt = 0;
+
+function qrAddCurrentItemToCart(event) {
+  var nowTime = new Date().getTime();
+  if (nowTime - qrLastAddCartAt < 650) {
+    if (event) {
+      event.preventDefault && event.preventDefault();
+      event.stopPropagation && event.stopPropagation();
+    }
+    return false;
+  }
+  qrLastAddCartAt = nowTime;
+
+  if (event) {
+    event.preventDefault && event.preventDefault();
+    event.stopPropagation && event.stopPropagation();
+  }
+
+  if (!selectedItem) {
+    alert("請先選擇餐點");
+    return false;
+  }
+
+  var requiredOption = getRequiredOption(selectedItem);
+  if (requiredOption && !selectedRequiredOption) {
+    alert("請先選擇「" + requiredOption.title + "」");
+    return false;
+  }
+
+  var basePrice = Number((selectedSize && selectedSize.price) || 0);
+  var addonsTotal = 0;
+  for (var i = 0; i < selectedAddons.length; i++) {
+    addonsTotal += Number(selectedAddons[i].price || 0);
+  }
+  var unitPrice = basePrice + addonsTotal;
+  var nowId = selectedItem.id + "-" + new Date().getTime();
 
   cart.push({
-    id: `${selectedItem.id}-${Date.now()}`,
+    id: nowId,
     itemId: selectedItem.id,
     name: selectedItem.name,
     category: getItemCategory(selectedItem),
-    size: selectedSize && selectedSize.name || "一般",
-    basePrice,
+    size: (selectedSize && selectedSize.name) || "一般",
+    basePrice: basePrice,
     price: unitPrice,
-    unitPrice,
-    requiredOption: requiredOption
-      ? {
-          title: requiredOption.title,
-          value: selectedRequiredOption
-        }
-      : null,
+    unitPrice: unitPrice,
+    requiredOption: requiredOption ? {
+      title: requiredOption.title,
+      value: selectedRequiredOption
+    } : null,
     addons: selectedAddons,
     extras: selectedAddons,
     spicy: allowSpicy(selectedItem) ? selectedSpicy : "",
     satay: allowSatay(selectedItem) ? selectedSatay : "",
-    note: itemNote.value.trim(),
+    note: itemNote ? itemNote.value.trim() : "",
     qty: selectedQty,
     quantity: selectedQty,
     subtotal: unitPrice * selectedQty
   });
 
-  itemModal.classList.add("hidden");
-  renderCart();
-});
+  if (itemModal) {
+    itemModal.className = (itemModal.className || "") + " hidden";
+    itemModal.className = itemModal.className.replace(/\bshow-force\b/g, "");
+    itemModal.style.display = "none";
+  }
 
-function renderItemDetail(item) {
-  return `
-    ${item.size && item.size !== "一般" ? `<p>份量：${item.size}</p>` : ""}
-    ${item.requiredOption ? `<p>${item.requiredOption.title}：${item.requiredOption.value}</p>` : ""}
-    ${item.spicy ? `<p>辣度：${item.spicy}</p>` : ""}
-    ${item.satay ? `<p>沙茶：${item.satay}</p>` : ""}
-    ${item.addons && item.addons.length ? `<p>加料：${item.addons.map(a => a.name).join("、")}</p>` : ""}
-    ${item.note ? `<p>備註：${item.note}</p>` : ""}
-  `;
+  try { legacyRenderQrCart(); } catch (e) { try { renderCart(); } catch (err) {} }
+  return false;
 }
+
+window.qrAddCurrentItemToCart = qrAddCurrentItemToCart;
+window.qrHardAddToCart = qrAddCurrentItemToCart;
+if (addToCartBtn) {
+  addToCartBtn.onclick = qrAddCurrentItemToCart;
+  addToCartBtn.ontouchend = qrAddCurrentItemToCart;
+}
+
+function forceResetQrOrder(event) {
+  if (event) {
+    event.preventDefault && event.preventDefault();
+    event.stopPropagation && event.stopPropagation();
+  }
+
+  try {
+    localStorage.removeItem(LAST_ORDER_KEY);
+  } catch (e) {}
+
+  cart = [];
+  selectedItem = null;
+  if (successPage) {
+    successPage.className = (successPage.className || "") + " hidden";
+    successPage.style.display = "none";
+  }
+  if (orderPage) {
+    orderPage.className = (orderPage.className || "").replace(/\bhidden\b/g, "");
+    orderPage.style.display = "";
+  }
+  if (confirmModal) {
+    confirmModal.className = (confirmModal.className || "") + " hidden";
+    confirmModal.className = confirmModal.className.replace(/\bshow-force\b/g, "");
+    confirmModal.style.display = "none";
+  }
+  if (itemModal) {
+    itemModal.className = (itemModal.className || "") + " hidden";
+    itemModal.className = itemModal.className.replace(/\bshow-force\b/g, "");
+    itemModal.style.display = "none";
+  }
+  closeQrCartPanel();
+  renderCart();
+  renderCategories();
+  renderMenu();
+  return false;
+}
+window.forceResetQrOrder = forceResetQrOrder;
+if (newOrderBtn) {
+  newOrderBtn.onclick = forceResetQrOrder;
+  newOrderBtn.ontouchend = forceResetQrOrder;
+}
+
+function getQrCartTotal() {
+  var total = 0;
+  for (var i = 0; i < cart.length; i++) {
+    total += Number(cart[i].subtotal || 0);
+  }
+  return total;
+}
+
+function updateFloatingCartButton() {
+  if (!floatingCartBtn) return;
+  var count = 0;
+  for (var i = 0; i < cart.length; i++) {
+    count += Number(cart[i].qty || 1);
+  }
+  floatingCartBtn.innerHTML = "購物車 " + count + " 項｜" + money(getQrCartTotal());
+}
+
+function openQrCartPanel(event) {
+  if (event) {
+    event.preventDefault && event.preventDefault();
+    event.stopPropagation && event.stopPropagation();
+  }
+  if (qrCartPanel) {
+    qrCartPanel.classList.add("cart-open");
+  }
+  return false;
+}
+
+function closeQrCartPanel(event) {
+  if (event) {
+    event.preventDefault && event.preventDefault();
+    event.stopPropagation && event.stopPropagation();
+  }
+  if (qrCartPanel) {
+    qrCartPanel.classList.remove("cart-open");
+  }
+  return false;
+}
+
+window.openQrCartPanel = openQrCartPanel;
+window.closeQrCartPanel = closeQrCartPanel;
 
 function renderCart() {
   if (cart.length === 0) {
     cartList.innerHTML = `<div class="empty">尚未選擇餐點</div>`;
     cartTotal.textContent = money(0);
+    updateFloatingCartButton();
     return;
   }
 
@@ -711,6 +938,7 @@ function renderCart() {
 
   const total = cart.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
   cartTotal.textContent = money(total);
+  updateFloatingCartButton();
 }
 
 function getOrderMeta() {
@@ -798,68 +1026,91 @@ backToCartBtn.addEventListener("click", () => {
   confirmModal.classList.add("hidden");
 });
 
-confirmSubmitBtn.addEventListener("click", async () => {
-  if (!validateOrderType()) return;
+function submitConfirmedQrOrder(event) {
+  if (event) {
+    event.preventDefault && event.preventDefault();
+    event.stopPropagation && event.stopPropagation();
+  }
+
+  if (!validateOrderType()) return false;
+  if (!cart || cart.length === 0) {
+    alert("購物車目前是空的");
+    return false;
+  }
 
   confirmSubmitBtn.disabled = true;
   confirmSubmitBtn.textContent = "送出中...";
 
-  try {
-    const total = cart.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
-    const orderRef = push(ref(db, "orders"));
-    const now = Date.now();
-    const businessDate = getBusinessDate();
-    const orderNumber = await generateDailyOrderNumber();
-    const meta = getOrderMeta();
+  var total = cart.reduce(function (sum, item) {
+    return sum + Number(item.subtotal || 0);
+  }, 0);
+  var orderRef = push(ref(db, "orders"));
+  var now = Date.now();
+  var businessDate = getBusinessDate();
+  var meta = getOrderMeta();
 
-    const order = {
-      id: orderRef.key,
-      orderNumber,
-      businessDate,
-      storeId: STORE_ID,
-      source: "QR",
-      type: meta.type,
-      table: meta.table,
-      customerName: customerNameInput.value.trim(),
-      customerLabel: meta.customerLabel,
-      note: orderNoteInput.value.trim(),
-      items: cart,
-      total,
-      status: "pending_payment",
-      statusText: "等待櫃檯確認付款",
-      paymentStatus: "unpaid",
-      kitchenStatus: "waiting",
-      confirmed: false,
-      paid: false,
-      closed: false,
-      cancelled: false,
-      createdAt: now,
-      updatedAt: now
-    };
+  generateDailyOrderNumber()
+    .then(function (orderNumber) {
+      var order = {
+        id: orderRef.key,
+        orderNumber: orderNumber,
+        businessDate: businessDate,
+        storeId: STORE_ID,
+        source: "QR",
+        type: meta.type,
+        table: meta.table,
+        customerName: customerNameInput.value.trim(),
+        customerLabel: meta.customerLabel,
+        note: orderNoteInput.value.trim(),
+        items: cart,
+        total: total,
+        status: "pending_payment",
+        statusText: "等待櫃檯確認付款",
+        paymentStatus: "unpaid",
+        kitchenStatus: "waiting",
+        confirmed: false,
+        paid: false,
+        closed: false,
+        cancelled: false,
+        createdAt: now,
+        updatedAt: now
+      };
 
-    await set(orderRef, order);
+      return set(orderRef, order).then(function () {
+        return order;
+      });
+    })
+    .then(function (order) {
+      localStorage.setItem(LAST_ORDER_KEY, order.id);
 
-    localStorage.setItem(LAST_ORDER_KEY, order.id);
+      confirmModal.classList.add("hidden");
+      showSuccessPage(order);
+      listenOrderStatus(order.id);
 
-    confirmModal.classList.add("hidden");
-    showSuccessPage(order);
-    listenOrderStatus(order.id);
+      cart = [];
+      customerNameInput.value = "";
+      orderNoteInput.value = "";
+      if (!table && currentOrderType === "內用") {
+        qrTableInput.value = "";
+      }
+      renderCart();
+    })
+    .catch(function (error) {
+      console.error(error);
+      alert("送出失敗：" + (error && error.message ? error.message : "請稍後再試。"));
+    })
+    .then(function () {
+      confirmSubmitBtn.disabled = false;
+      confirmSubmitBtn.textContent = "確認送出";
+    });
 
-    cart = [];
-    customerNameInput.value = "";
-    orderNoteInput.value = "";
-    if (!table && currentOrderType === "內用") {
-      qrTableInput.value = "";
-    }
-    renderCart();
-  } catch (error) {
-    console.error(error);
-    alert("送出失敗，請稍後再試。");
-  }
+  return false;
+}
 
-  confirmSubmitBtn.disabled = false;
-  confirmSubmitBtn.textContent = "確認送出";
-});
+confirmSubmitBtn.addEventListener("click", submitConfirmedQrOrder);
+confirmSubmitBtn.onclick = submitConfirmedQrOrder;
+confirmSubmitBtn.ontouchend = submitConfirmedQrOrder;
+window.submitConfirmedQrOrder = submitConfirmedQrOrder;
 
 function getOrderStatusText(order) {
   if (!order) return "等待櫃檯確認付款";
@@ -887,15 +1138,8 @@ function getOrderStatusText(order) {
   return "等待櫃檯確認付款";
 }
 
-function showSuccessPage(order) {
-  orderPage.classList.add("hidden");
-  successPage.classList.remove("hidden");
-
-  if (orderStatusBox) {
-    orderStatusBox.textContent = `狀態：${getOrderStatusText(order)}`;
-  }
-
-  successContent.innerHTML = `
+function buildQrOrderHtml(order) {
+  return `
     <div class="success-order-id">訂單編號：${order.orderNumber || order.id}</div>
     <div class="success-time">時間：${new Date(order.createdAt).toLocaleString("zh-TW", { hour12: false })}</div>
     <div class="success-table">${order.type || "QR 點餐"}${order.table ? `｜${order.table}桌` : ""}</div>
@@ -915,6 +1159,33 @@ function showSuccessPage(order) {
   `;
 }
 
+function renderTopOrderOnly(order) {
+  if (topOrderContent) {
+    topOrderContent.innerHTML = buildQrOrderHtml(order);
+  }
+  qrShowOrderMode();
+  if (orderStatusBox) {
+    orderStatusBox.textContent = `狀態：${getOrderStatusText(order)}`;
+  }
+}
+
+function showSuccessPage(order) {
+  orderPage.classList.add("hidden");
+  successPage.classList.remove("hidden");
+
+  if (orderStatusBox) {
+    orderStatusBox.textContent = `狀態：${getOrderStatusText(order)}`;
+  }
+
+  var orderHtml = buildQrOrderHtml(order);
+
+  successContent.innerHTML = orderHtml;
+
+  if (topOrderContent) {
+    topOrderContent.innerHTML = orderHtml;
+  }
+}
+
 function listenOrderStatus(orderId) {
   const orderRef = ref(db, `orders/${orderId}`);
 
@@ -922,7 +1193,11 @@ function listenOrderStatus(orderId) {
     const order = snapshot.val();
     if (!order) return;
 
-    showSuccessPage({ id: orderId, ...order });
+    if (qrIsViewOrderMode()) {
+      renderTopOrderOnly({ id: orderId, ...order });
+    } else {
+      showSuccessPage({ id: orderId, ...order });
+    }
 
     if (orderStatusBox) {
       orderStatusBox.textContent = `狀態：${getOrderStatusText(order)}`;
@@ -930,13 +1205,16 @@ function listenOrderStatus(orderId) {
   });
 }
 
-newOrderBtn.addEventListener("click", () => {
-  localStorage.removeItem(LAST_ORDER_KEY);
-  successPage.classList.add("hidden");
-  orderPage.classList.remove("hidden");
-});
+if (newOrderBtn) {
+  newOrderBtn.addEventListener("click", forceResetQrOrder);
+}
 
 function loadLastOrderIfExists() {
+  if (!qrIsViewOrderMode()) {
+    qrShowMenuMode();
+    return;
+  }
+  qrShowOrderMode();
   const lastOrderId = localStorage.getItem(LAST_ORDER_KEY);
   if (!lastOrderId) return;
 
@@ -950,7 +1228,7 @@ function loadLastOrderIfExists() {
       return;
     }
 
-    showSuccessPage({ id: lastOrderId, ...order });
+    renderTopOrderOnly({ id: lastOrderId, ...order });
     listenOrderStatus(lastOrderId);
   }, {
     onlyOnce: true
@@ -974,6 +1252,27 @@ function loadMenu() {
 initOrderTypeUI();
 loadMenu();
 
+var qrMenuTouchStartX = 0;
+var qrMenuTouchStartY = 0;
+var qrMenuTouchMoved = false;
+
+menuList.addEventListener("touchstart", function (event) {
+  var touch = event.touches && event.touches.length ? event.touches[0] : null;
+  qrMenuTouchMoved = false;
+  if (touch) {
+    qrMenuTouchStartX = touch.clientX || 0;
+    qrMenuTouchStartY = touch.clientY || 0;
+  }
+}, true);
+
+menuList.addEventListener("touchmove", function (event) {
+  var touch = event.touches && event.touches.length ? event.touches[0] : null;
+  if (!touch) return;
+  var dx = Math.abs((touch.clientX || 0) - qrMenuTouchStartX);
+  var dy = Math.abs((touch.clientY || 0) - qrMenuTouchStartY);
+  if (dx > 8 || dy > 8) qrMenuTouchMoved = true;
+}, true);
+
 menuList.addEventListener("click", function (event) {
   var target = event.target;
 
@@ -989,6 +1288,11 @@ menuList.addEventListener("click", function (event) {
 }, true);
 
 menuList.addEventListener("touchend", function (event) {
+  if (qrMenuTouchMoved) {
+    qrMenuTouchMoved = false;
+    return;
+  }
+
   var target = event.target;
 
   while (target && target !== menuList) {
@@ -1058,6 +1362,9 @@ if (submitOrderBtn) {
   var lastOrderReplayAt = 0;
   var lastOrderReplayControl = null;
   var capturedHandlers = [];
+  var touchStartX = 0;
+  var touchStartY = 0;
+  var touchMoved = false;
 
   if (typeof EventTarget !== "undefined" && EventTarget.prototype && !window.__ENPOINT_QR_EVENT_PATCHED__) {
     window.__ENPOINT_QR_EVENT_PATCHED__ = true;
@@ -1803,6 +2110,14 @@ if (submitOrderBtn) {
     if (isInsideOrderOrCart(event.target)) return;
     var card = findMenuCard(event.target);
     if (!card || !getCardId(card)) return;
+
+    var touch = event.touches && event.touches.length ? event.touches[0] : null;
+    touchMoved = false;
+    if (touch) {
+      touchStartX = touch.clientX || 0;
+      touchStartY = touch.clientY || 0;
+    }
+
     lastTouchAt = Date.now();
     lastTouchCard = card;
     legacyDebug("touch card: " + getCardId(card));
@@ -1811,6 +2126,21 @@ if (submitOrderBtn) {
   function replayClick(event) {
     if (replaying) return;
     if (isInsideOrderOrCart(event.target)) return;
+
+    if (event && event.changedTouches && event.changedTouches.length) {
+      var touch = event.changedTouches[0];
+      var dx = Math.abs((touch.clientX || 0) - touchStartX);
+      var dy = Math.abs((touch.clientY || 0) - touchStartY);
+      if (dx > 8 || dy > 8) touchMoved = true;
+    }
+
+    if (touchMoved) {
+      lastTouchCard = null;
+      touchMoved = false;
+      legacyDebug("scroll ignored");
+      return;
+    }
+
     var card = findMenuCard(event.target) || lastTouchCard;
     if (!card || !getCardId(card)) return;
     legacyDebug("replay card: " + getCardId(card));
@@ -1883,8 +2213,6 @@ window.forceLegacySubmitOrder = function (event) {
       return false;
     }
 
-    alert("準備打開確認訂單");
-
     renderConfirmModal();
 
     confirmModal.classList.remove("hidden");
@@ -1897,3 +2225,657 @@ window.forceLegacySubmitOrder = function (event) {
     return false;
   }
 };
+
+/* =========================
+   v59-3 QR inline 餐點點擊與浮動購物車
+========================= */
+window.qrOpenMenuItem = function (button, event) {
+  if (event) {
+    if (event.type === "touchend" && qrMenuTouchMoved) {
+      qrMenuTouchMoved = false;
+      return false;
+    }
+    event.preventDefault && event.preventDefault();
+    event.stopPropagation && event.stopPropagation();
+  }
+  var itemId = button && button.getAttribute ? button.getAttribute("data-id") : "";
+  if (!itemId) return false;
+  openItemModalById(itemId);
+  return false;
+};
+
+
+/* =========================
+   v59-5 QR add-to-cart capture fallback
+========================= */
+(function(){
+  if (typeof document === "undefined") return;
+  function isAddBtn(el){
+    while(el && el !== document){
+      if (el.id === "addToCartBtn") return true;
+      el = el.parentNode;
+    }
+    return false;
+  }
+  function hardAdd(e){
+    if (!isAddBtn(e.target || e.srcElement)) return;
+    if (e.preventDefault) e.preventDefault();
+    if (e.stopPropagation) e.stopPropagation();
+    if (typeof window.qrAddCurrentItemToCart === "function") {
+      window.qrAddCurrentItemToCart(e);
+    } else if (typeof window.qrHardAddToCart === "function") {
+      window.qrHardAddToCart(e);
+    }
+  }
+  // v59-7：避免 inline + capture 重複觸發，加入購物車只走按鈕本身的事件
+})();
+
+
+/* =========================
+   v59-8 QR legacy direct submit
+   舊平板：跳過確認 modal，直接用原本資料結構送出
+========================= */
+var qrLegacySubmitting = false;
+var qrLegacySubmitLastAt = 0;
+
+window.qrLegacyDirectSubmitOrder = function (event) {
+  if (event) {
+    if (event.preventDefault) event.preventDefault();
+    if (event.stopPropagation) event.stopPropagation();
+  }
+
+  var nowTime = new Date().getTime();
+  if (qrLegacySubmitting || nowTime - qrLegacySubmitLastAt < 1000) {
+    return false;
+  }
+  qrLegacySubmitLastAt = nowTime;
+
+  try {
+    if (!validateOrderType()) return false;
+    if (!cart || cart.length === 0) {
+      alert("購物車目前是空的");
+      return false;
+    }
+
+    var ok = true;
+    try {
+      ok = window.confirm("確定送出訂單嗎？");
+    } catch (e) {
+      ok = true;
+    }
+    if (!ok) return false;
+
+    qrLegacySubmitting = true;
+    if (submitOrderBtn) {
+      submitOrderBtn.disabled = true;
+      submitOrderBtn.textContent = "送出中...";
+    }
+    if (confirmSubmitBtn) {
+      confirmSubmitBtn.disabled = true;
+      confirmSubmitBtn.textContent = "送出中...";
+    }
+
+    var total = 0;
+    for (var i = 0; i < cart.length; i++) {
+      total += Number(cart[i].subtotal || 0);
+    }
+
+    var orderRef = push(ref(db, "orders"));
+    var now = Date.now();
+    var businessDate = getBusinessDate();
+    var meta = getOrderMeta();
+
+    generateDailyOrderNumber()
+      .then(function (orderNumber) {
+        var safeCustomerName = customerNameInput ? customerNameInput.value.trim() : "";
+        var safeOrderNote = orderNoteInput ? orderNoteInput.value.trim() : "";
+
+        var order = {
+          id: orderRef.key,
+          orderNumber: orderNumber,
+          businessDate: businessDate,
+          storeId: STORE_ID,
+          source: "QR",
+          type: meta.type,
+          table: meta.table,
+          customerName: safeCustomerName,
+          customerLabel: meta.customerLabel,
+          note: safeOrderNote,
+          items: cart,
+          total: total,
+          status: "pending_payment",
+          statusText: "等待櫃檯確認付款",
+          paymentStatus: "unpaid",
+          kitchenStatus: "waiting",
+          confirmed: false,
+          paid: false,
+          closed: false,
+          cancelled: false,
+          createdAt: now,
+          updatedAt: now
+        };
+
+        return set(orderRef, order).then(function () {
+          return order;
+        });
+      })
+      .then(function (order) {
+        try { localStorage.setItem(LAST_ORDER_KEY, order.id); } catch (e) {}
+
+        if (confirmModal) {
+          confirmModal.className = (confirmModal.className || "") + " hidden";
+          confirmModal.style.display = "none";
+        }
+        if (itemModal) {
+          itemModal.className = (itemModal.className || "") + " hidden";
+          itemModal.style.display = "none";
+        }
+        try { closeQrCartPanel(); } catch (e) {}
+
+        showSuccessPage(order);
+        listenOrderStatus(order.id);
+
+        cart = [];
+        if (customerNameInput) customerNameInput.value = "";
+        if (orderNoteInput) orderNoteInput.value = "";
+        if (!table && currentOrderType === "內用" && qrTableInput) {
+          qrTableInput.value = "";
+        }
+        try { legacyRenderQrCart(); } catch (e) { try { renderCart(); } catch (err) {} }
+      })
+      .catch(function (error) {
+        console.error(error);
+        alert("送出失敗：" + (error && error.message ? error.message : "請稍後再試。"));
+      })
+      .then(function () {
+        qrLegacySubmitting = false;
+        if (submitOrderBtn) {
+          submitOrderBtn.disabled = false;
+          submitOrderBtn.textContent = "送出訂單";
+        }
+        if (confirmSubmitBtn) {
+          confirmSubmitBtn.disabled = false;
+          confirmSubmitBtn.textContent = "確認送出";
+        }
+      });
+  } catch (error) {
+    qrLegacySubmitting = false;
+    alert("送出失敗：" + (error && error.message ? error.message : error));
+  }
+
+  return false;
+};
+
+if (submitOrderBtn) {
+  submitOrderBtn.onclick = window.qrLegacyDirectSubmitOrder;
+  submitOrderBtn.ontouchend = window.qrLegacyDirectSubmitOrder;
+}
+if (confirmSubmitBtn) {
+  confirmSubmitBtn.onclick = window.qrLegacyDirectSubmitOrder;
+  confirmSubmitBtn.ontouchend = window.qrLegacyDirectSubmitOrder;
+}
+
+
+/* =========================
+   v59-9 QR legacy detail + submit guard
+   修正舊平板送出時找不到 renderItemDetail，並攔截舊的確認彈窗流程
+========================= */
+if (typeof window.renderItemDetail !== "function") {
+  window.renderItemDetail = function(item) {
+    if (!item) return "";
+    var html = "";
+    if (item.size) html += "<p>份量：" + item.size + "</p>";
+    if (item.requiredOption && item.requiredOption.title && item.requiredOption.value) {
+      html += "<p>" + item.requiredOption.title + "：" + item.requiredOption.value + "</p>";
+    }
+    if (item.spicy) html += "<p>辣度：" + item.spicy + "</p>";
+    if (item.satay) html += "<p>沙茶：" + item.satay + "</p>";
+    var addons = item.addons || item.extras || [];
+    if (addons && addons.length) {
+      var names = [];
+      for (var i = 0; i < addons.length; i++) {
+        var a = addons[i];
+        if (typeof a === "string") names.push(a);
+        else names.push((a.name || a.label || "加料") + (Number(a.price || 0) ? " +$" + Number(a.price || 0) : ""));
+      }
+      html += "<p>加料：" + names.join("、") + "</p>";
+    }
+    if (item.note) html += "<p>備註：" + item.note + "</p>";
+    return html;
+  };
+}
+if (typeof renderItemDetail !== "function") {
+  var renderItemDetail = window.renderItemDetail;
+}
+
+(function(){
+  if (typeof document === "undefined") return;
+  function isQrSubmitTarget(el){
+    while(el && el !== document){
+      var id = el.id || "";
+      if (id === "submitOrderBtn" || id === "confirmSubmitBtn") return true;
+      el = el.parentNode;
+    }
+    return false;
+  }
+  function guard(e){
+    if (!isQrSubmitTarget(e.target || e.srcElement)) return;
+    if (e.preventDefault) e.preventDefault();
+    if (e.stopPropagation) e.stopPropagation();
+    if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+    if (typeof window.qrLegacyDirectSubmitOrder === "function") {
+      return window.qrLegacyDirectSubmitOrder(e);
+    }
+    return false;
+  }
+  document.addEventListener("touchend", guard, true);
+  document.addEventListener("click", guard, true);
+})();
+
+
+/* =========================
+   v59-10 QR 剛剛訂單置頂按鈕
+========================= */
+var lastOrderTopBtn = document.getElementById("lastOrderTopBtn");
+
+function showLastOrderTopButton() {
+  if (!lastOrderTopBtn) return;
+  try {
+    var lastOrderId = localStorage.getItem(LAST_ORDER_KEY);
+    if (!lastOrderId) return;
+  } catch (error) {
+    return;
+  }
+  lastOrderTopBtn.className = String(lastOrderTopBtn.className || "").replace(/\bhidden\b/g, "");
+  lastOrderTopBtn.style.display = "block";
+}
+
+function hideLastOrderTopButton() {
+  if (!lastOrderTopBtn) return;
+  if ((" " + lastOrderTopBtn.className + " ").indexOf(" hidden ") === -1) {
+    lastOrderTopBtn.className += " hidden";
+  }
+  lastOrderTopBtn.style.display = "none";
+}
+
+function openLastQrOrderFromTop(event) {
+  if (event) {
+    if (event.preventDefault) event.preventDefault();
+    if (event.stopPropagation) event.stopPropagation();
+  }
+  try {
+    var lastOrderId = localStorage.getItem(LAST_ORDER_KEY);
+    if (!lastOrderId) {
+      alert("目前沒有可查看的訂單");
+      return false;
+    }
+    var orderRef = ref(db, "orders/" + lastOrderId);
+    onValue(orderRef, function(snapshot) {
+      var order = snapshot.exists() ? snapshot.val() : null;
+      if (!order) {
+        alert("找不到訂單資料");
+        return;
+      }
+      var fullOrder = { id: lastOrderId };
+      for (var key in order) {
+        if (Object.prototype.hasOwnProperty.call(order, key)) {
+          fullOrder[key] = order[key];
+        }
+      }
+      showSuccessPage(fullOrder);
+      listenOrderStatus(lastOrderId);
+    }, { onlyOnce: true });
+  } catch (error) {
+    alert("開啟剛剛訂單失敗：" + (error && error.message ? error.message : error));
+  }
+  return false;
+}
+
+if (lastOrderTopBtn) {
+  lastOrderTopBtn.onclick = openLastQrOrderFromTop;
+  lastOrderTopBtn.ontouchend = openLastQrOrderFromTop;
+  showLastOrderTopButton();
+}
+window.openLastQrOrderFromTop = openLastQrOrderFromTop;
+
+(function(){
+  if (!lastOrderTopBtn) return;
+  function isLastOrderBtn(el) {
+    while (el && el !== document) {
+      if (el.id === "lastOrderTopBtn") return true;
+      el = el.parentNode;
+    }
+    return false;
+  }
+  function guard(e) {
+    if (!isLastOrderBtn(e.target || e.srcElement)) return;
+    if (e.preventDefault) e.preventDefault();
+    if (e.stopPropagation) e.stopPropagation();
+    return openLastQrOrderFromTop(e);
+  }
+  document.addEventListener("touchend", guard, true);
+  document.addEventListener("click", guard, true);
+})();
+
+
+/* =========================
+   v59-12 QR 查看訂單修正
+   - 舊 iPad：用 capture 全域攔截
+   - 沒有本機紀錄時：測試模式抓今日最新 QR 訂單
+========================= */
+(function(){
+  var btn = document.getElementById("lastOrderTopBtn");
+  if (!btn) return;
+
+  function forceShowBtn(){
+    btn.className = String(btn.className || "").replace(/\bhidden\b/g, "");
+    btn.style.display = "block";
+    btn.style.visibility = "visible";
+  }
+
+  function showOrderById(orderId){
+    if (!orderId) {
+      alert("目前沒有可查看的訂單");
+      return false;
+    }
+    try {
+      onValue(ref(db, "orders/" + orderId), function(snapshot){
+        var order = snapshot && snapshot.exists && snapshot.exists() ? snapshot.val() : null;
+        if (!order) {
+          alert("找不到訂單資料");
+          return;
+        }
+        var fullOrder = { id: orderId };
+        for (var key in order) {
+          if (Object.prototype.hasOwnProperty.call(order, key)) fullOrder[key] = order[key];
+        }
+        if (orderPage) {
+          orderPage.className = (orderPage.className || "") + " hidden";
+          orderPage.style.display = "none";
+        }
+        if (successPage) {
+          successPage.className = String(successPage.className || "").replace(/\bhidden\b/g, "");
+          successPage.style.display = "block";
+        }
+        showSuccessPage(fullOrder);
+        listenOrderStatus(orderId);
+      }, { onlyOnce: true });
+    } catch (err) {
+      alert("開啟剛剛訂單失敗：" + (err && err.message ? err.message : err));
+    }
+    return false;
+  }
+
+  function openLatestQrOrderFallback(){
+    try {
+      onValue(ref(db, "orders"), function(snapshot){
+        var raw = snapshot && snapshot.exists && snapshot.exists() ? snapshot.val() : null;
+        if (!raw) {
+          alert("目前沒有可查看的 QR 訂單");
+          return;
+        }
+        var today = "";
+        try { today = getBusinessDate(); } catch(e) {}
+        var latestId = "";
+        var latestTime = 0;
+        for (var id in raw) {
+          if (!Object.prototype.hasOwnProperty.call(raw, id)) continue;
+          var o = raw[id] || {};
+          if (o.source && String(o.source).toUpperCase() !== "QR") continue;
+          if (today && o.businessDate && o.businessDate !== today) continue;
+          var t = Number(o.createdAt || o.updatedAt || 0);
+          if (t >= latestTime) {
+            latestTime = t;
+            latestId = id;
+          }
+        }
+        if (!latestId) {
+          alert("目前沒有可查看的 QR 訂單");
+          return;
+        }
+        try { localStorage.setItem(LAST_ORDER_KEY, latestId); } catch(e) {}
+        showOrderById(latestId);
+      }, { onlyOnce: true });
+    } catch (err) {
+      alert("開啟最新 QR 訂單失敗：" + (err && err.message ? err.message : err));
+    }
+    return false;
+  }
+
+  window.openLastQrOrderFromTop = function(event){
+    if (event) {
+      if (event.preventDefault) event.preventDefault();
+      if (event.stopPropagation) event.stopPropagation();
+      if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+    }
+    var lastOrderId = "";
+    try { lastOrderId = localStorage.getItem(LAST_ORDER_KEY) || ""; } catch(e) {}
+    if (lastOrderId) return showOrderById(lastOrderId);
+    return openLatestQrOrderFallback();
+  };
+
+  btn.onclick = window.openLastQrOrderFromTop;
+  btn.ontouchend = window.openLastQrOrderFromTop;
+  btn.onmousedown = window.openLastQrOrderFromTop;
+  forceShowBtn();
+
+  function isBtn(el){
+    while (el && el !== document) {
+      if (el.id === "lastOrderTopBtn") return true;
+      el = el.parentNode;
+    }
+    return false;
+  }
+  function guard(e){
+    if (!isBtn(e.target || e.srcElement)) return;
+    return window.openLastQrOrderFromTop(e);
+  }
+  try { document.addEventListener("touchstart", guard, true); } catch(e) {}
+  try { document.addEventListener("touchend", guard, true); } catch(e) {}
+  try { document.addEventListener("click", guard, true); } catch(e) {}
+})();
+
+
+/* =========================
+   v59-13 QR：用網址參數 view=last 當作查看訂單的保底入口
+   舊 iPad 若按鈕事件不吃，href 重新整理後也會自動開啟。
+========================= */
+(function(){
+  function hasViewLast(){
+    try {
+      var search = String(window.location.search || "");
+      return search.indexOf("view=last") >= 0;
+    } catch(e) { return false; }
+  }
+  function openByParam(){
+    if (!hasViewLast()) return;
+    if (window.openLastQrOrderFromTop) {
+      try { window.openLastQrOrderFromTop(null); } catch(e) {}
+    }
+  }
+  try { setTimeout(openByParam, 700); } catch(e) {}
+  var btn = document.getElementById("lastOrderTopBtn");
+  if (btn) {
+    btn.style.display = "block";
+    btn.style.visibility = "visible";
+    btn.className = String(btn.className || "").replace(/\bhidden\b/g, "");
+    btn.onclick = function(event){
+      if (window.openLastQrOrderFromTop) return window.openLastQrOrderFromTop(event);
+      return true;
+    };
+    btn.ontouchend = btn.onclick;
+  }
+})();
+
+
+/* =========================
+   v59-14 QR 查看訂單：改成真正分頁連結
+   - 舊平板按事件不吃時，直接靠 href 進入 ?view=last
+   - 文字改成「查看訂單」
+========================= */
+(function(){
+  var btn = document.getElementById("lastOrderTopBtn");
+  if (!btn) return;
+  btn.innerHTML = "查看訂單";
+  btn.setAttribute("href", "#topOrderPanel");
+  btn.style.display = "inline-block";
+  btn.style.visibility = "visible";
+  btn.className = String(btn.className || "").replace(/\bhidden\b/g, "");
+})();
+
+
+/* =========================
+   v59-17 QR：點餐/查看訂單分頁模式
+   - 一般進入只顯示點餐區
+   - 按查看訂單才進入 ?view=last 顯示訂單區
+========================= */
+(function(){
+  var viewLink = document.getElementById("qrViewOrderPlainLink");
+  var orderLink = document.getElementById("qrOrderTabLink");
+  if (viewLink) {
+    viewLink.innerHTML = "查看訂單";
+    viewLink.setAttribute("href", "./index.html?view=last");
+    viewLink.onclick = null;
+    viewLink.ontouchend = null;
+  }
+  if (orderLink) {
+    orderLink.setAttribute("href", "./index.html");
+  }
+  if (qrIsViewOrderMode()) {
+    qrShowOrderMode();
+    try {
+      setTimeout(function(){
+        if (topOrderContent && !topOrderContent.innerHTML) {
+          topOrderContent.innerHTML = '<div class="empty">正在讀取剛剛的訂單...</div>';
+        }
+      }, 200);
+    } catch(e) {}
+  } else {
+    qrShowMenuMode();
+  }
+})();
+
+/* =========================
+   v59-18 QR：點餐 / 查看訂單 真正互斥分頁
+   - 預設只顯示點餐
+   - 按查看訂單只顯示剛剛送出的訂單
+========================= */
+(function(){
+  function hasClass(el, name){
+    return el && (" " + (el.className || "") + " ").indexOf(" " + name + " ") >= 0;
+  }
+  function addClass(el, name){
+    if (el && !hasClass(el, name)) el.className = (el.className ? el.className + " " : "") + name;
+  }
+  function removeClass(el, name){
+    if (el) el.className = (el.className || "").replace(new RegExp("\\b" + name + "\\b", "g"), "").replace(/\s+/g, " ");
+  }
+  function setActive(which){
+    var orderTab = document.getElementById("qrOrderTabLink");
+    var viewTab = document.getElementById("qrViewOrderPlainLink");
+    removeClass(orderTab, "active");
+    removeClass(viewTab, "active");
+    if (which === "order") addClass(viewTab, "active");
+    else addClass(orderTab, "active");
+  }
+  function prevent(e){
+    if (e) {
+      if (e.preventDefault) e.preventDefault();
+      if (e.stopPropagation) e.stopPropagation();
+      e.returnValue = false;
+      e.cancelBubble = true;
+    }
+  }
+  function setBodyMode(mode){
+    var body = document.body;
+    if (!body) return;
+    removeClass(body, "qr-tab-menu");
+    removeClass(body, "qr-tab-order");
+    addClass(body, mode === "order" ? "qr-tab-order" : "qr-tab-menu");
+  }
+  function showMenu(e){
+    prevent(e);
+    setBodyMode("menu");
+    setActive("menu");
+    if (topOrderPanel) {
+      addClass(topOrderPanel, "hidden");
+      topOrderPanel.style.display = "none";
+    }
+    if (orderPage) {
+      removeClass(orderPage, "hidden");
+      orderPage.style.display = "";
+    }
+    if (successPage) {
+      addClass(successPage, "hidden");
+      successPage.style.display = "none";
+    }
+    if (floatingCartBtn) floatingCartBtn.style.display = "block";
+    return false;
+  }
+  function renderEmptyOrder(){
+    if (topOrderContent && !topOrderContent.innerHTML) {
+      topOrderContent.innerHTML = '<div class="empty">目前還沒有剛剛送出的訂單。</div>';
+    }
+  }
+  function readLastOrder(){
+    var id = "";
+    try { id = localStorage.getItem(LAST_ORDER_KEY) || ""; } catch(e) {}
+    if (!id) {
+      renderEmptyOrder();
+      return;
+    }
+    try {
+      var orderRef = ref(db, "orders/" + id);
+      onValue(orderRef, function(snapshot){
+        var order = snapshot.val();
+        if (!order) {
+          if (topOrderContent) topOrderContent.innerHTML = '<div class="empty">找不到剛剛的訂單。</div>';
+          return;
+        }
+        if (topOrderContent) topOrderContent.innerHTML = buildQrOrderHtml(Object.assign({ id: id }, order));
+        if (orderStatusBox) orderStatusBox.textContent = "狀態：" + getOrderStatusText(order);
+      }, { onlyOnce: true });
+    } catch(err) {
+      if (topOrderContent) topOrderContent.innerHTML = '<div class="empty">讀取訂單失敗：' + (err && err.message ? err.message : err) + '</div>';
+    }
+  }
+  function showOrder(e){
+    prevent(e);
+    setBodyMode("order");
+    setActive("order");
+    if (orderPage) {
+      addClass(orderPage, "hidden");
+      orderPage.style.display = "none";
+    }
+    if (successPage) {
+      addClass(successPage, "hidden");
+      successPage.style.display = "none";
+    }
+    if (floatingCartBtn) floatingCartBtn.style.display = "none";
+    if (topOrderPanel) {
+      removeClass(topOrderPanel, "hidden");
+      topOrderPanel.style.display = "block";
+    }
+    readLastOrder();
+    try { window.scrollTo(0, 0); } catch(e2) {}
+    return false;
+  }
+  window.qrShowMenuTab = showMenu;
+  window.qrShowOrderTab = showOrder;
+
+  var orderTab = document.getElementById("qrOrderTabLink");
+  var viewTab = document.getElementById("qrViewOrderPlainLink");
+  if (orderTab) {
+    orderTab.href = "javascript:void(0)";
+    orderTab.onclick = showMenu;
+    orderTab.ontouchend = showMenu;
+  }
+  if (viewTab) {
+    viewTab.innerHTML = "查看訂單";
+    viewTab.href = "javascript:void(0)";
+    viewTab.onclick = showOrder;
+    viewTab.ontouchend = showOrder;
+  }
+  if (qrIsViewOrderMode && qrIsViewOrderMode()) showOrder(null);
+  else showMenu(null);
+})();

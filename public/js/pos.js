@@ -10,6 +10,39 @@ import {
   generateDailyOrderNumber
 } from "./firebase.js";
 
+
+/* =========================
+   v59-5 EARLY POS LEGACY OPEN
+   放在檔案前面：避免後面某段舊平板報錯，導致 window 函式還沒掛上
+========================= */
+window.posOpenFoodById = function (itemId, event) {
+  if (event) {
+    if (event.preventDefault) event.preventDefault();
+    if (event.stopPropagation) event.stopPropagation();
+  }
+  if (!itemId) return false;
+  try {
+    openCustomModal(String(itemId));
+    if (typeof customModal !== "undefined" && customModal) {
+      customModal.className = (customModal.className || "").replace(/\bhidden\b/g, "");
+      if ((" " + customModal.className + " ").indexOf(" show-force ") === -1) {
+        customModal.className += " show-force";
+      }
+      customModal.style.display = "flex";
+      addPosModalOpenClass();
+      resetPosCustomModalScroll();
+    }
+  } catch (error) {
+    alert("餐點視窗開啟失敗：" + (error && error.message ? error.message : error));
+  }
+  return false;
+};
+
+window.posOpenFood = function (button, event) {
+  var itemId = button && button.getAttribute ? button.getAttribute("data-id") : "";
+  return window.posOpenFoodById(itemId, event);
+};
+
 /* =========================
    v56 設定
 ========================= */
@@ -225,7 +258,7 @@ function getCategorySettings() {
       id,
       name,
       enabled: category.enabled !== false,
-      sortOrder: Number(category.sortOrder ?? 999999999)
+      sortOrder: Number(category.sortOrder !== undefined ? category.sortOrder : 999999999)
     };
   });
 
@@ -268,8 +301,8 @@ function sortMenuItems(items) {
       return categoryOrderA - categoryOrderB;
     }
 
-    const itemOrderA = Number(a.sortOrder ?? 999999999);
-    const itemOrderB = Number(b.sortOrder ?? 999999999);
+    const itemOrderA = Number(a.sortOrder !== undefined ? a.sortOrder : 999999999);
+    const itemOrderB = Number(b.sortOrder !== undefined ? b.sortOrder : 999999999);
 
     if (itemOrderA !== itemOrderB) {
       return itemOrderA - itemOrderB;
@@ -740,24 +773,80 @@ function renderMenu() {
       </div>
     </section>
   `;
+  bindPosLegacySelectButtons();
+}
+
+function escapeInlineValue(value) {
+  return String(value || "")
+    .replace(/\\/g, "\\\\")
+    .replace(/'/g, "\\'")
+    .replace(/"/g, "&quot;");
 }
 
 function renderPosFoodButton(item) {
-  const imageUrl = getImageUrl(item);
+  var imageUrl = getImageUrl(item);
+  var safeId = escapeInlineValue(item.id);
+  var displayName = item.name || "未命名餐點";
 
   return `
-    <button class="pos-food-btn" onclick="openCustomModal('${item.id}')">
+    <div class="pos-food-btn pos-food-real-btn" data-id="${item.id}">
       <div class="food-img">
-        ${imageUrl ? `<img src="${imageUrl}" alt="${item.name || "餐點圖片"}">` : `<span>恩點</span>`}
+        ${imageUrl ? `<img src="${imageUrl}" alt="${displayName}">` : `<span>恩點</span>`}
       </div>
 
       <div class="food-info">
-        <strong>${item.name || "未命名餐點"}</strong>
+        <strong>${displayName}</strong>
         <small>${getItemCategory(item)}</small>
         <b>${money(getBasePrice(item))}</b>
       </div>
-    </button>
+
+      <button type="button" class="pos-select-food-btn" data-id="${item.id}" onclick="return window.posOpenFoodById('${safeId}', event)" ontouchend="return window.posOpenFoodById('${safeId}', event)">選擇</button>
+    </div>
   `;
+}
+
+function bindPosLegacySelectButtons() {
+  var buttons = document.querySelectorAll ? document.querySelectorAll('.pos-select-food-btn') : [];
+  for (var i = 0; i < buttons.length; i++) {
+    buttons[i].onclick = function(event) {
+      var id = this.getAttribute('data-id');
+      return window.posOpenFoodById(id, event);
+    };
+    buttons[i].ontouchend = function(event) {
+      var id = this.getAttribute('data-id');
+      return window.posOpenFoodById(id, event);
+    };
+  }
+}
+
+
+
+function resetPosCustomModalScroll() {
+  try {
+    if (customModal) customModal.scrollTop = 0;
+    var card = customModal ? customModal.querySelector(".modal-card") : null;
+    if (card) card.scrollTop = 0;
+    if (document && document.body) document.body.scrollTop = 0;
+  } catch (e) {}
+}
+
+
+/* =========================
+   v59-final-hotfix：modal 開啟時隱藏右側建立訂單固定按鈕，避免跑進餐點小視窗
+========================= */
+function addPosModalOpenClass() {
+  var body = document.body;
+  if (!body) return;
+  var className = body.className || "";
+  if ((" " + className + " " ).indexOf(" pos-modal-open ") === -1) {
+    body.className = className ? className + " pos-modal-open" : "pos-modal-open";
+  }
+}
+
+function removePosModalOpenClass() {
+  var body = document.body;
+  if (!body) return;
+  body.className = (body.className || "").replace(/\bpos-modal-open\b/g, "").replace(/\s+/g, " ").replace(/^\s+|\s+$/g, "");
 }
 
 /* =========================
@@ -792,10 +881,22 @@ function openCustomModal(itemId) {
   renderExtrasOptions();
 
   customModal.classList.remove("hidden");
+  customModal.className = (customModal.className || "").replace(/\bhidden\b/g, "");
+  if ((" " + customModal.className + " ").indexOf(" show-force ") === -1) {
+    customModal.className += " show-force";
+  }
+  customModal.style.display = "flex";
+  addPosModalOpenClass();
+  resetPosCustomModalScroll();
 }
+
 
 function closeCustomModal() {
   customModal.classList.add("hidden");
+  customModal.className = (customModal.className || "") + " hidden";
+  customModal.className = customModal.className.replace(/\bshow-force\b/g, "");
+  customModal.style.display = "none";
+  removePosModalOpenClass();
 
   currentItem = null;
   currentQuantity = 1;
@@ -825,7 +926,7 @@ function renderPortionOptions() {
     <h3>份量</h3>
     <div class="option-grid">
       ${options.map(option => `
-        <button class="option-btn ${selectedPortion?.name === option.name ? "active" : ""}"
+        <button class="option-btn ${(selectedPortion && selectedPortion.name) === option.name ? "active" : ""}"
           onclick="selectPortion('${option.name}', ${option.price})">
           ${option.name} ${money(option.price)}
         </button>
@@ -1310,7 +1411,7 @@ function openEditItemModal(index) {
   editQuantity = itemQty(item);
   editSelectedExtras = [...(item.addons || item.extras || [])];
   editSelectedSatay = item.satay || "不要";
-  editSelectedRequiredOption = item.requiredOption?.value || "";
+  editSelectedRequiredOption = (item.requiredOption && item.requiredOption.value) || "";
 
   editSelectedPortion = {
     name: item.size || "一般",
@@ -1362,7 +1463,7 @@ function renderEditItemPortions() {
     <div class="option-grid">
       ${options.map(option => `
         <button
-          class="option-btn ${editSelectedPortion?.name === option.name ? "active" : ""}"
+          class="option-btn ${(editSelectedPortion && editSelectedPortion.name) === option.name ? "active" : ""}"
           onclick="selectEditPortion('${option.name}', ${option.price})">
           ${option.name} ${money(option.price)}
         </button>
@@ -1531,7 +1632,7 @@ saveEditItemBtn.addEventListener("click", () => {
 
   editingItems[editingItemIndex] = {
     ...editingItems[editingItemIndex],
-    itemId: editingItems[editingItemIndex].itemId || editingMenuItem?.id || editingItems[editingItemIndex].id,
+    itemId: editingItems[editingItemIndex].itemId || (editingMenuItem && editingMenuItem.id) || editingItems[editingItemIndex].id,
     size: editSelectedPortion.name,
     basePrice: Number(editSelectedPortion.price || 0),
     price: unitPrice,
@@ -1954,6 +2055,66 @@ async function reopenBusinessDay() {
 }
 
 
+
+/* =========================
+   v59-2 舊平板餐點按鈕 fallback
+========================= */
+
+var posFoodTouchStartX = 0;
+var posFoodTouchStartY = 0;
+var posFoodTouchMoved = false;
+
+function findPosFoodButton(target) {
+  var el = target;
+  while (el && el !== document) {
+    if (typeof el.className === "string" && (" " + el.className + " ").indexOf(" pos-food-btn ") !== -1) {
+      return el;
+    }
+    el = el.parentNode;
+  }
+  return null;
+}
+
+if (posMenuList) {
+  posMenuList.addEventListener("touchstart", function (event) {
+    var touch = event.touches && event.touches.length ? event.touches[0] : null;
+    posFoodTouchMoved = false;
+    if (touch) {
+      posFoodTouchStartX = touch.clientX || 0;
+      posFoodTouchStartY = touch.clientY || 0;
+    }
+  }, true);
+
+  posMenuList.addEventListener("touchmove", function (event) {
+    var touch = event.touches && event.touches.length ? event.touches[0] : null;
+    if (!touch) return;
+    var dx = Math.abs((touch.clientX || 0) - posFoodTouchStartX);
+    var dy = Math.abs((touch.clientY || 0) - posFoodTouchStartY);
+    if (dx > 8 || dy > 8) posFoodTouchMoved = true;
+  }, true);
+
+  posMenuList.addEventListener("touchend", function (event) {
+    if (posFoodTouchMoved) {
+      posFoodTouchMoved = false;
+      return;
+    }
+    var button = findPosFoodButton(event.target || event.srcElement);
+    if (!button) return;
+    var itemId = button.getAttribute("data-id");
+    if (!itemId) return;
+    event.preventDefault && event.preventDefault();
+    openCustomModal(itemId);
+  }, true);
+
+  posMenuList.addEventListener("click", function (event) {
+    var button = findPosFoodButton(event.target || event.srcElement);
+    if (!button) return;
+    var itemId = button.getAttribute("data-id");
+    if (!itemId) return;
+    openCustomModal(itemId);
+  }, true);
+}
+
 /* =========================
    Events / Window
 ========================= */
@@ -1975,6 +2136,58 @@ watchBusinessDayClose();
 
 window.selectCategory = selectCategory;
 window.selectTable = selectTable;
+
+
+/* =========================
+   v59 Legacy Tablet Click Fallback
+   舊平板相容：避免只吃 click 或 touchend 其中一種造成按鈕無反應
+========================= */
+(function () {
+  if (typeof document === "undefined") return;
+
+  var lastTouchAt = 0;
+
+  function hasClass(el, name) {
+    return el && (" " + (el.className || "") + " ").indexOf(" " + name + " ") !== -1;
+  }
+
+  function closestButton(el) {
+    while (el && el !== document) {
+      if (el.tagName && String(el.tagName).toLowerCase() === "button") return el;
+      el = el.parentNode;
+    }
+    return null;
+  }
+
+  function routeLegacyControl(event) {
+    var target = event.target || event.srcElement;
+    var button = closestButton(target);
+    if (!button) return;
+
+    var id = button.id || "";
+
+    if (event.type === "click" && new Date().getTime() - lastTouchAt < 500) return;
+    if (event.type === "touchend") lastTouchAt = new Date().getTime();
+
+    if (id === "submitOrderBtn" && typeof window.submitOrder === "function") {
+      event.preventDefault && event.preventDefault();
+      window.submitOrder();
+      return false;
+    }
+
+    if (id === "clearCartBtn" && typeof window.clearCart === "function") {
+      event.preventDefault && event.preventDefault();
+      window.clearCart();
+      return false;
+    }
+  }
+
+  document.addEventListener("touchend", routeLegacyControl, false);
+  document.addEventListener("click", routeLegacyControl, false);
+})();
+
+window.submitOrder = submitOrder;
+window.clearCart = clearCart;
 window.openCustomModal = openCustomModal;
 window.selectPortion = selectPortion;
 window.selectSatay = selectSatay;
@@ -1997,3 +2210,94 @@ window.selectEditSatay = selectEditSatay;
 window.toggleEditExtra = toggleEditExtra;
 
 window.selectEditRequiredOption = selectEditRequiredOption;
+
+/* =========================
+   v59-4 POS inline 餐點點擊修正
+   舊 iPad：不用 delegation，直接用餐點 id 開啟
+========================= */
+var posLastOpenFoodAt = 0;
+window.posOpenFoodById = function (itemId, event) {
+  var nowTime = new Date().getTime();
+  if (nowTime - posLastOpenFoodAt < 650) {
+    if (event) {
+      event.preventDefault && event.preventDefault();
+      event.stopPropagation && event.stopPropagation();
+    }
+    return false;
+  }
+  posLastOpenFoodAt = nowTime;
+  if (event) {
+    if (event.type === "touchend" && typeof posFoodTouchMoved !== "undefined" && posFoodTouchMoved) {
+      posFoodTouchMoved = false;
+      return false;
+    }
+    event.preventDefault && event.preventDefault();
+    event.stopPropagation && event.stopPropagation();
+  }
+
+  if (!itemId) return false;
+
+  try {
+    openCustomModal(String(itemId));
+    if (customModal) {
+      customModal.className = (customModal.className || "").replace(/\bhidden\b/g, "");
+      if ((" " + customModal.className + " ").indexOf(" show-force ") === -1) {
+        customModal.className += " show-force";
+      }
+      customModal.style.display = "flex";
+      resetPosCustomModalScroll();
+    }
+  } catch (error) {
+    alert("餐點視窗開啟失敗：" + (error && error.message ? error.message : error));
+    console.error(error);
+  }
+  return false;
+};
+
+window.posOpenFood = function (button, event) {
+  var itemId = button && button.getAttribute ? button.getAttribute("data-id") : "";
+  return window.posOpenFoodById(itemId, event);
+};
+
+
+/* =========================
+   v59-5 POS capture fallback
+   舊 iPad 若 inline 沒吃到，從 document 捕捉餐點按鈕
+========================= */
+(function(){
+  if (typeof document === "undefined") return;
+  var sx = 0, sy = 0, moved = false;
+  function hasClass(el, name){ return el && (" " + (el.className || "") + " ").indexOf(" " + name + " ") !== -1; }
+  function findFood(el){
+    while(el && el !== document){
+      if (hasClass(el, "pos-select-food-btn")) return el;
+      el = el.parentNode;
+    }
+    return null;
+  }
+  document.addEventListener("touchstart", function(e){
+    var b = findFood(e.target || e.srcElement);
+    if (!b) return;
+    moved = false;
+    var t = e.touches && e.touches.length ? e.touches[0] : null;
+    if (t) { sx = t.clientX || 0; sy = t.clientY || 0; }
+  }, true);
+  document.addEventListener("touchmove", function(e){
+    var t = e.touches && e.touches.length ? e.touches[0] : null;
+    if (!t) return;
+    if (Math.abs((t.clientX||0)-sx) > 10 || Math.abs((t.clientY||0)-sy) > 10) moved = true;
+  }, true);
+  function openFromEvent(e){
+    var b = findFood(e.target || e.srcElement);
+    if (!b) return;
+    if (e.type === "touchend" && moved) { moved = false; return; }
+    var id = b.getAttribute("data-id");
+    if (!id) return;
+    if (e.preventDefault) e.preventDefault();
+    if (e.stopPropagation) e.stopPropagation();
+    window.posOpenFoodById(id, e);
+  }
+  document.addEventListener("touchend", openFromEvent, true);
+  document.addEventListener("click", openFromEvent, true);
+  document.addEventListener("mouseup", openFromEvent, true);
+})();
