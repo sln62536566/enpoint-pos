@@ -3106,3 +3106,130 @@ html,body{
     background:var(--ep-card) !important;
   }
 }
+
+
+/* =====================================================
+   恩點系統 v59-6 HARD CLEAN POS THEME
+   這段不用 CSS 變數，專門給舊平板吃新檔名 + 強制覆蓋黑底殘留
+===================================================== */
+html, body {
+  background: #f6efe5 !important;
+  color: #2b2118 !important;
+}
+body, .pos-app, .pos-main, .tab-panel, .order-layout, .orders-layout, .database-layout, .stats-detail-layout {
+  background: #f6efe5 !important;
+  color: #2b2118 !important;
+}
+.pos-header {
+  background: linear-gradient(135deg, #1f1710, #5c3b1f) !important;
+  color: #fff7e6 !important;
+  border-bottom: none !important;
+  box-shadow: 0 6px 20px rgba(67,40,18,0.18) !important;
+}
+.pos-header h1 { color: #fff7e6 !important; }
+.pos-header p { color: rgba(255,247,230,0.9) !important; }
+.tab-btn {
+  background: rgba(255,247,230,0.16) !important;
+  color: #fff7e6 !important;
+  border: 1px solid rgba(255,247,230,0.22) !important;
+}
+.tab-btn.active {
+  background: #fff7e6 !important;
+  color: #2b2118 !important;
+}
+.menu-panel, .cart-panel, .orders-column, .stats-box, .stat-card, .pos-category-section, .order-card, .cart-item, .order-item, .top-item-row, .closing-check-item, .closing-check-note, .edit-order-item, .edit-total, .empty {
+  background: #fffaf2 !important;
+  color: #2b2118 !important;
+  border-color: #ead7bd !important;
+}
+.panel-title, .category-list, .cart-total {
+  border-color: #ead7bd !important;
+  background: transparent !important;
+}
+.panel-title h2, .pos-category-section h3 {
+  color: #2b2118 !important;
+}
+.panel-title p, .food-info small, .cart-detail p, .order-card-head p, .order-item-detail p, .muted, .closing-check-note {
+  color: #8a6b45 !important;
+}
+.category-list button, .type-btn, .table-buttons button, .report-range-btn, .option-btn {
+  background: #efe0c9 !important;
+  color: #3a2b20 !important;
+  border: 1px solid #ead7bd !important;
+}
+.category-list button.active, .type-btn.active, .table-buttons button.active, .report-range-btn.active, .option-btn.active {
+  background: #2b2118 !important;
+  color: #fff7e6 !important;
+}
+.pos-food-btn {
+  background: #ffffff !important;
+  color: #2b2118 !important;
+  border: 1px solid #ead7bd !important;
+  box-shadow: 0 6px 18px rgba(67,40,18,0.10) !important;
+}
+.food-img {
+  background: linear-gradient(135deg, #f3d39d, #fff2d9) !important;
+}
+.food-img span {
+  color: #9b5a12 !important;
+}
+.food-info strong { color: #2b2118 !important; }
+.food-info b, .cart-total strong, .order-total, .stat-card strong, .top-item-row strong, .closing-check-item strong, .edit-total strong, .edit-item-actions span {
+  color: #c26a00 !important;
+}
+.primary-btn {
+  background: #f0b43c !important;
+  color: #2b2118 !important;
+}
+.secondary-btn, #clearCartBtn, #cancelCustomBtn, #cancelEditOrderBtn, #cancelEditItemBtn {
+  background: #efe0c9 !important;
+  color: #3a2b20 !important;
+}
+.danger-btn {
+  background: #ffebee !important;
+  color: #c62828 !important;
+}
+.modal {
+  background: rgba(43,33,24,0.42) !important;
+}
+.modal-card {
+  background: #fffaf2 !important;
+  color: #2b2118 !important;
+  border: 1px solid #ead7bd !important;
+}
+.modal-card h2 { color: #2b2118 !important; }
+.modal-price { color: #c26a00 !important; }
+.select-input, .note-input {
+  background: #fffdf9 !important;
+  color: #2b2118 !important;
+  border: 1px solid #d9bd93 !important;
+}
+.qty-row button {
+  background: #f0b43c !important;
+  color: #2b2118 !important;
+}
+.order-note, .item-description-box, .required-option-select-box {
+  background: #fff3d8 !important;
+  color: #80510d !important;
+  border: 1px solid #f0ce91 !important;
+}
+.required-option-select-box h3 { color: #80510d !important; }
+#extrasBox { border-top-color: #ead7bd !important; }
+.status-badge { background: #fff3d8 !important; color: #80510d !important; }
+.pos-food-real-btn, .pos-food-btn {
+  -webkit-tap-highlight-color: rgba(240,180,60,0.12) !important;
+  touch-action: manipulation !important;
+}
+.pos-food-real-btn:active, .pos-food-btn:active {
+  transform: none !important;
+}
+@media (min-width: 700px) and (max-width: 1180px) {
+  .pos-header {
+    background: linear-gradient(135deg, #1f1710, #5c3b1f) !important;
+    color: #fff7e6 !important;
+  }
+  .menu-panel, .cart-panel, .orders-column, .pos-category-section, .cart-item, .order-card, .modal-card {
+    background: #fffaf2 !important;
+    color: #2b2118 !important;
+  }
+}

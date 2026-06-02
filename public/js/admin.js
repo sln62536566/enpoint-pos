@@ -292,13 +292,46 @@ async function moveCategoryByButton(categoryId, direction) {
 }
 
 async function moveMenuItemByButton(itemId, category, direction) {
+  if (!itemId) return;
+
+  const target = menuData[itemId];
+  if (!target) return;
+
+  const realCategory = target.category || category || "未分類";
   const grouped = groupItems();
-  const items = grouped[category] || [];
+  const items = grouped[realCategory] || [];
   const index = items.findIndex(item => String(item.id) === String(itemId));
   if (index < 0) return;
+
   const targetIndex = index + direction;
   if (targetIndex < 0 || targetIndex >= items.length) return;
-  await reorderItem(category, itemId, items[targetIndex].id);
+
+  const moved = items.splice(index, 1)[0];
+  items.splice(targetIndex, 0, moved);
+
+  const updates = {};
+  const now = Date.now();
+
+  items.forEach((item, idx) => {
+    updates[`menu/${item.id}/sortOrder`] = idx * 1000;
+    updates[`menu/${item.id}/updatedAt`] = now;
+  });
+
+  try {
+    await update(ref(db), updates);
+
+    items.forEach((item, idx) => {
+      if (menuData[item.id]) {
+        menuData[item.id].sortOrder = idx * 1000;
+        menuData[item.id].updatedAt = now;
+      }
+    });
+
+    renderMenu();
+  } catch (error) {
+    console.error("餐點上移/下移失敗：", error);
+    alert("餐點上移/下移失敗");
+  }
 }
 
 function getOptionsFromAddonRows() {
@@ -924,7 +957,9 @@ function renderCategoryManager() {
   });
 
   categoryManagerList.querySelectorAll("button").forEach(button => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", event => {
+      if (event && event.preventDefault) event.preventDefault();
+      if (event && event.stopPropagation) event.stopPropagation();
       const action = button.dataset.action;
       const id = button.dataset.id;
       const name = button.dataset.name;
@@ -1116,7 +1151,9 @@ function bindMenuCardDragEvents() {
   });
 
   menuList.querySelectorAll(".admin-actions button, .admin-move-actions button").forEach(button => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", event => {
+      if (event && event.preventDefault) event.preventDefault();
+      if (event && event.stopPropagation) event.stopPropagation();
       const action = button.dataset.action;
       const id = button.dataset.id;
       const category = button.dataset.category;

@@ -23,7 +23,7 @@ window.posOpenFoodById = function (itemId, event) {
   if (!itemId) return false;
 
   var now = Date.now ? Date.now() : new Date().getTime();
-  if (lastFoodOpenId === String(itemId) && now - lastFoodOpenAt < 900) {
+  if (lastFoodOpenId === String(itemId) && now - lastFoodOpenAt < 1200) {
     return false;
   }
   if (typeof customModal !== "undefined" && customModal && (" " + (customModal.className || "") + " ").indexOf(" hidden ") === -1) {
@@ -839,6 +839,7 @@ function renderMenu() {
         </section>
       `).join("");
 
+    bindPosLegacySelectButtons();
     return;
   }
 
@@ -867,7 +868,7 @@ function renderPosFoodButton(item) {
   var displayName = item.name || "未命名餐點";
 
   return `
-    <button type="button" class="pos-food-btn pos-food-real-btn" data-id="${item.id}">
+    <button type="button" class="pos-food-btn pos-food-real-btn" data-id="${item.id}" onclick="return window.posOpenFoodById('${safeId}', event)">
       <div class="food-img">
         ${imageUrl ? `<img src="${imageUrl}" alt="${displayName}">` : `<span>恩點</span>`}
       </div>
@@ -2259,20 +2260,14 @@ if (posMenuList) {
     if (!touch) return;
     var dx = Math.abs((touch.clientX || 0) - posFoodTouchStartX);
     var dy = Math.abs((touch.clientY || 0) - posFoodTouchStartY);
-    if (dx > 16 || dy > 16) posFoodTouchMoved = true;
+    if (dx > 28 || dy > 28) posFoodTouchMoved = true;
   }, true);
 
   posMenuList.addEventListener("touchend", function (event) {
+    /* v59-5：舊平板滑動時避免誤開餐點；實際開啟交給 click 處理 */
     if (posFoodTouchMoved) {
       posFoodTouchMoved = false;
-      return;
     }
-    var button = findPosFoodButton(event.target || event.srcElement);
-    if (!button) return;
-    var itemId = button.getAttribute("data-id");
-    if (!itemId) return;
-    event.preventDefault && event.preventDefault();
-    window.posOpenFoodById(itemId, event);
   }, true);
 
   posMenuList.addEventListener("click", function (event) {
@@ -2387,7 +2382,7 @@ window.selectEditRequiredOption = selectEditRequiredOption;
 var posLastOpenFoodAt = 0;
 window.posOpenFoodById = function (itemId, event) {
   var nowTime = new Date().getTime();
-  if (nowTime - posLastOpenFoodAt < 650) {
+  if (nowTime - posLastOpenFoodAt < 1000) {
     if (event) {
       event.preventDefault && event.preventDefault();
       event.stopPropagation && event.stopPropagation();
