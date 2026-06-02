@@ -295,11 +295,21 @@ async function moveMenuItemByButton(itemId, category, direction) {
   if (!itemId) return;
 
   const target = menuData[itemId];
-  if (!target) return;
+  if (!target) {
+    alert("找不到這個餐點資料");
+    return;
+  }
 
   const realCategory = target.category || category || "未分類";
-  const grouped = groupItems();
-  const items = grouped[realCategory] || [];
+  const items = getMenuItems()
+    .filter(item => (item.category || "未分類") === realCategory)
+    .sort((a, b) => {
+      const orderA = Number(a.sortOrder !== undefined ? a.sortOrder : 999999999);
+      const orderB = Number(b.sortOrder !== undefined ? b.sortOrder : 999999999);
+      if (orderA !== orderB) return orderA - orderB;
+      return String(a.name || "").localeCompare(String(b.name || ""), "zh-Hant");
+    });
+
   const index = items.findIndex(item => String(item.id) === String(itemId));
   if (index < 0) return;
 
@@ -313,24 +323,21 @@ async function moveMenuItemByButton(itemId, category, direction) {
   const now = Date.now();
 
   items.forEach((item, idx) => {
-    updates[`menu/${item.id}/sortOrder`] = idx * 1000;
+    const sortOrder = (idx + 1) * 1000;
+    updates[`menu/${item.id}/sortOrder`] = sortOrder;
     updates[`menu/${item.id}/updatedAt`] = now;
+    if (menuData[item.id]) {
+      menuData[item.id].sortOrder = sortOrder;
+      menuData[item.id].updatedAt = now;
+    }
   });
 
   try {
     await update(ref(db), updates);
-
-    items.forEach((item, idx) => {
-      if (menuData[item.id]) {
-        menuData[item.id].sortOrder = idx * 1000;
-        menuData[item.id].updatedAt = now;
-      }
-    });
-
     renderMenu();
   } catch (error) {
     console.error("餐點上移/下移失敗：", error);
-    alert("餐點上移/下移失敗");
+    alert("餐點上移/下移失敗，請確認網路或 Firebase 權限");
   }
 }
 
@@ -1151,7 +1158,7 @@ function bindMenuCardDragEvents() {
   });
 
   menuList.querySelectorAll(".admin-actions button, .admin-move-actions button").forEach(button => {
-    button.addEventListener("click", event => {
+    button.onclick = function(event) {
       if (event && event.preventDefault) event.preventDefault();
       if (event && event.stopPropagation) event.stopPropagation();
       const action = button.dataset.action;
@@ -1163,7 +1170,8 @@ function bindMenuCardDragEvents() {
       if (action === "edit") editItem(id);
       if (action === "toggle") toggleItem(id);
       if (action === "delete") deleteItem(id);
-    });
+      return false;
+    };
   });
 }
 
@@ -1206,3 +1214,92 @@ cancelEditBtn.addEventListener("click", resetForm);
 menuSearchInput.addEventListener("input", renderMenu);
 
 resetForm();
+
+/* =====================================================
+   v60 FINAL ADMIN ITEM MOVE
+   目的：舊平板點「餐點上移／下移」一定有反應。
+===================================================== */
+async function adminMoveMenuItemFinal(itemId, category, direction) {
+  if (!itemId || !category) return false;
+
+  var grouped = groupItems();
+  var items = grouped[category] || [];
+  var index = items.findIndex(function(item) {
+    return String(item.id) === String(itemId);
+  });
+
+  if (index < 0) return false;
+
+  var targetIndex = index + Number(direction || 0);
+  if (targetIndex < 0 || targetIndex >= items.length) return false;
+
+  var moved = items.splice(index, 1)[0];
+  items.splice(targetIndex, 0, moved);
+
+  var updates = {};
+  var nowTime = Date.now ? Date.now() : new Date().getTime();
+
+  items.forEach(function(item, nextIndex) {
+    updates["menu/" + item.id + "/sortOrder"] = (nextIndex + 1) * 1000;
+    updates["menu/" + item.id + "/updatedAt"] = nowTime;
+  });
+
+  try {
+    await update(ref(db), updates);
+    return true;
+  } catch (error) {
+    console.error("餐點上移下移失敗：", error);
+    alert("餐點排序失敗");
+    return false;
+  }
+}
+
+window.adminMoveMenuItemFinal = adminMoveMenuItemFinal;
+
+(function () {
+  if (typeof document === "undefined") return;
+  var lastTouchAt = 0;
+
+  function closestMoveButton(el) {
+    while (el && el !== document) {
+      if (el.getAttribute) {
+        var action = el.getAttribute("data-action");
+        if (action === "moveUp" || action === "moveDown") return el;
+      }
+      el = el.parentNode;
+    }
+    return null;
+  }
+
+  function stop(e) {
+    if (!e) return;
+    if (e.preventDefault) e.preventDefault();
+    if (e.stopPropagation) e.stopPropagation();
+    if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+  }
+
+  function handle(e) {
+    var button = closestMoveButton(e.target || e.srcElement);
+    if (!button) return;
+
+    var id = button.getAttribute("data-id");
+    var category = button.getAttribute("data-category");
+    if (!id || !category) return;
+
+    if (e.type === "click" && (Date.now ? Date.now() : new Date().getTime()) - lastTouchAt < 700) {
+      stop(e);
+      return false;
+    }
+
+    if (e.type === "touchend") lastTouchAt = Date.now ? Date.now() : new Date().getTime();
+
+    stop(e);
+    var action = button.getAttribute("data-action");
+    var direction = action === "moveUp" ? -1 : 1;
+    adminMoveMenuItemFinal(id, category, direction);
+    return false;
+  }
+
+  document.addEventListener("touchend", handle, true);
+  document.addEventListener("click", handle, true);
+})();

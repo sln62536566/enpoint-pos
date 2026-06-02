@@ -1,0 +1,3300 @@
+*{
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
+}
+
+body{
+  font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;
+  background:#111;
+  color:#fff;
+  height:100vh;
+  overflow:hidden;
+}
+
+.pos-app{
+  height:100vh;
+  display:flex;
+  flex-direction:column;
+}
+
+.pos-header{
+  background:#181818;
+  border-bottom:1px solid #2c2c2c;
+  padding:16px 22px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:20px;
+}
+
+.pos-header h1{
+  font-size:30px;
+  color:#f5c542;
+}
+
+.pos-header p{
+  color:#999;
+  margin-top:4px;
+}
+
+.pos-tabs{
+  display:flex;
+  gap:10px;
+}
+
+.tab-btn{
+  border:none;
+  background:#2a2a2a;
+  color:#ccc;
+  padding:12px 20px;
+  border-radius:14px;
+  cursor:pointer;
+  font-size:16px;
+  font-weight:bold;
+}
+
+.tab-btn.active{
+  background:#f5c542;
+  color:#111;
+}
+
+.pos-main{
+  flex:1;
+  overflow:hidden;
+}
+
+.tab-panel{
+  display:none;
+  height:100%;
+}
+
+.tab-panel.active{
+  display:block;
+}
+
+.order-layout{
+  display:grid;
+  grid-template-columns:2fr 1fr;
+  gap:18px;
+  height:100%;
+  padding:18px;
+  overflow:hidden;
+}
+
+.menu-panel,
+.cart-panel,
+.orders-column{
+  background:#181818;
+  border:1px solid #2b2b2b;
+  border-radius:24px;
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+}
+
+.panel-title{
+  padding:18px 22px;
+  border-bottom:1px solid #2a2a2a;
+}
+
+.panel-title h2{
+  color:#f5c542;
+  font-size:24px;
+}
+
+.panel-title p{
+  color:#888;
+  margin-top:4px;
+}
+
+.category-list{
+  display:flex;
+  gap:10px;
+  padding:16px;
+  overflow-x:auto;
+  border-bottom:1px solid #2a2a2a;
+}
+
+.category-list button{
+  border:none;
+  background:#2a2a2a;
+  color:#ccc;
+  padding:12px 18px;
+  border-radius:14px;
+  cursor:pointer;
+  white-space:nowrap;
+  font-weight:bold;
+}
+
+.category-list button.active{
+  background:#f5c542;
+  color:#111;
+}
+
+.pos-menu-list{
+  flex:1;
+  overflow-y:auto;
+  padding:18px;
+  display:flex;
+  flex-direction:column;
+  gap:24px;
+}
+
+.pos-category-section{
+  width:100%;
+  background:#1c1c1c;
+  border:1px solid #2d2d2d;
+  border-radius:22px;
+  padding:18px;
+}
+
+.pos-category-section h3{
+  color:#f5c542;
+  font-size:24px;
+  margin-bottom:16px;
+}
+
+.pos-category-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+  gap:16px;
+}
+
+
+.pos-food-btn{
+  border:none;
+  background:#222;
+  border-radius:20px;
+  overflow:hidden;
+  cursor:pointer;
+  color:#fff;
+  display:flex;
+  flex-direction:column;
+  min-height:220px;
+}
+
+.food-img{
+  height:130px;
+  background:#333;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  overflow:hidden;
+}
+
+.food-img img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
+
+.food-img span{
+  color:#f5c542;
+  font-size:26px;
+  font-weight:bold;
+}
+
+.food-info{
+  padding:14px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  text-align:left;
+}
+
+.food-info strong{
+  font-size:20px;
+}
+
+.food-info small{
+  color:#999;
+}
+
+.food-info b{
+  color:#f5c542;
+  font-size:20px;
+}
+
+.order-type-row{
+  display:flex;
+  gap:10px;
+  padding:16px;
+}
+
+.type-btn{
+  flex:1;
+  border:none;
+  background:#2a2a2a;
+  color:#ccc;
+  padding:14px;
+  border-radius:14px;
+  cursor:pointer;
+  font-size:18px;
+  font-weight:bold;
+}
+
+.type-btn.active{
+  background:#f5c542;
+  color:#111;
+}
+
+.table-box{
+  padding:0 16px 16px;
+}
+
+.table-buttons{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:10px;
+  margin-top:10px;
+}
+
+.table-buttons button{
+  border:none;
+  background:#2a2a2a;
+  color:#ccc;
+  padding:14px;
+  border-radius:14px;
+  cursor:pointer;
+  font-weight:bold;
+}
+
+.table-buttons button.active{
+  background:#f5c542;
+  color:#111;
+}
+
+.takeout-info{
+  padding:16px;
+  color:#999;
+}
+
+.cart-list{
+  flex:1;
+  overflow-y:auto;
+  padding:16px;
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+}
+
+.cart-item{
+  background:#222;
+  border-radius:18px;
+  padding:16px;
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:12px;
+}
+
+.cart-item strong{
+  font-size:20px;
+}
+
+.cart-detail{
+  margin-top:10px;
+}
+
+.cart-detail p{
+  color:#bbb;
+  margin-top:4px;
+  line-height:1.6;
+}
+
+.cart-total{
+  padding:18px;
+  border-top:1px solid #2a2a2a;
+  font-size:24px;
+  text-align:right;
+}
+
+.cart-total strong{
+  color:#f5c542;
+}
+
+.cart-actions-main{
+  display:flex;
+  gap:10px;
+  padding:18px;
+}
+
+.primary-btn,
+.secondary-btn,
+.danger-btn{
+  border:none;
+  border-radius:16px;
+  padding:14px 18px;
+  cursor:pointer;
+  font-size:16px;
+  font-weight:bold;
+}
+
+.primary-btn{
+  background:#f5c542;
+  color:#111;
+}
+
+.secondary-btn{
+  background:#333;
+  color:#ddd;
+}
+
+.danger-btn{
+  background:#a92d2d;
+  color:#fff;
+}
+
+button:disabled{
+  opacity:0.5;
+  cursor:not-allowed;
+}
+
+.orders-layout,
+.database-layout{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:18px;
+  height:100%;
+  padding:18px;
+  overflow:hidden;
+}
+
+.order-list{
+  flex:1;
+  overflow-y:auto;
+  padding:16px;
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+}
+
+.order-card{
+  background:#222;
+  border-radius:20px;
+  padding:18px;
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+}
+
+.order-card-head{
+  display:flex;
+  justify-content:space-between;
+  gap:14px;
+}
+
+.order-card-head strong{
+  font-size:22px;
+}
+
+.order-card-head p{
+  color:#aaa;
+  margin-top:4px;
+}
+
+.status-badge{
+  background:#f5c542;
+  color:#111;
+  padding:10px 14px;
+  border-radius:14px;
+  height:fit-content;
+  font-weight:bold;
+  white-space:nowrap;
+}
+
+.order-items{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+
+.order-item{
+  background:#2b2b2b;
+  border-radius:14px;
+  padding:12px;
+}
+
+.order-item strong{
+  font-size:18px;
+}
+
+.order-item-detail{
+  margin-top:8px;
+}
+
+.order-item-detail p{
+  color:#bbb;
+  line-height:1.6;
+}
+
+.order-note{
+  background:#2b2b2b;
+  padding:12px;
+  border-radius:14px;
+  color:#f5c542;
+}
+
+.order-total{
+  font-size:22px;
+  color:#f5c542;
+  font-weight:bold;
+}
+
+.order-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+}
+
+.stats-grid{
+  padding:18px;
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(250px,1fr));
+  gap:18px;
+}
+
+.stat-card{
+  background:#181818;
+  border:1px solid #2b2b2b;
+  border-radius:24px;
+  padding:26px;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+
+.stat-card span{
+  color:#999;
+  font-size:18px;
+}
+
+.stat-card strong{
+  font-size:42px;
+  color:#f5c542;
+}
+
+.stat-card.revenue strong{
+  color:#4caf50;
+}
+
+.report-range-tabs{
+  display:flex;
+  gap:10px;
+  padding:0 18px 18px;
+}
+
+.report-range-btn{
+  border:none;
+  background:#2a2a2a;
+  color:#ccc;
+  padding:10px 18px;
+  border-radius:12px;
+  cursor:pointer;
+  font-weight:bold;
+}
+
+.report-range-btn.active{
+  background:#f5c542;
+  color:#111;
+}
+
+.stats-detail-layout{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:18px;
+  padding:0 18px 18px;
+}
+
+.stats-box{
+  background:#181818;
+  border:1px solid #2b2b2b;
+  border-radius:24px;
+  overflow:hidden;
+}
+
+.top-items-list{
+  padding:18px;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+
+.top-item-row{
+  background:#222;
+  border-radius:14px;
+  padding:14px 16px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+
+.top-item-row strong{
+  color:#f5c542;
+}
+
+.closing-check-list{
+  padding:18px;
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+}
+
+.closing-check-item{
+  background:#222;
+  border-radius:14px;
+  padding:14px 16px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+
+.closing-check-item strong{
+  color:#f5c542;
+}
+
+.closing-check-note{
+  background:#222;
+  border-radius:14px;
+  padding:16px;
+  color:#aaa;
+  line-height:1.7;
+}
+
+@media (max-width:1200px){
+  .stats-detail-layout{
+    grid-template-columns:1fr;
+  }
+}
+
+
+.modal{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.7);
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  z-index:999;
+  padding:20px;
+}
+
+.modal.hidden{
+  display:none;
+}
+
+.modal-card{
+  width:min(95vw,700px);
+  max-height:90vh;
+  overflow-y:auto;
+  background:#181818;
+  border-radius:24px;
+  padding:24px;
+  border:1px solid #333;
+}
+
+.edit-modal-card{
+  width:min(96vw,850px);
+}
+
+.modal-card h2{
+  font-size:32px;
+  color:#f5c542;
+}
+
+.modal-price{
+  color:#bbb;
+  margin-top:6px;
+}
+
+.option-section{
+  margin-top:24px;
+}
+
+.option-section h3{
+  margin-bottom:12px;
+}
+
+.option-grid{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+}
+
+.option-btn{
+  border:none;
+  background:#2a2a2a;
+  color:#ccc;
+  padding:12px 16px;
+  border-radius:14px;
+  cursor:pointer;
+  font-weight:bold;
+}
+
+.option-btn.active{
+  background:#f5c542;
+  color:#111;
+}
+
+.select-input,
+.note-input{
+  width:100%;
+  border:none;
+  background:#2a2a2a;
+  color:#fff;
+  border-radius:14px;
+  padding:14px;
+  font-size:16px;
+}
+
+.note-input{
+  min-height:100px;
+  resize:vertical;
+}
+
+.qty-row{
+  display:flex;
+  align-items:center;
+  gap:16px;
+}
+
+.qty-row button{
+  width:50px;
+  height:50px;
+  border:none;
+  border-radius:14px;
+  background:#f5c542;
+  color:#111;
+  cursor:pointer;
+  font-size:24px;
+  font-weight:bold;
+}
+
+.qty-row span{
+  font-size:26px;
+  font-weight:bold;
+}
+
+.modal-actions{
+  margin-top:28px;
+  display:flex;
+  gap:12px;
+}
+
+.edit-total{
+  margin-top:18px;
+  padding:18px;
+  border-radius:18px;
+  background:#222;
+  font-size:24px;
+  text-align:right;
+}
+
+.edit-total strong{
+  color:#f5c542;
+}
+
+.edit-order-items{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+
+.edit-order-item{
+  background:#222;
+  border-radius:18px;
+  padding:16px;
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:14px;
+}
+
+.edit-order-item strong{
+  font-size:20px;
+}
+
+.edit-item-actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+}
+
+.edit-item-actions span{
+  min-width:32px;
+  text-align:center;
+  font-size:20px;
+  font-weight:bold;
+  color:#f5c542;
+}
+
+.empty{
+  background:#222;
+  border-radius:18px;
+  padding:30px;
+  text-align:center;
+  color:#888;
+}
+
+.muted{
+  color:#888;
+}
+
+@media (max-width:1200px){
+  .order-layout{
+    grid-template-columns:1fr;
+  }
+
+  .orders-layout,
+  .database-layout{
+    grid-template-columns:1fr;
+  }
+
+  body{
+    overflow:auto;
+  }
+
+  .pos-app{
+    min-height:100vh;
+    height:auto;
+  }
+
+  .tab-panel{
+    min-height:calc(100vh - 120px);
+  }
+}
+
+@media (max-width:768px){
+  .pos-header{
+    flex-direction:column;
+    align-items:flex-start;
+  }
+
+  .pos-tabs{
+    width:100%;
+    overflow-x:auto;
+  }
+
+  .pos-menu-list{
+    grid-template-columns:repeat(auto-fill,minmax(140px,1fr));
+  }
+
+  .modal-actions{
+    flex-direction:column;
+  }
+
+  .edit-order-item{
+    flex-direction:column;
+  }
+
+  .order-card-head{
+    flex-direction:column;
+  }
+}
+
+/* =========================
+   v59 舊平板相容修正
+   目標：避免 100vh + overflow hidden 造成 POS 右側/底部按鈕被切、不能滑、點不到
+========================= */
+html,
+body {
+  width: 100%;
+  min-height: 100%;
+  height: auto !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  -webkit-text-size-adjust: 100%;
+}
+
+button,
+input,
+textarea,
+select {
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+}
+
+button {
+  touch-action: manipulation;
+}
+
+.pos-app {
+  min-height: 100vh;
+  height: auto !important;
+}
+
+.pos-main {
+  overflow: visible !important;
+}
+
+.tab-panel {
+  min-height: auto !important;
+}
+
+.tab-panel.active {
+  display: block !important;
+}
+
+.show-force {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+@media (max-width: 1180px) {
+  .pos-header {
+    display: block !important;
+  }
+
+  .pos-tabs {
+    margin-top: 14px !important;
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tab-btn {
+    display: inline-block !important;
+    margin-bottom: 8px !important;
+  }
+
+  .order-layout,
+  .orders-layout,
+  .database-layout,
+  .stats-detail-layout {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+    padding: 12px !important;
+  }
+
+  .menu-panel,
+  .cart-panel,
+  .orders-column,
+  .stats-box {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    margin-bottom: 16px !important;
+  }
+
+  .category-list {
+    display: block !important;
+    white-space: nowrap !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .category-list button {
+    display: inline-block !important;
+    margin: 0 6px 8px 0 !important;
+  }
+
+  .pos-menu-list,
+  .cart-list,
+  .order-list {
+    display: block !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .pos-category-grid {
+    display: block !important;
+  }
+
+  .pos-food-btn {
+    width: 100% !important;
+    min-height: 0 !important;
+    margin-bottom: 14px !important;
+  }
+
+  .cart-actions-main,
+  .modal-actions,
+  .order-actions {
+    display: block !important;
+  }
+
+  .cart-actions-main button,
+  .modal-actions button,
+  .order-actions button {
+    width: 100% !important;
+    margin-bottom: 10px !important;
+  }
+
+  .modal {
+    align-items: flex-start !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .modal-card {
+    max-height: none !important;
+    overflow: visible !important;
+    margin: 16px auto 40px !important;
+  }
+}
+
+/* =========================
+   v59-2 舊平板 compact 餐點格子
+========================= */
+@media (max-width: 1180px) {
+  .pos-menu-list {
+    display: block !important;
+    padding: 10px !important;
+  }
+
+  .pos-category-section {
+    padding: 10px !important;
+    border-radius: 16px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .pos-category-section h3 {
+    font-size: 18px !important;
+    margin-bottom: 10px !important;
+  }
+
+  .pos-category-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+  }
+
+  .pos-food-btn {
+    width: auto !important;
+    min-height: 0 !important;
+    margin-bottom: 0 !important;
+    border-radius: 14px !important;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .food-img {
+    height: 82px !important;
+  }
+
+  .food-img span {
+    font-size: 18px !important;
+  }
+
+  .food-info {
+    padding: 8px !important;
+    gap: 3px !important;
+  }
+
+  .food-info strong {
+    font-size: 15px !important;
+    line-height: 1.25 !important;
+  }
+
+  .food-info small {
+    font-size: 11px !important;
+  }
+
+  .food-info b {
+    font-size: 16px !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .pos-category-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+
+/* =========================
+   v59-3 POS 平板右側購物車 / 餐點按鈕修正
+========================= */
+.pos-food-btn {
+  font-family: inherit;
+}
+
+@media (min-width: 700px) and (max-width: 1180px) {
+  .order-layout {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 300px !important;
+    gap: 12px !important;
+    align-items: start !important;
+    height: auto !important;
+    overflow: visible !important;
+    padding: 12px !important;
+  }
+
+  .menu-panel,
+  .cart-panel {
+    display: flex !important;
+    flex-direction: column !important;
+    width: auto !important;
+    margin-bottom: 0 !important;
+    min-height: 0 !important;
+  }
+
+  .cart-panel {
+    position: sticky !important;
+    top: 8px !important;
+    max-height: calc(100vh - 16px) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .cart-list {
+    max-height: 34vh !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .cart-actions-main {
+    display: flex !important;
+    gap: 8px !important;
+  }
+
+  .cart-actions-main button {
+    width: auto !important;
+    flex: 1 !important;
+    margin-bottom: 0 !important;
+  }
+}
+
+/* =========================
+   v59-4 POS 舊平板固定大版面
+   大版面不整頁滾動；只讓餐點區、購物車、訂單清單可滑動
+========================= */
+.modal.show-force {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+@media (min-width: 700px) and (max-width: 1180px) {
+  html,
+  body {
+    height: 100vh !important;
+    min-height: 100vh !important;
+    overflow: hidden !important;
+  }
+
+  .pos-app {
+    height: 100vh !important;
+    min-height: 100vh !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .pos-header {
+    flex: 0 0 auto !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 12px !important;
+    padding: 10px 12px !important;
+  }
+
+  .pos-header h1 {
+    font-size: 24px !important;
+  }
+
+  .pos-header p {
+    font-size: 12px !important;
+  }
+
+  .pos-tabs {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    gap: 6px !important;
+    overflow-x: auto !important;
+    margin-top: 0 !important;
+    max-width: 55vw !important;
+  }
+
+  .tab-btn {
+    flex: 0 0 auto !important;
+    padding: 9px 12px !important;
+    font-size: 14px !important;
+    margin-bottom: 0 !important;
+  }
+
+  .pos-main {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    height: auto !important;
+    overflow: hidden !important;
+  }
+
+  .tab-panel {
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .tab-panel.active {
+    display: block !important;
+  }
+
+  .order-layout {
+    height: 100% !important;
+    min-height: 0 !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 310px !important;
+    gap: 10px !important;
+    padding: 10px !important;
+    overflow: hidden !important;
+    align-items: stretch !important;
+  }
+
+  .menu-panel,
+  .cart-panel {
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    width: auto !important;
+    max-height: none !important;
+    position: static !important;
+  }
+
+  .panel-title {
+    flex: 0 0 auto !important;
+    padding: 10px 12px !important;
+  }
+
+  .panel-title h2 {
+    font-size: 20px !important;
+  }
+
+  .panel-title p {
+    font-size: 12px !important;
+  }
+
+  .category-list,
+  .order-type-row,
+  .table-box,
+  .takeout-info,
+  .cart-total,
+  .cart-actions-main {
+    flex: 0 0 auto !important;
+  }
+
+  .category-list {
+    padding: 8px !important;
+    gap: 6px !important;
+    overflow-x: auto !important;
+  }
+
+  .category-list button {
+    padding: 9px 12px !important;
+    font-size: 14px !important;
+  }
+
+  .pos-menu-list {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    height: auto !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 10px !important;
+    display: block !important;
+  }
+
+  .pos-category-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+  }
+
+  .pos-food-btn {
+    min-height: 128px !important;
+    border-radius: 14px !important;
+  }
+
+  .food-img {
+    height: 70px !important;
+  }
+
+  .food-info {
+    padding: 9px !important;
+  }
+
+  .food-info strong {
+    font-size: 17px !important;
+    line-height: 1.25 !important;
+  }
+
+  .food-info small {
+    font-size: 12px !important;
+  }
+
+  .food-info b {
+    font-size: 18px !important;
+  }
+
+  .order-type-row {
+    padding: 10px !important;
+  }
+
+  .type-btn {
+    padding: 10px !important;
+    font-size: 16px !important;
+  }
+
+  .table-box {
+    padding: 0 10px 10px !important;
+  }
+
+  .table-buttons {
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 6px !important;
+  }
+
+  .table-buttons button {
+    padding: 9px !important;
+  }
+
+  .cart-list {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 10px !important;
+  }
+
+  .cart-total {
+    padding: 10px 12px !important;
+    font-size: 20px !important;
+  }
+
+  .cart-actions-main {
+    padding: 10px !important;
+    display: flex !important;
+    gap: 8px !important;
+  }
+
+  .cart-actions-main button {
+    flex: 1 !important;
+    width: auto !important;
+    padding: 12px 8px !important;
+    font-size: 15px !important;
+  }
+
+  .orders-layout,
+  .database-layout {
+    height: 100% !important;
+    min-height: 0 !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+    padding: 10px !important;
+    overflow: hidden !important;
+  }
+
+  .orders-column {
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .order-list {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+}
+
+/* =========================
+   v59-5 POS 固定大版面 + 只讓點餐區主要滾動
+========================= */
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
+.pos-app {
+  height: 100%;
+  overflow: hidden;
+}
+
+.pos-main {
+  height: calc(100% - 84px);
+  overflow: hidden;
+}
+
+.order-layout {
+  height: 100%;
+  overflow: hidden;
+  grid-template-columns: minmax(0, 1.65fr) 360px;
+  align-items: stretch;
+}
+
+.menu-panel,
+.cart-panel {
+  min-height: 0;
+  height: 100%;
+}
+
+.category-list {
+  flex: 0 0 auto;
+}
+
+.pos-menu-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.cart-panel {
+  overflow: hidden;
+}
+
+.cart-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.cart-total,
+.cart-actions-main,
+.order-type-row,
+.table-box,
+.takeout-info {
+  flex: 0 0 auto;
+}
+
+.pos-category-grid {
+  grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+  gap: 12px;
+}
+
+.pos-food-btn {
+  min-height: 160px;
+  touch-action: manipulation;
+}
+
+.food-img {
+  height: 86px;
+  pointer-events: none;
+}
+
+.food-info {
+  pointer-events: none;
+  padding: 10px;
+}
+
+.food-info strong {
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.food-info small {
+  font-size: 13px;
+}
+
+.food-info b {
+  font-size: 18px;
+}
+
+@media (max-width: 900px) {
+  .pos-header {
+    padding: 10px 12px;
+  }
+
+  .pos-header h1 {
+    font-size: 24px;
+  }
+
+  .pos-main {
+    height: calc(100% - 72px);
+  }
+
+  .order-layout {
+    grid-template-columns: minmax(0, 1fr) 330px;
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .pos-category-grid {
+    grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  }
+
+  .pos-food-btn {
+    min-height: 150px;
+  }
+
+  .food-img {
+    height: 76px;
+  }
+}
+
+
+/* =========================
+   v59-6 POS legacy tap final override
+========================= */
+.pos-food-btn {
+  display: flex !important;
+  flex-direction: column !important;
+  text-decoration: none !important;
+  color: #fff !important;
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  -webkit-tap-highlight-color: rgba(245,197,66,0.35) !important;
+}
+.pos-food-btn * {
+  pointer-events: none !important;
+}
+.food-info strong {
+  font-size: 20px !important;
+}
+.food-info b {
+  font-size: 20px !important;
+  color: #f5c542 !important;
+}
+
+
+/* =========================
+   v59-8 POS legacy real button
+========================= */
+.pos-food-btn {
+  position: relative !important;
+  display: flex !important;
+  flex-direction: column !important;
+  border: none !important;
+  background: #222 !important;
+  border-radius: 18px !important;
+  overflow: hidden !important;
+  color: #fff !important;
+  cursor: pointer !important;
+  pointer-events: auto !important;
+  -webkit-tap-highlight-color: rgba(245,197,66,0.35) !important;
+}
+.pos-food-btn * {
+  pointer-events: auto !important;
+}
+.food-img,
+.food-img img,
+.food-img span,
+.food-info,
+.food-info strong,
+.food-info small,
+.food-info b {
+  pointer-events: none !important;
+}
+.pos-select-food-btn {
+  display: block !important;
+  width: calc(100% - 16px) !important;
+  margin: 0 8px 8px !important;
+  border: none !important;
+  border-radius: 12px !important;
+  padding: 9px 6px !important;
+  background: #f5c542 !important;
+  color: #111 !important;
+  font-size: 18px !important;
+  font-weight: 900 !important;
+  cursor: pointer !important;
+  pointer-events: auto !important;
+  -webkit-appearance: none !important;
+}
+.food-info strong {
+  font-size: 21px !important;
+}
+.food-info small {
+  font-size: 14px !important;
+}
+.food-info b {
+  font-size: 21px !important;
+}
+
+
+/* =========================
+   v59-9 POS fixed shell + independent scroll
+   大版面固定，點餐區與目前訂單各自獨立滾動
+========================= */
+html, body {
+  width: 100% !important;
+  height: 100% !important;
+  overflow: hidden !important;
+}
+body {
+  position: fixed !important;
+  left: 0 !important;
+  right: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+}
+.pos-app {
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+.pos-header {
+  flex: 0 0 auto !important;
+}
+.pos-main {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+.tab-panel.active {
+  height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+.order-layout {
+  height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 340px !important;
+  gap: 10px !important;
+  padding: 10px !important;
+}
+.menu-panel, .cart-panel {
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+.menu-panel .panel-title, .category-list, .cart-panel .panel-title, .order-type-row, .table-box, .takeout-info, .cart-total, .cart-actions-main {
+  flex: 0 0 auto !important;
+}
+.pos-menu-list {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  padding: 12px !important;
+}
+.cart-list {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+.cart-actions-main {
+  display: flex !important;
+  gap: 8px !important;
+  padding: 10px !important;
+}
+.cart-total {
+  padding: 10px 14px !important;
+  font-size: 22px !important;
+}
+.pos-category-grid {
+  grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)) !important;
+  gap: 10px !important;
+}
+.pos-select-food-btn {
+  text-align: center !important;
+  text-decoration: none !important;
+  line-height: 1.2 !important;
+  display: block !important;
+}
+@media (max-width: 900px) {
+  .order-layout {
+    grid-template-columns: minmax(0, 1fr) 320px !important;
+  }
+  .pos-category-grid {
+    grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)) !important;
+  }
+  .panel-title {
+    padding: 10px 14px !important;
+  }
+  .category-list {
+    padding: 10px !important;
+  }
+}
+
+
+/* =========================
+   v59-10 POS 固定版面 / 左右獨立滾動 / 餐點真按鈕
+========================= */
+html, body {
+  height: 100% !important;
+  min-height: 100% !important;
+  overflow: hidden !important;
+  position: fixed !important;
+  left: 0 !important;
+  right: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+}
+body {
+  width: 100% !important;
+}
+.pos-app {
+  position: absolute !important;
+  left: 0 !important;
+  right: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+.pos-header {
+  flex: 0 0 auto !important;
+  padding: 8px 12px !important;
+  min-height: 0 !important;
+}
+.pos-header h1 { font-size: 22px !important; }
+.pos-header p { font-size: 12px !important; margin-top: 2px !important; }
+.pos-tabs { gap: 6px !important; }
+.tab-btn { padding: 8px 12px !important; font-size: 14px !important; border-radius: 10px !important; }
+.pos-main {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: auto !important;
+  overflow: hidden !important;
+  position: relative !important;
+}
+.tab-panel { height: 100% !important; min-height: 0 !important; overflow: hidden !important; }
+.tab-panel.active { display: block !important; height: 100% !important; overflow: hidden !important; }
+.order-layout {
+  position: absolute !important;
+  left: 0 !important;
+  right: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  display: block !important;
+  padding: 8px !important;
+  overflow: hidden !important;
+}
+.menu-panel {
+  position: absolute !important;
+  left: 8px !important;
+  top: 8px !important;
+  bottom: 8px !important;
+  right: 350px !important;
+  height: auto !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+.cart-panel {
+  position: absolute !important;
+  top: 8px !important;
+  bottom: 8px !important;
+  right: 8px !important;
+  width: 334px !important;
+  height: auto !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+.menu-panel .panel-title,
+.category-list,
+.cart-panel .panel-title,
+.order-type-row,
+.table-box,
+.takeout-info,
+.cart-total,
+.cart-actions-main {
+  flex: 0 0 auto !important;
+}
+.panel-title { padding: 8px 12px !important; }
+.panel-title h2 { font-size: 18px !important; }
+.panel-title p { font-size: 12px !important; }
+.category-list { padding: 8px !important; gap: 6px !important; }
+.category-list button { padding: 8px 10px !important; font-size: 13px !important; }
+.pos-menu-list {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: auto !important;
+  overflow-y: scroll !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  padding: 10px !important;
+  touch-action: pan-y !important;
+}
+.cart-list {
+  flex: 1 1 auto !important;
+  min-height: 70px !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  padding: 10px !important;
+}
+.pos-category-section { padding: 10px !important; border-radius: 16px !important; }
+.pos-category-section h3 { font-size: 18px !important; margin-bottom: 8px !important; }
+.pos-category-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)) !important;
+  gap: 8px !important;
+}
+.pos-food-btn,
+.pos-food-real-btn {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  border: 0 !important;
+  background: #222 !important;
+  color: #fff !important;
+  border-radius: 14px !important;
+  min-height: 158px !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  cursor: pointer !important;
+  padding: 0 !important;
+  text-align: left !important;
+  width: 100% !important;
+  pointer-events: auto !important;
+}
+.food-img { height: 58px !important; flex: 0 0 58px !important; }
+.food-img span { font-size: 18px !important; }
+.food-info { padding: 8px !important; gap: 3px !important; flex: 1 1 auto !important; }
+.food-info strong { font-size: 17px !important; line-height: 1.15 !important; }
+.food-info small { font-size: 12px !important; }
+.food-info b { font-size: 18px !important; }
+.pos-select-food-btn {
+  display: block !important;
+  flex: 0 0 auto !important;
+  margin: 0 8px 8px !important;
+  padding: 9px 6px !important;
+  border-radius: 10px !important;
+  background: #f5c542 !important;
+  color: #111 !important;
+  text-align: center !important;
+  font-size: 16px !important;
+  font-weight: 900 !important;
+  pointer-events: none !important;
+}
+.cart-actions-main { padding: 8px !important; gap: 8px !important; }
+.cart-actions-main .primary-btn,
+.cart-actions-main .secondary-btn { padding: 12px 10px !important; font-size: 15px !important; }
+.cart-total { padding: 8px 12px !important; font-size: 20px !important; }
+.table-buttons { gap: 6px !important; }
+.table-buttons button { padding: 8px !important; }
+@media (max-width: 900px) {
+  .menu-panel { right: 326px !important; }
+  .cart-panel { width: 310px !important; }
+  .pos-category-grid { grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)) !important; }
+}
+
+
+/* =========================
+   v59-11 POS 舊平板：降低點餐區誤觸 + 小視窗可獨立滑動
+========================= */
+.pos-food-real-btn {
+  cursor: default !important;
+  pointer-events: auto !important;
+}
+.pos-select-food-btn {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  border: none !important;
+  display: block !important;
+  width: auto !important;
+  margin: 0 8px 8px !important;
+  padding: 10px 6px !important;
+  border-radius: 10px !important;
+  background: #f5c542 !important;
+  color: #111 !important;
+  text-align: center !important;
+  font-size: 17px !important;
+  font-weight: 900 !important;
+  line-height: 1.2 !important;
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}
+.food-img,
+.food-info {
+  pointer-events: none !important;
+}
+.modal {
+  align-items: flex-start !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  padding: 10px !important;
+}
+.modal-card,
+.edit-modal-card {
+  max-height: calc(100vh - 24px) !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  margin: 8px auto 20px !important;
+  padding: 18px !important;
+}
+.modal-actions {
+  position: sticky !important;
+  bottom: 0 !important;
+  background: #181818 !important;
+  padding-top: 10px !important;
+  z-index: 5 !important;
+}
+
+/* =========================
+   v59-12 POS 小視窗可再多滑一點
+========================= */
+.modal {
+  align-items: flex-start !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  padding: 6px !important;
+}
+.modal-card,
+.edit-modal-card {
+  max-height: none !important;
+  min-height: auto !important;
+  height: auto !important;
+  overflow: visible !important;
+  margin: 6px auto 120px !important;
+  padding: 16px 16px 130px !important;
+}
+.modal-card:after,
+.edit-modal-card:after {
+  content: "";
+  display: block;
+  height: 90px;
+}
+.modal-actions {
+  position: sticky !important;
+  bottom: 0 !important;
+  background: #181818 !important;
+  padding: 12px 0 6px !important;
+  z-index: 20 !important;
+}
+@media (max-width: 1180px) {
+  .modal-card,
+  .edit-modal-card {
+    width: 96vw !important;
+    max-width: 96vw !important;
+    margin-bottom: 140px !important;
+    padding-bottom: 150px !important;
+  }
+}
+
+
+/* =========================
+   v59-13 POS：固定大版面，各分頁/小視窗獨立滑動
+========================= */
+html, body{
+  width:100% !important;
+  height:100% !important;
+  overflow:hidden !important;
+}
+body{
+  position:fixed !important;
+  left:0 !important;
+  right:0 !important;
+  top:0 !important;
+  bottom:0 !important;
+}
+.pos-app{
+  position:absolute !important;
+  left:0 !important;
+  right:0 !important;
+  top:0 !important;
+  bottom:0 !important;
+  height:auto !important;
+  min-height:0 !important;
+  overflow:hidden !important;
+  display:flex !important;
+  flex-direction:column !important;
+}
+.pos-header{
+  flex:0 0 auto !important;
+  min-height:0 !important;
+  padding:10px 14px !important;
+}
+.pos-header h1{font-size:24px !important;}
+.pos-header p{font-size:13px !important;}
+.pos-tabs{flex-wrap:nowrap !important; overflow-x:auto !important; -webkit-overflow-scrolling:touch !important;}
+.tab-btn{font-size:15px !important; padding:9px 14px !important; flex:0 0 auto !important;}
+.pos-main{
+  flex:1 1 auto !important;
+  min-height:0 !important;
+  height:auto !important;
+  overflow:hidden !important;
+}
+.tab-panel{
+  height:100% !important;
+  min-height:0 !important;
+  overflow:hidden !important;
+}
+.tab-panel.active{
+  display:block !important;
+  height:100% !important;
+  min-height:0 !important;
+  overflow:hidden !important;
+}
+.order-layout{
+  height:100% !important;
+  min-height:0 !important;
+  padding:10px !important;
+  gap:10px !important;
+  display:grid !important;
+  grid-template-columns:minmax(0, 1fr) 320px !important;
+  overflow:hidden !important;
+}
+.menu-panel,
+.cart-panel,
+.orders-column,
+.stats-box{
+  height:100% !important;
+  min-height:0 !important;
+  overflow:hidden !important;
+  display:flex !important;
+  flex-direction:column !important;
+}
+.panel-title,
+.category-list,
+.order-type-row,
+.table-box,
+.takeout-info,
+.cart-total,
+.cart-actions-main{
+  flex:0 0 auto !important;
+}
+.pos-menu-list{
+  flex:1 1 auto !important;
+  min-height:0 !important;
+  height:auto !important;
+  overflow-y:scroll !important;
+  overflow-x:hidden !important;
+  -webkit-overflow-scrolling:touch !important;
+  padding-bottom:90px !important;
+}
+.cart-list{
+  flex:1 1 auto !important;
+  min-height:0 !important;
+  height:auto !important;
+  overflow-y:auto !important;
+  overflow-x:hidden !important;
+  -webkit-overflow-scrolling:touch !important;
+}
+.orders-layout,
+.database-layout{
+  height:100% !important;
+  min-height:0 !important;
+  padding:10px !important;
+  gap:10px !important;
+  overflow:hidden !important;
+  display:grid !important;
+  grid-template-columns:1fr 1fr !important;
+}
+.order-list{
+  flex:1 1 auto !important;
+  min-height:0 !important;
+  height:auto !important;
+  overflow-y:auto !important;
+  overflow-x:hidden !important;
+  -webkit-overflow-scrolling:touch !important;
+  padding-bottom:90px !important;
+}
+#statsTab{
+  overflow-y:scroll !important;
+  overflow-x:hidden !important;
+  -webkit-overflow-scrolling:touch !important;
+  padding:10px !important;
+}
+#statsTab .panel-title,
+#statsTab .report-range-tabs,
+#statsTab .stats-grid,
+#statsTab .stats-detail-layout{
+  flex:none !important;
+}
+.stats-detail-layout{
+  min-height:0 !important;
+  overflow:visible !important;
+}
+.top-items-list,
+.close-day-box,
+.stats-box{
+  max-height:none !important;
+}
+
+/* 小視窗：整個白/黑卡本身可滑，不讓內容卡住 */
+.modal{
+  position:fixed !important;
+  left:0 !important;
+  right:0 !important;
+  top:0 !important;
+  bottom:0 !important;
+  display:block !important;
+  overflow:hidden !important;
+  padding:8px !important;
+  box-sizing:border-box !important;
+  align-items:initial !important;
+  justify-content:initial !important;
+}
+.modal.hidden{display:none !important;}
+.modal-card,
+.edit-modal-card{
+  display:block !important;
+  width:96vw !important;
+  max-width:760px !important;
+  height:calc(100vh - 18px) !important;
+  max-height:calc(100vh - 18px) !important;
+  min-height:0 !important;
+  margin:0 auto !important;
+  overflow-y:scroll !important;
+  overflow-x:hidden !important;
+  -webkit-overflow-scrolling:touch !important;
+  padding:18px 18px 180px !important;
+  box-sizing:border-box !important;
+}
+.modal-actions{
+  position:static !important;
+  bottom:auto !important;
+  background:#181818 !important;
+  padding:14px 0 30px !important;
+}
+.modal-card:after,
+.edit-modal-card:after{
+  content:"" !important;
+  display:block !important;
+  height:160px !important;
+}
+@media (max-width: 900px){
+  .order-layout{grid-template-columns:minmax(0, 1fr) 300px !important;}
+  .pos-category-grid{grid-template-columns:repeat(auto-fill,minmax(110px,1fr)) !important;}
+  .pos-food-real-btn{min-height:165px !important;}
+  .food-info strong{font-size:18px !important;}
+  .food-info b{font-size:19px !important;}
+}
+
+
+/* =========================
+   v59-14 POS 分頁獨立滑動收尾
+   - 點餐區保持目前手感
+   - 今日訂單 / 資料庫 / 統計 各自可滑動
+   - 加餐點小視窗每次可從最上方重新滑到底
+========================= */
+html, body {
+  height: 100% !important;
+  overflow: hidden !important;
+}
+.pos-app {
+  height: 100vh !important;
+  max-height: 100vh !important;
+  overflow: hidden !important;
+}
+.pos-main {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: calc(100vh - 96px) !important;
+  overflow: hidden !important;
+}
+#orderTab.active,
+#todayTab.active,
+#databaseTab.active,
+#statsTab.active {
+  display: block !important;
+  height: 100% !important;
+  min-height: 0 !important;
+}
+#todayTab.active,
+#databaseTab.active {
+  overflow: hidden !important;
+}
+#todayTab .orders-layout,
+#databaseTab .database-layout {
+  height: 100% !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+}
+#todayTab .orders-column,
+#databaseTab .orders-column {
+  height: 100% !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+#todayTab .order-list,
+#databaseTab .order-list {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow-y: scroll !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  padding-bottom: 140px !important;
+}
+#statsTab.active {
+  overflow-y: scroll !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  padding-bottom: 180px !important;
+}
+#statsTab .stats-detail-layout,
+#statsTab .stats-box,
+#statsTab .top-items-list,
+#statsTab .closing-check-list {
+  overflow: visible !important;
+  max-height: none !important;
+}
+.modal.show-force {
+  overflow: hidden !important;
+}
+.modal.show-force .modal-card,
+.modal.show-force .edit-modal-card {
+  display: block !important;
+  height: 92vh !important;
+  max-height: 92vh !important;
+  overflow-y: scroll !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  padding-bottom: 220px !important;
+}
+.modal.show-force .modal-card:after,
+.modal.show-force .edit-modal-card:after {
+  content: "" !important;
+  display: block !important;
+  height: 220px !important;
+}
+
+
+/* =========================
+   v59-15 POS 滑動與右側送出按鈕修正
+   - 今日訂單/資料庫：整個分頁與欄位都可滑動
+   - 目前訂單：右側固定，底部建立未結帳訂單永遠顯示
+========================= */
+#todayTab.active,
+#databaseTab.active {
+  overflow-y: scroll !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  padding: 10px !important;
+  box-sizing: border-box !important;
+}
+#todayTab .orders-layout,
+#databaseTab .database-layout {
+  height: auto !important;
+  min-height: calc(100vh - 125px) !important;
+  max-height: none !important;
+  overflow: visible !important;
+  padding: 0 !important;
+}
+#todayTab .orders-column,
+#databaseTab .orders-column {
+  height: calc(100vh - 125px) !important;
+  max-height: calc(100vh - 125px) !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+#todayTab .order-list,
+#databaseTab .order-list {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow-y: scroll !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  padding-bottom: 180px !important;
+}
+.cart-panel {
+  position: relative !important;
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+.cart-list {
+  flex: 1 1 auto !important;
+  min-height: 70px !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+.cart-total {
+  flex: 0 0 auto !important;
+}
+.cart-actions-main {
+  flex: 0 0 auto !important;
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  position: relative !important;
+  z-index: 50 !important;
+  background: #181818 !important;
+  border-top: 1px solid #2a2a2a !important;
+  padding: 10px !important;
+}
+.cart-actions-main button {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  min-height: 46px !important;
+}
+#submitOrderBtn {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+@media (max-width: 900px){
+  #todayTab .orders-layout,
+  #databaseTab .database-layout {
+    grid-template-columns: 1fr 1fr !important;
+  }
+}
+
+
+/* =========================
+   v59-16 POS：點餐區 / 目前訂單左右獨立固定
+   - 左邊只給點餐區
+   - 右邊只給目前訂單
+   - 建立未結帳訂單固定出現
+========================= */
+#orderTab.active{
+  height:100% !important;
+  overflow:hidden !important;
+}
+#orderTab .order-layout{
+  display:grid !important;
+  grid-template-columns:minmax(0, 1fr) 330px !important;
+  grid-template-rows:1fr !important;
+  gap:10px !important;
+  height:100% !important;
+  min-height:0 !important;
+  overflow:hidden !important;
+  padding:10px !important;
+  box-sizing:border-box !important;
+}
+#orderTab .menu-panel{
+  grid-column:1 !important;
+  grid-row:1 !important;
+  width:auto !important;
+  max-width:none !important;
+  min-width:0 !important;
+  height:100% !important;
+  min-height:0 !important;
+  overflow:hidden !important;
+  position:relative !important;
+  left:auto !important;
+  right:auto !important;
+  top:auto !important;
+  bottom:auto !important;
+}
+#orderTab .cart-panel{
+  grid-column:2 !important;
+  grid-row:1 !important;
+  width:auto !important;
+  max-width:none !important;
+  min-width:0 !important;
+  height:100% !important;
+  min-height:0 !important;
+  overflow:hidden !important;
+  position:relative !important;
+  left:auto !important;
+  right:auto !important;
+  top:auto !important;
+  bottom:auto !important;
+  display:flex !important;
+  flex-direction:column !important;
+}
+#orderTab .pos-menu-list{
+  flex:1 1 auto !important;
+  min-height:0 !important;
+  height:auto !important;
+  overflow-y:scroll !important;
+  overflow-x:hidden !important;
+  -webkit-overflow-scrolling:touch !important;
+  padding:10px 10px 120px !important;
+}
+#orderTab .cart-list{
+  flex:1 1 auto !important;
+  min-height:80px !important;
+  height:auto !important;
+  overflow-y:auto !important;
+  overflow-x:hidden !important;
+  -webkit-overflow-scrolling:touch !important;
+  padding:10px !important;
+}
+#orderTab .cart-total,
+#orderTab .cart-actions-main{
+  flex:0 0 auto !important;
+}
+#orderTab .cart-actions-main{
+  display:flex !important;
+  gap:8px !important;
+  visibility:visible !important;
+  opacity:1 !important;
+  background:#181818 !important;
+  padding:10px !important;
+  border-top:1px solid #2a2a2a !important;
+  z-index:100 !important;
+}
+#orderTab #submitOrderBtn,
+#orderTab #clearCartBtn{
+  display:block !important;
+  visibility:visible !important;
+  opacity:1 !important;
+  flex:1 1 0 !important;
+  min-height:48px !important;
+  font-size:15px !important;
+}
+@media (max-width:900px){
+  #orderTab .order-layout{
+    grid-template-columns:minmax(0, 1fr) 310px !important;
+  }
+}
+@media (max-width:720px){
+  #orderTab .order-layout{
+    grid-template-columns:minmax(0, 1fr) 280px !important;
+  }
+}
+
+
+/* =========================
+   v59-17 POS：左右兩欄完全獨立滑動
+   - 左：點餐區固定寬度內獨立滑
+   - 右：目前訂單固定在右，購物車獨立滑，建立未結帳固定底部
+========================= */
+html, body {
+  height: 100% !important;
+  overflow: hidden !important;
+}
+.pos-app {
+  height: 100vh !important;
+  overflow: hidden !important;
+}
+.pos-header {
+  flex: 0 0 auto !important;
+  min-height: 74px !important;
+  padding: 10px 14px !important;
+}
+.pos-main {
+  flex: 1 1 auto !important;
+  height: calc(100vh - 82px) !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+#orderTab.active {
+  height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+#orderTab .order-layout {
+  display: -webkit-box !important;
+  display: -ms-flexbox !important;
+  display: flex !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  padding: 10px !important;
+  gap: 0 !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+}
+#orderTab .menu-panel {
+  -webkit-box-flex: 1 !important;
+  -ms-flex: 1 1 auto !important;
+  flex: 1 1 auto !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  margin-right: 10px !important;
+  overflow: hidden !important;
+  display: -webkit-box !important;
+  display: -ms-flexbox !important;
+  display: flex !important;
+  -webkit-box-orient: vertical !important;
+  -ms-flex-direction: column !important;
+  flex-direction: column !important;
+}
+#orderTab .cart-panel {
+  -webkit-box-flex: 0 !important;
+  -ms-flex: 0 0 330px !important;
+  flex: 0 0 330px !important;
+  width: 330px !important;
+  min-width: 330px !important;
+  max-width: 330px !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  display: -webkit-box !important;
+  display: -ms-flexbox !important;
+  display: flex !important;
+  -webkit-box-orient: vertical !important;
+  -ms-flex-direction: column !important;
+  flex-direction: column !important;
+}
+#orderTab .menu-panel .panel-title,
+#orderTab .category-list,
+#orderTab .cart-panel .panel-title,
+#orderTab .order-type-row,
+#orderTab .table-box,
+#orderTab .takeout-info,
+#orderTab .cart-total,
+#orderTab .cart-actions-main {
+  -webkit-box-flex: 0 !important;
+  -ms-flex: 0 0 auto !important;
+  flex: 0 0 auto !important;
+}
+#orderTab .pos-menu-list {
+  -webkit-box-flex: 1 !important;
+  -ms-flex: 1 1 auto !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: auto !important;
+  overflow-y: scroll !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  padding: 10px 10px 150px !important;
+}
+#orderTab .cart-list {
+  -webkit-box-flex: 1 !important;
+  -ms-flex: 1 1 auto !important;
+  flex: 1 1 auto !important;
+  min-height: 60px !important;
+  height: auto !important;
+  overflow-y: scroll !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  padding: 10px !important;
+}
+#orderTab .cart-actions-main {
+  display: -webkit-box !important;
+  display: -ms-flexbox !important;
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  padding: 10px !important;
+  background: #181818 !important;
+  border-top: 1px solid #2a2a2a !important;
+  position: relative !important;
+  z-index: 999 !important;
+}
+#orderTab #submitOrderBtn,
+#orderTab #clearCartBtn {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  min-height: 48px !important;
+  font-size: 15px !important;
+}
+@media (max-width: 760px) {
+  #orderTab .cart-panel {
+    -ms-flex: 0 0 300px !important;
+    flex-basis: 300px !important;
+    width: 300px !important;
+    min-width: 300px !important;
+    max-width: 300px !important;
+  }
+}
+
+/* =========================
+   v59-18 POS：右側建立訂單按鈕上移，避免舊平板底部切字
+========================= */
+#orderTab .cart-actions-main{
+  flex:0 0 auto !important;
+  padding:8px 10px 20px !important;
+  margin-bottom:8px !important;
+  min-height:66px !important;
+  box-sizing:border-box !important;
+  transform:translateY(-4px) !important;
+}
+#orderTab #submitOrderBtn,
+#orderTab #clearCartBtn{
+  min-height:46px !important;
+  height:46px !important;
+  line-height:1.15 !important;
+  padding:8px 10px !important;
+  white-space:normal !important;
+  overflow:visible !important;
+}
+
+/* =========================
+   v59-final POS：底部建立訂單按鈕再上移，避免舊 iPad 底部切字
+========================= */
+#orderTab .cart-panel{
+  padding-bottom:18px !important;
+  box-sizing:border-box !important;
+}
+#orderTab .cart-actions-main{
+  flex:0 0 auto !important;
+  display:flex !important;
+  visibility:visible !important;
+  opacity:1 !important;
+  padding:8px 10px 30px !important;
+  margin-bottom:18px !important;
+  min-height:82px !important;
+  transform:translateY(-14px) !important;
+  -webkit-transform:translateY(-14px) !important;
+  background:#181818 !important;
+  border-top:1px solid #2a2a2a !important;
+  position:relative !important;
+  z-index:9999 !important;
+  box-sizing:border-box !important;
+}
+#orderTab #submitOrderBtn,
+#orderTab #clearCartBtn{
+  display:block !important;
+  visibility:visible !important;
+  opacity:1 !important;
+  height:44px !important;
+  min-height:44px !important;
+  line-height:1.1 !important;
+  padding:7px 9px !important;
+  font-size:14px !important;
+  overflow:visible !important;
+  white-space:normal !important;
+  box-sizing:border-box !important;
+}
+#orderTab .cart-list{
+  padding-bottom:18px !important;
+}
+
+
+/* =========================
+   v59-final-hotfix：餐點小視窗開啟時，隱藏右側固定建立訂單列
+   避免舊 iPad Safari 把固定底部按鈕畫到 modal 裡
+========================= */
+body.pos-modal-open #orderTab .cart-actions-main{
+  display:none !important;
+  visibility:hidden !important;
+  opacity:0 !important;
+  pointer-events:none !important;
+}
+body.pos-modal-open #customModal{
+  z-index:999999 !important;
+}
+body.pos-modal-open #customModal .modal-card{
+  z-index:1000000 !important;
+}
+
+
+/* =========================
+   恩點系統 v59-1 POS 白底商用版
+   只改顏色、清晰度、觸控大小；保留原本排版
+========================= */
+:root{
+  --pos-bg:#f5f6f8;
+  --pos-card:#ffffff;
+  --pos-card-soft:#f8fafc;
+  --pos-line:#e3e7ee;
+  --pos-text:#172033;
+  --pos-muted:#667085;
+  --pos-brand:#f5c542;
+  --pos-brand-dark:#7a5400;
+  --pos-danger:#d92d20;
+  --pos-success:#15803d;
+}
+body{
+  background:var(--pos-bg) !important;
+  color:var(--pos-text) !important;
+}
+.pos-header{
+  background:#ffffff !important;
+  border-bottom:1px solid var(--pos-line) !important;
+  box-shadow:0 4px 16px rgba(15,23,42,0.06) !important;
+}
+.pos-header h1{color:#111827 !important;}
+.pos-header p{color:var(--pos-muted) !important;}
+.tab-btn,
+.category-list button,
+.type-btn,
+.table-buttons button,
+.report-range-btn{
+  background:#eef2f7 !important;
+  color:#263244 !important;
+  border:1px solid #d9e0ea !important;
+}
+.tab-btn.active,
+.category-list button.active,
+.type-btn.active,
+.table-buttons button.active,
+.report-range-btn.active{
+  background:var(--pos-brand) !important;
+  color:#111827 !important;
+  border-color:#e0ab00 !important;
+}
+.menu-panel,
+.cart-panel,
+.orders-column,
+.stats-box,
+.stat-card,
+.pos-category-section{
+  background:var(--pos-card) !important;
+  border:1px solid var(--pos-line) !important;
+  box-shadow:0 8px 22px rgba(15,23,42,0.06) !important;
+}
+.panel-title{border-bottom:1px solid var(--pos-line) !important;}
+.panel-title h2,
+.pos-category-section h3{color:#172033 !important;}
+.panel-title p,.food-info small,.takeout-info,.muted,.empty{color:var(--pos-muted) !important;}
+.category-list{border-bottom:1px solid var(--pos-line) !important;}
+.pos-category-section h3{
+  background:#fff8d9 !important;
+  border:1px solid #f0d36b !important;
+}
+.pos-food-btn,
+.cart-item,
+.order-card,
+.order-item,
+.top-item-row,
+.closing-check-item,
+.closing-check-note,
+.edit-order-item,
+.edit-total{
+  background:#ffffff !important;
+  color:var(--pos-text) !important;
+  border:1px solid var(--pos-line) !important;
+  box-shadow:0 4px 14px rgba(15,23,42,0.05) !important;
+}
+.pos-food-btn:hover{box-shadow:0 10px 22px rgba(15,23,42,0.10) !important;}
+.food-img{background:#f1f5f9 !important;}
+.food-img span{color:#b77900 !important;}
+.food-info strong{color:#111827 !important;font-size:22px !important;}
+.food-info b,.cart-total strong,.order-total,.stat-card strong,.closing-check-item strong,.top-item-row strong,.edit-total strong{color:#b77900 !important;}
+.cart-detail p,.order-card-head p,.order-item-detail p{color:#475467 !important;}
+.cart-total{border-top:1px solid var(--pos-line) !important;}
+.primary-btn{background:var(--pos-brand) !important;color:#111827 !important;}
+.secondary-btn{background:#eef2f7 !important;color:#263244 !important;border:1px solid #d9e0ea !important;}
+.danger-btn{background:#fee4e2 !important;color:#b42318 !important;border:1px solid #fecdca !important;}
+.status-badge{background:#fff2b8 !important;color:#533900 !important;}
+.order-note{background:#fff8d9 !important;color:#7a5400 !important;border:1px solid #f0d36b !important;}
+.modal{background:rgba(15,23,42,0.52) !important;}
+.modal-card{
+  background:#ffffff !important;
+  color:var(--pos-text) !important;
+  border:1px solid var(--pos-line) !important;
+  box-shadow:0 18px 50px rgba(15,23,42,0.28) !important;
+}
+.modal-card h2{color:#111827 !important;font-size:38px !important;}
+.modal-price{color:#b77900 !important;font-size:20px !important;font-weight:900 !important;}
+.option-section h3,.required-option-select-box h3{color:#111827 !important;font-size:23px !important;}
+.option-btn{
+  background:#eef2f7 !important;
+  color:#182230 !important;
+  border:1px solid #d9e0ea !important;
+  padding:15px 20px !important;
+  font-size:18px !important;
+  border-radius:16px !important;
+}
+.option-btn.active{
+  background:var(--pos-brand) !important;
+  color:#111827 !important;
+  border-color:#e0ab00 !important;
+}
+.select-input{display:none !important;}
+.note-input{
+  background:#f8fafc !important;
+  color:#111827 !important;
+  border:1px solid #d9e0ea !important;
+  font-size:18px !important;
+}
+.qty-row{gap:28px !important;}
+.qty-row button{
+  width:64px !important;
+  height:64px !important;
+  border-radius:20px !important;
+  font-size:32px !important;
+}
+.qty-row span{font-size:34px !important;min-width:48px;text-align:center;}
+.required-option-select-box{
+  background:#fff8d9 !important;
+  border:1px solid #f0d36b !important;
+}
+.required-option-select-box h3::before{color:#111827 !important;}
+#extrasBox{border-top:1px solid #e3e7ee !important;}
+.pos-remove-box{
+  margin-top:18px;
+  padding-top:14px;
+  border-top:1px solid #e3e7ee;
+}
+.pos-remove-box h3{font-size:23px;color:#111827;margin-bottom:12px;}
+.pos-remove-box .option-btn.active{background:#fed7aa !important;border-color:#fb923c !important;color:#7c2d12 !important;}
+@media (min-width:700px) and (max-width:1180px){
+  .food-info strong{font-size:18px !important;}
+  .modal-card h2{font-size:32px !important;}
+  .option-btn{font-size:17px !important;padding:13px 17px !important;}
+}
+
+
+/* =========================
+   v59-2 POS 按鈕柔色與餐點卡片點擊版
+========================= */
+:root{
+  --pos-brand:#f3c23b;
+  --pos-brand-soft:#fff2b8;
+  --pos-secondary:#f3f0ea;
+  --pos-secondary-border:#ded6ca;
+  --pos-secondary-text:#514538;
+}
+.primary-btn{
+  background:#f3c23b !important;
+  color:#1f2937 !important;
+  border:1px solid #d7a90f !important;
+  box-shadow:0 4px 10px rgba(215,169,15,0.18) !important;
+}
+.secondary-btn{
+  background:var(--pos-secondary) !important;
+  color:var(--pos-secondary-text) !important;
+  border:1px solid var(--pos-secondary-border) !important;
+}
+.cart-actions-main .secondary-btn,
+.modal-actions .secondary-btn{
+  background:#f3f0ea !important;
+  color:#514538 !important;
+}
+.pos-select-food-btn{
+  display:none !important;
+}
+.pos-food-real-btn{
+  text-align:left !important;
+  font-family:inherit !important;
+}
+.pos-food-real-btn:active{
+  transform:scale(0.985);
+}
+
+/* =========================
+   v59-3 POS：移除殘留黑底、咖啡漸層上方列、降低餐點誤觸
+========================= */
+.pos-header{
+  background:linear-gradient(135deg, #1f1710, #5c3b1f) !important;
+  color:#fff7e6 !important;
+  border-bottom:1px solid rgba(255,255,255,0.12) !important;
+  box-shadow:0 6px 20px rgba(0,0,0,0.16) !important;
+}
+.pos-header h1{
+  color:#fff7e6 !important;
+}
+.pos-header p{
+  color:rgba(255,247,230,0.88) !important;
+}
+.pos-tabs .tab-btn{
+  background:rgba(255,255,255,0.16) !important;
+  color:#fff7e6 !important;
+  border:1px solid rgba(255,255,255,0.20) !important;
+}
+.pos-tabs .tab-btn.active{
+  background:#f3c23b !important;
+  color:#20160c !important;
+  border-color:#f3c23b !important;
+}
+.modal-actions{
+  background:#ffffff !important;
+  border-top:1px solid #e3e7ee !important;
+  box-shadow:0 -8px 18px rgba(15,23,42,0.06) !important;
+}
+#customModal .modal-actions,
+#editOrderModal .modal-actions,
+#editItemModal .modal-actions{
+  background:#ffffff !important;
+}
+#orderTab .cart-actions-main{
+  background:#ffffff !important;
+  border-top:1px solid #e3e7ee !important;
+  box-shadow:0 -8px 18px rgba(15,23,42,0.05) !important;
+}
+.empty{
+  background:#f8fafc !important;
+  color:#667085 !important;
+  border:1px solid #e3e7ee !important;
+}
+.pos-food-real-btn{
+  -webkit-tap-highlight-color:rgba(243,194,59,0.18) !important;
+  transition:none !important;
+}
+.pos-food-real-btn:active{
+  transform:none !important;
+}
+
+
+/* =========================
+   v59-4 強制刷新後最終小修
+   目的：舊平板清除黑底、POS 咖啡漸層、按鈕底色統一
+========================= */
+.pos-header{
+  background:linear-gradient(135deg,#1f1710,#5c3b1f) !important;
+  color:#fff7e6 !important;
+}
+.pos-header h1{color:#fff7e6 !important;}
+.pos-header p{color:rgba(255,247,230,.88) !important;}
+.pos-tabs .tab-btn{
+  background:rgba(255,255,255,.16) !important;
+  color:#fff7e6 !important;
+  border:1px solid rgba(255,255,255,.22) !important;
+}
+.pos-tabs .tab-btn.active{
+  background:#f3c23b !important;
+  color:#20160c !important;
+  border-color:#f3c23b !important;
+}
+#customModal .modal-actions,
+#editOrderModal .modal-actions,
+#editItemModal .modal-actions,
+.modal-actions,
+#orderTab .cart-actions-main,
+.cart-actions-main{
+  background:#ffffff !important;
+  border-top:1px solid #e3e7ee !important;
+  box-shadow:0 -8px 18px rgba(15,23,42,.05) !important;
+}
+#orderTab .cart-actions-main{
+  padding:10px !important;
+  margin-bottom:0 !important;
+  transform:none !important;
+  -webkit-transform:none !important;
+}
+.empty{
+  background:#f8fafc !important;
+  color:#667085 !important;
+  border:1px solid #e3e7ee !important;
+}
+.pos-food-real-btn{
+  -webkit-tap-highlight-color:rgba(243,194,59,.12) !important;
+  transition:none !important;
+}
+.pos-food-real-btn:active{transform:none !important;}
+
+
+/* =====================================================
+   恩點系統 v59-5 正式統一白底商用版
+   目的：清掉 v58 黑底殘留、POS 頂部咖啡漸層、按鈕舒適色
+===================================================== */
+:root{
+  --ep-bg:#f6efe5;
+  --ep-card:#fffaf2;
+  --ep-card-2:#ffffff;
+  --ep-line:#ead7bd;
+  --ep-text:#2b2118;
+  --ep-muted:#8a6b45;
+  --ep-main:#f0b43c;
+  --ep-main-dark:#80510d;
+  --ep-soft:#efe0c9;
+  --ep-soft-2:#f7ead6;
+  --ep-danger:#c62828;
+  --ep-danger-bg:#ffebee;
+}
+
+html,body{
+  background:var(--ep-bg) !important;
+  color:var(--ep-text) !important;
+}
+
+.pos-app,
+.pos-main,
+.tab-panel,
+.order-layout,
+.orders-layout,
+.database-layout,
+.stats-detail-layout{
+  background:var(--ep-bg) !important;
+  color:var(--ep-text) !important;
+}
+
+.pos-header{
+  background:linear-gradient(135deg,#1f1710,#5c3b1f) !important;
+  color:#fff7e6 !important;
+  border-bottom:none !important;
+  box-shadow:0 6px 20px rgba(67,40,18,.18) !important;
+}
+
+.pos-header h1{color:#fff7e6 !important;}
+.pos-header p{color:rgba(255,247,230,.88) !important;}
+
+.pos-tabs{background:transparent !important;}
+.tab-btn{
+  background:rgba(255,247,230,.16) !important;
+  color:#fff7e6 !important;
+  border:1px solid rgba(255,247,230,.22) !important;
+}
+.tab-btn.active{
+  background:#fff7e6 !important;
+  color:#2b2118 !important;
+}
+
+.menu-panel,
+.cart-panel,
+.orders-column,
+.stats-box,
+.stat-card,
+.pos-category-section,
+.order-card,
+.cart-item,
+.order-item,
+.top-item-row,
+.closing-check-item,
+.closing-check-note,
+.edit-total,
+.edit-order-item,
+.empty{
+  background:var(--ep-card) !important;
+  color:var(--ep-text) !important;
+  border-color:var(--ep-line) !important;
+  box-shadow:0 6px 18px rgba(67,40,18,.08) !important;
+}
+
+.panel-title{
+  border-bottom:1px solid var(--ep-line) !important;
+  background:rgba(255,250,242,.72) !important;
+}
+.panel-title h2,
+.pos-category-section h3{
+  color:var(--ep-text) !important;
+}
+.panel-title p,
+.food-info small,
+.order-card-head p,
+.cart-detail p,
+.order-item-detail p,
+.modal-price,
+.muted,
+.closing-check-note{
+  color:var(--ep-muted) !important;
+}
+
+.category-list{
+  background:var(--ep-card) !important;
+  border-bottom:1px solid var(--ep-line) !important;
+}
+.category-list button,
+.type-btn,
+.table-buttons button,
+.report-range-btn,
+.option-btn{
+  background:var(--ep-soft) !important;
+  color:var(--ep-text) !important;
+  border:1px solid #dfc8a8 !important;
+}
+.category-list button.active,
+.type-btn.active,
+.table-buttons button.active,
+.report-range-btn.active,
+.option-btn.active{
+  background:#2b2118 !important;
+  color:#fff7e6 !important;
+  border-color:#2b2118 !important;
+}
+
+.pos-category-section{
+  background:#fffdf9 !important;
+  border:1px solid var(--ep-line) !important;
+}
+.pos-category-section h3{
+  background:#fff3d8 !important;
+  color:var(--ep-main-dark) !important;
+  border:1px solid #f0ce91 !important;
+}
+
+.pos-food-btn{
+  background:#ffffff !important;
+  color:var(--ep-text) !important;
+  border:1px solid var(--ep-line) !important;
+  box-shadow:0 5px 14px rgba(67,40,18,.10) !important;
+  -webkit-tap-highlight-color:transparent !important;
+}
+.pos-food-btn:active{
+  transform:scale(.985) !important;
+  box-shadow:0 2px 8px rgba(67,40,18,.10) !important;
+}
+.food-img{
+  background:linear-gradient(135deg,#f3d39d,#fff2d9) !important;
+}
+.food-img span{color:#9b5a12 !important;}
+.food-info strong{color:var(--ep-text) !important;}
+.food-info b,
+.cart-total strong,
+.order-total,
+.stat-card strong,
+.top-item-row strong,
+.closing-check-item strong,
+.edit-total strong,
+.edit-item-actions span{
+  color:#c26a00 !important;
+}
+.stat-card.revenue strong{color:#1b7f35 !important;}
+
+.primary-btn{
+  background:#f0b43c !important;
+  color:#2b2118 !important;
+  border:1px solid #d99a22 !important;
+  box-shadow:0 3px 10px rgba(217,154,34,.18) !important;
+}
+.secondary-btn{
+  background:#efe0c9 !important;
+  color:#3a2b20 !important;
+  border:1px solid #dfc8a8 !important;
+}
+.danger-btn{
+  background:var(--ep-danger-bg) !important;
+  color:var(--ep-danger) !important;
+  border:1px solid #ffcdd2 !important;
+}
+.cart-actions-main,
+.modal-actions,
+.order-actions{
+  background:transparent !important;
+}
+
+.modal{
+  background:rgba(43,33,24,.42) !important;
+}
+.modal-card{
+  background:#fffaf2 !important;
+  color:var(--ep-text) !important;
+  border:1px solid var(--ep-line) !important;
+  box-shadow:0 16px 44px rgba(43,33,24,.22) !important;
+}
+.modal-card h2{color:var(--ep-text) !important;}
+.select-input,
+.note-input{
+  background:#fffdf9 !important;
+  color:var(--ep-text) !important;
+  border:1px solid #d9bd93 !important;
+}
+.qty-row{gap:28px !important;}
+.qty-row button{
+  background:#f0b43c !important;
+  color:#2b2118 !important;
+}
+.order-note{
+  background:#fff3d8 !important;
+  color:#80510d !important;
+  border:1px solid #f0ce91 !important;
+}
+.status-badge{
+  background:#fff3d8 !important;
+  color:#80510d !important;
+  border:1px solid #f0ce91 !important;
+}
+
+.required-option-select-box,
+.item-description-box{
+  background:#fff3d8 !important;
+  color:#6f4300 !important;
+  border:1px solid #f0ce91 !important;
+}
+.required-option-select-box h3{color:#80510d !important;}
+.required-option-select-box h3::before{color:#2b2118 !important;}
+#extrasBox{border-top:1px solid var(--ep-line) !important;}
+
+.pos-select-food-btn{display:none !important;}
+
+@media (min-width:700px) and (max-width:1180px){
+  .pos-header{
+    background:linear-gradient(135deg,#1f1710,#5c3b1f) !important;
+  }
+  .menu-panel,.cart-panel,.orders-column{
+    background:var(--ep-card) !important;
+  }
+}
+
+
+/* =====================================================
+   恩點系統 v59-6 HARD CLEAN POS THEME
+   這段不用 CSS 變數，專門給舊平板吃新檔名 + 強制覆蓋黑底殘留
+===================================================== */
+html, body {
+  background: #f6efe5 !important;
+  color: #2b2118 !important;
+}
+body, .pos-app, .pos-main, .tab-panel, .order-layout, .orders-layout, .database-layout, .stats-detail-layout {
+  background: #f6efe5 !important;
+  color: #2b2118 !important;
+}
+.pos-header {
+  background: linear-gradient(135deg, #1f1710, #5c3b1f) !important;
+  color: #fff7e6 !important;
+  border-bottom: none !important;
+  box-shadow: 0 6px 20px rgba(67,40,18,0.18) !important;
+}
+.pos-header h1 { color: #fff7e6 !important; }
+.pos-header p { color: rgba(255,247,230,0.9) !important; }
+.tab-btn {
+  background: rgba(255,247,230,0.16) !important;
+  color: #fff7e6 !important;
+  border: 1px solid rgba(255,247,230,0.22) !important;
+}
+.tab-btn.active {
+  background: #fff7e6 !important;
+  color: #2b2118 !important;
+}
+.menu-panel, .cart-panel, .orders-column, .stats-box, .stat-card, .pos-category-section, .order-card, .cart-item, .order-item, .top-item-row, .closing-check-item, .closing-check-note, .edit-order-item, .edit-total, .empty {
+  background: #fffaf2 !important;
+  color: #2b2118 !important;
+  border-color: #ead7bd !important;
+}
+.panel-title, .category-list, .cart-total {
+  border-color: #ead7bd !important;
+  background: transparent !important;
+}
+.panel-title h2, .pos-category-section h3 {
+  color: #2b2118 !important;
+}
+.panel-title p, .food-info small, .cart-detail p, .order-card-head p, .order-item-detail p, .muted, .closing-check-note {
+  color: #8a6b45 !important;
+}
+.category-list button, .type-btn, .table-buttons button, .report-range-btn, .option-btn {
+  background: #efe0c9 !important;
+  color: #3a2b20 !important;
+  border: 1px solid #ead7bd !important;
+}
+.category-list button.active, .type-btn.active, .table-buttons button.active, .report-range-btn.active, .option-btn.active {
+  background: #2b2118 !important;
+  color: #fff7e6 !important;
+}
+.pos-food-btn {
+  background: #ffffff !important;
+  color: #2b2118 !important;
+  border: 1px solid #ead7bd !important;
+  box-shadow: 0 6px 18px rgba(67,40,18,0.10) !important;
+}
+.food-img {
+  background: linear-gradient(135deg, #f3d39d, #fff2d9) !important;
+}
+.food-img span {
+  color: #9b5a12 !important;
+}
+.food-info strong { color: #2b2118 !important; }
+.food-info b, .cart-total strong, .order-total, .stat-card strong, .top-item-row strong, .closing-check-item strong, .edit-total strong, .edit-item-actions span {
+  color: #c26a00 !important;
+}
+.primary-btn {
+  background: #f0b43c !important;
+  color: #2b2118 !important;
+}
+.secondary-btn, #clearCartBtn, #cancelCustomBtn, #cancelEditOrderBtn, #cancelEditItemBtn {
+  background: #efe0c9 !important;
+  color: #3a2b20 !important;
+}
+.danger-btn {
+  background: #ffebee !important;
+  color: #c62828 !important;
+}
+.modal {
+  background: rgba(43,33,24,0.42) !important;
+}
+.modal-card {
+  background: #fffaf2 !important;
+  color: #2b2118 !important;
+  border: 1px solid #ead7bd !important;
+}
+.modal-card h2 { color: #2b2118 !important; }
+.modal-price { color: #c26a00 !important; }
+.select-input, .note-input {
+  background: #fffdf9 !important;
+  color: #2b2118 !important;
+  border: 1px solid #d9bd93 !important;
+}
+.qty-row button {
+  background: #f0b43c !important;
+  color: #2b2118 !important;
+}
+.order-note, .item-description-box, .required-option-select-box {
+  background: #fff3d8 !important;
+  color: #80510d !important;
+  border: 1px solid #f0ce91 !important;
+}
+.required-option-select-box h3 { color: #80510d !important; }
+#extrasBox { border-top-color: #ead7bd !important; }
+.status-badge { background: #fff3d8 !important; color: #80510d !important; }
+.pos-food-real-btn, .pos-food-btn {
+  -webkit-tap-highlight-color: rgba(240,180,60,0.12) !important;
+  touch-action: manipulation !important;
+}
+.pos-food-real-btn:active, .pos-food-btn:active {
+  transform: none !important;
+}
+@media (min-width: 700px) and (max-width: 1180px) {
+  .pos-header {
+    background: linear-gradient(135deg, #1f1710, #5c3b1f) !important;
+    color: #fff7e6 !important;
+  }
+  .menu-panel, .cart-panel, .orders-column, .pos-category-section, .cart-item, .order-card, .modal-card {
+    background: #fffaf2 !important;
+    color: #2b2118 !important;
+  }
+}
+
+
+/* =====================================================
+   恩點系統 v59-7 FINAL TABLET FIX
+   只修：舊平板 header 顏色、黑底殘留、防誤觸
+===================================================== */
+html body .pos-app .pos-header,
+body .pos-header,
+.pos-header {
+  background: linear-gradient(135deg, #1f1710 0%, #5c3b1f 100%) !important;
+  background-color: #2b2118 !important;
+  color: #fff7e6 !important;
+  border-bottom: 0 !important;
+  box-shadow: 0 6px 20px rgba(67,40,18,0.18) !important;
+}
+html body .pos-header h1,
+.pos-header h1 { color: #fff7e6 !important; }
+html body .pos-header p,
+.pos-header p { color: rgba(255,247,230,0.92) !important; }
+html body .pos-tabs .tab-btn,
+.pos-tabs .tab-btn {
+  background: rgba(255,247,230,0.18) !important;
+  color: #fff7e6 !important;
+  border: 1px solid rgba(255,247,230,0.22) !important;
+}
+html body .pos-tabs .tab-btn.active,
+.pos-tabs .tab-btn.active {
+  background: #f0b43c !important;
+  color: #2b2118 !important;
+  border-color: #f0b43c !important;
+}
+.cart-actions-main,
+.modal-actions,
+.cart-panel .cart-actions-main,
+.modal-card .modal-actions {
+  background: #fffaf2 !important;
+  border-top: 1px solid #ead7bd !important;
+}
+.empty,
+.cart-list .empty,
+.cart-panel .empty {
+  background: #fffaf2 !important;
+  color: #8a6b45 !important;
+  border: 1px solid #ead7bd !important;
+}
+.pos-food-real-btn,
+.pos-food-btn {
+  -webkit-touch-callout: none !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
+  touch-action: pan-y !important;
+}
+.pos-menu-list,
+.pos-category-grid {
+  -webkit-overflow-scrolling: touch !important;
+}
+@media (min-width:700px) and (max-width:1180px) {
+  html body .pos-header,
+  body .pos-header,
+  .pos-header {
+    background: linear-gradient(135deg, #1f1710 0%, #5c3b1f 100%) !important;
+    background-color: #2b2118 !important;
+    color: #fff7e6 !important;
+  }
+}

@@ -868,7 +868,7 @@ function renderPosFoodButton(item) {
   var displayName = item.name || "未命名餐點";
 
   return `
-    <button type="button" class="pos-food-btn pos-food-real-btn" data-id="${item.id}" onclick="return window.posOpenFoodById('${safeId}', event)">
+    <button type="button" class="pos-food-btn pos-food-real-btn" data-id="${item.id}">
       <div class="food-img">
         ${imageUrl ? `<img src="${imageUrl}" alt="${displayName}">` : `<span>恩點</span>`}
       </div>
@@ -884,11 +884,70 @@ function renderPosFoodButton(item) {
 
 function bindPosLegacySelectButtons() {
   var buttons = document.querySelectorAll ? document.querySelectorAll('.pos-select-food-btn, .pos-food-real-btn') : [];
+
+  function getPoint(event) {
+    var e = event || window.event;
+    if (e.touches && e.touches.length) return e.touches[0];
+    if (e.changedTouches && e.changedTouches.length) return e.changedTouches[0];
+    return e;
+  }
+
+  function openFromElement(el, event) {
+    var id = el && el.getAttribute ? el.getAttribute('data-id') : '';
+    return window.posOpenFoodById(id, event);
+  }
+
   for (var i = 0; i < buttons.length; i++) {
-    buttons[i].onclick = function(event) {
-      var id = this.getAttribute('data-id');
-      return window.posOpenFoodById(id, event);
-    };
+    (function(button) {
+      button._posTouchX = 0;
+      button._posTouchY = 0;
+      button._posMoved = false;
+      button._posTouchEndedAt = 0;
+
+      button.ontouchstart = function(event) {
+        var p = getPoint(event);
+        button._posTouchX = Number(p.clientX || 0);
+        button._posTouchY = Number(p.clientY || 0);
+        button._posMoved = false;
+        return true;
+      };
+
+      button.ontouchmove = function(event) {
+        var p = getPoint(event);
+        var dx = Math.abs(Number(p.clientX || 0) - button._posTouchX);
+        var dy = Math.abs(Number(p.clientY || 0) - button._posTouchY);
+        if (dx > 14 || dy > 14) {
+          button._posMoved = true;
+        }
+        return true;
+      };
+
+      button.ontouchend = function(event) {
+        if (button._posMoved) {
+          button._posTouchEndedAt = Date.now ? Date.now() : new Date().getTime();
+          return false;
+        }
+
+        var now = Date.now ? Date.now() : new Date().getTime();
+        if (now - button._posTouchEndedAt < 900) {
+          return false;
+        }
+        button._posTouchEndedAt = now;
+
+        if (event && event.preventDefault) event.preventDefault();
+        if (event && event.stopPropagation) event.stopPropagation();
+        return openFromElement(button, event);
+      };
+
+      button.onclick = function(event) {
+        var now = Date.now ? Date.now() : new Date().getTime();
+        if (now - button._posTouchEndedAt < 900) {
+          if (event && event.preventDefault) event.preventDefault();
+          return false;
+        }
+        return openFromElement(button, event);
+      };
+    })(buttons[i]);
   }
 }
 
@@ -2471,3 +2530,125 @@ window.selectSpicy = selectSpicy;
 window.selectEditSpicy = selectEditSpicy;
 window.toggleRemoveOption = toggleRemoveOption;
 window.toggleEditRemoveOption = toggleEditRemoveOption;
+
+
+/* =====================================================
+   v60 FINAL POS TOUCH GUARD
+   目的：舊平板滑動餐點區不誤開小視窗；電腦滑鼠仍可正常點餐。
+===================================================== */
+(function () {
+  if (typeof document === "undefined") return;
+
+  var touchStartX = 0;
+  var touchStartY = 0;
+  var touchMoved = false;
+  var lastTouchHandledAt = 0;
+  var lastOpenAt = 0;
+  var MOVE_LIMIT = 18;
+  var BLOCK_CLICK_AFTER_TOUCH = 900;
+  var OPEN_COOLDOWN = 1100;
+
+  function now() {
+    return Date.now ? Date.now() : new Date().getTime();
+  }
+
+  function hasClass(el, name) {
+    return el && (" " + (el.className || "") + " ").indexOf(" " + name + " ") !== -1;
+  }
+
+  function findFoodCard(el) {
+    while (el && el !== document) {
+      if (hasClass(el, "pos-food-real-btn") || hasClass(el, "pos-food-btn")) return el;
+      el = el.parentNode;
+    }
+    return null;
+  }
+
+  function stop(e) {
+    if (!e) return;
+    if (e.preventDefault) e.preventDefault();
+    if (e.stopPropagation) e.stopPropagation();
+    if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+  }
+
+  var originalOpen = window.posOpenFoodById;
+
+  window.posOpenFoodById = function (itemId, event) {
+    if (event) stop(event);
+    if (!itemId) return false;
+
+    var t = now();
+    if (t - lastOpenAt < OPEN_COOLDOWN) return false;
+
+    if (typeof customModal !== "undefined" && customModal) {
+      var cls = " " + (customModal.className || "") + " ";
+      if (cls.indexOf(" hidden ") === -1 && customModal.style.display !== "none") return false;
+    }
+
+    lastOpenAt = t;
+
+    try {
+      if (typeof openCustomModal === "function") {
+        openCustomModal(String(itemId));
+      } else if (typeof originalOpen === "function") {
+        originalOpen(String(itemId), null);
+      }
+      if (typeof customModal !== "undefined" && customModal) {
+        customModal.className = (customModal.className || "").replace(/\bhidden\b/g, "");
+        if ((" " + customModal.className + " ").indexOf(" show-force ") === -1) {
+          customModal.className += " show-force";
+        }
+        customModal.style.display = "flex";
+      }
+      if (typeof addPosModalOpenClass === "function") addPosModalOpenClass();
+      if (typeof resetPosCustomModalScroll === "function") resetPosCustomModalScroll();
+    } catch (error) {
+      alert("餐點視窗開啟失敗：" + (error && error.message ? error.message : error));
+    }
+    return false;
+  };
+
+  document.addEventListener("touchstart", function (e) {
+    var card = findFoodCard(e.target || e.srcElement);
+    if (!card) return;
+    var touch = e.touches && e.touches.length ? e.touches[0] : null;
+    if (!touch) return;
+    touchStartX = Number(touch.clientX || 0);
+    touchStartY = Number(touch.clientY || 0);
+    touchMoved = false;
+  }, true);
+
+  document.addEventListener("touchmove", function (e) {
+    var card = findFoodCard(e.target || e.srcElement);
+    if (!card) return;
+    var touch = e.touches && e.touches.length ? e.touches[0] : null;
+    if (!touch) return;
+    var dx = Math.abs(Number(touch.clientX || 0) - touchStartX);
+    var dy = Math.abs(Number(touch.clientY || 0) - touchStartY);
+    if (dx > MOVE_LIMIT || dy > MOVE_LIMIT) touchMoved = true;
+  }, true);
+
+  document.addEventListener("touchend", function (e) {
+    var card = findFoodCard(e.target || e.srcElement);
+    if (!card) return;
+    stop(e);
+    lastTouchHandledAt = now();
+    if (touchMoved) {
+      touchMoved = false;
+      return false;
+    }
+    var id = card.getAttribute("data-id");
+    if (!id) return false;
+    return window.posOpenFoodById(id, e);
+  }, true);
+
+  document.addEventListener("click", function (e) {
+    var card = findFoodCard(e.target || e.srcElement);
+    if (!card) return;
+    stop(e);
+    if (now() - lastTouchHandledAt < BLOCK_CLICK_AFTER_TOUCH) return false;
+    var id = card.getAttribute("data-id");
+    if (!id) return false;
+    return window.posOpenFoodById(id, e);
+  }, true);
+})();
