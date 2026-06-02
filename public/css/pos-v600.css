@@ -3505,17 +3505,17 @@ html body .pos-tabs .tab-btn.active,
 }
 
 /* =========================
-   v600-3 最終底部按鈕上移
+   v600-4 底部按鈕微調版
 ========================= */
 
 #orderTab .cart-panel{
-  padding-bottom:40px !important;
+  padding-bottom:18px !important;
 }
 
 #orderTab .cart-actions-main{
-  transform:translateY(-26px) !important;
-  -webkit-transform:translateY(-26px) !important;
+  transform:translateY(-10px) !important;
+  -webkit-transform:translateY(-10px) !important;
 
-  margin-bottom:34px !important;
-  padding-bottom:42px !important;
+  margin-bottom:14px !important;
+  padding-bottom:22px !important;
 }
