@@ -3503,3 +3503,19 @@ html body .pos-tabs .tab-btn.active,
 .clear-cart-btn {
   margin-bottom: 6px !important;
 }
+
+/* =========================
+   v600-3 最終底部按鈕上移
+========================= */
+
+#orderTab .cart-panel{
+  padding-bottom:40px !important;
+}
+
+#orderTab .cart-actions-main{
+  transform:translateY(-26px) !important;
+  -webkit-transform:translateY(-26px) !important;
+
+  margin-bottom:34px !important;
+  padding-bottom:42px !important;
+}
