@@ -38,8 +38,13 @@ function getItemAddons(item) {
   return item.addons || item.extras || [];
 }
 
+function getItemRemoves(item) {
+  return item.removes || item.removeOptionsSelected || item.noOptionsSelected || [];
+}
+
 function renderItem(item) {
   const addons = getItemAddons(item);
+  const removes = getItemRemoves(item);
 
   return `
     <li class="kitchen-item">
@@ -53,6 +58,7 @@ function renderItem(item) {
         ${item.spicy ? `<p>辣度：${item.spicy}</p>` : ""}
         ${item.satay ? `<p>沙茶：${item.satay}</p>` : ""}
         ${addons.length ? `<p>加料：${addons.map(a => a.name).join("、")}</p>` : ""}
+        ${removes.length ? `<p>不要：${removes.join("、")}</p>` : ""}
         ${item.note ? `<p>備註：${item.note}</p>` : ""}
       </div>
     </li>
@@ -64,6 +70,7 @@ function buildOrderConfirmText(order) {
 
   const itemLines = items.map((item, index) => {
     const addons = getItemAddons(item);
+    const removes = getItemRemoves(item);
 
     const details = [
       item.size && item.size !== "一般" ? `份量：${item.size}` : "",
@@ -71,6 +78,7 @@ function buildOrderConfirmText(order) {
       item.spicy ? `辣度：${item.spicy}` : "",
       item.satay ? `沙茶：${item.satay}` : "",
       addons.length ? `加料：${addons.map(a => a.name).join("、")}` : "",
+      removes.length ? `不要：${removes.join("、")}` : "",
       item.note ? `備註：${item.note}` : ""
     ].filter(Boolean);
 

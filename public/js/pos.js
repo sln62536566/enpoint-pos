@@ -145,6 +145,7 @@ let currentItem = null;
 let currentQuantity = 1;
 let selectedPortion = null;
 let selectedExtras = [];
+let selectedRemoves = [];
 let selectedSatay = "不要";
 let selectedRequiredOption = "";
 
@@ -156,6 +157,7 @@ let editingItemData = null;
 let editingMenuItem = null;
 let editSelectedPortion = null;
 let editSelectedExtras = [];
+let editSelectedRemoves = [];
 let editSelectedSatay = "不要";
 let editSelectedRequiredOption = "";
 let editQuantity = 1;
@@ -411,6 +413,58 @@ function getExtras(item) {
   }
 
   return [];
+}
+
+function getRemoveOptions(item) {
+  if (!item) return [];
+  if (Array.isArray(item.removeOptions)) {
+    return item.removeOptions.map(option => String(option || "").trim()).filter(Boolean);
+  }
+  if (Array.isArray(item.noOptions)) {
+    return item.noOptions.map(option => String(option || "").trim()).filter(Boolean);
+  }
+  if (typeof item.removeOptions === "object") {
+    return Object.keys(item.removeOptions || {}).map(option => String(option || "").trim()).filter(Boolean);
+  }
+  return [];
+}
+
+function itemRemoves(item) {
+  return item.removes || item.removeOptionsSelected || item.noOptionsSelected || [];
+}
+
+function renderSpicyButtons(selectEl, boxId, value, enabled, callbackName) {
+  var oldBox = document.getElementById(boxId);
+  if (oldBox) oldBox.remove();
+
+  if (!selectEl || !selectEl.parentNode) return;
+
+  var values = ["不辣", "微辣", "小辣", "中辣", "大辣"];
+  var box = document.createElement("div");
+  box.id = boxId;
+  box.className = "option-grid spicy-chip-grid";
+
+  if (!enabled) {
+    box.innerHTML = '<p class="muted">此餐點不需要辣度</p>';
+    selectEl.parentNode.appendChild(box);
+    return;
+  }
+
+  box.innerHTML = values.map(function(option) {
+    return '<button type="button" class="option-btn ' + (value === option ? "active" : "") + "\" onclick=\"" + callbackName + "('" + option + "')\">" + option + "</button>";
+  }).join('');
+
+  selectEl.parentNode.appendChild(box);
+}
+
+function selectSpicy(value) {
+  spicySelect.value = value;
+  renderSpicyButtons(spicySelect, "spicyChipBox", spicySelect.value, !spicySelect.disabled, "selectSpicy");
+}
+
+function selectEditSpicy(value) {
+  editItemSpicySelect.value = value;
+  renderSpicyButtons(editItemSpicySelect, "editSpicyChipBox", editItemSpicySelect.value, !editItemSpicySelect.disabled, "selectEditSpicy");
 }
 
 function getRequiredOption(item) {
@@ -860,6 +914,7 @@ function openCustomModal(itemId) {
   currentItem = { id: itemId, ...item };
   currentQuantity = 1;
   selectedExtras = [];
+  selectedRemoves = [];
   selectedSatay = "不要";
   selectedRequiredOption = "";
 
@@ -873,12 +928,14 @@ function openCustomModal(itemId) {
 
   spicySelect.value = allowSpicy(currentItem) ? "不辣" : "";
   spicySelect.disabled = !allowSpicy(currentItem);
+  renderSpicyButtons(spicySelect, "spicyChipBox", spicySelect.value, !spicySelect.disabled, "selectSpicy");
 
   renderItemDescriptionBox();
   renderPortionOptions();
   renderSatayOptions();
   renderRequiredOptionBox();
   renderExtrasOptions();
+  renderRemoveOptions();
 
   customModal.classList.remove("hidden");
   customModal.className = (customModal.className || "").replace(/\bhidden\b/g, "");
@@ -902,6 +959,7 @@ function closeCustomModal() {
   currentQuantity = 1;
   selectedPortion = null;
   selectedExtras = [];
+  selectedRemoves = [];
   selectedSatay = "不要";
   selectedRequiredOption = "";
 
@@ -916,6 +974,12 @@ function closeCustomModal() {
 
   const itemDescriptionBox = document.getElementById("itemDescriptionBox");
   if (itemDescriptionBox) itemDescriptionBox.remove();
+
+  const spicyChipBox = document.getElementById("spicyChipBox");
+  if (spicyChipBox) spicyChipBox.remove();
+
+  const removeOptionBox = document.getElementById("removeOptionBox");
+  if (removeOptionBox) removeOptionBox.remove();
 
 }
 
@@ -984,6 +1048,39 @@ function renderExtrasOptions() {
   `;
 }
 
+function renderRemoveOptions() {
+  var oldBox = document.getElementById("removeOptionBox");
+  if (oldBox) oldBox.remove();
+
+  var removes = getRemoveOptions(currentItem);
+  if (!removes.length) return;
+
+  var box = document.createElement("div");
+  box.id = "removeOptionBox";
+  box.className = "pos-remove-box";
+  box.innerHTML = `
+    <h3>不要項目</h3>
+    <div class="option-grid">
+      ${removes.map(function(name) {
+        var active = selectedRemoves.indexOf(name) !== -1;
+        return `<button class="option-btn ${active ? "active" : ""}" type="button" onclick="toggleRemoveOption('${name}')">${name}</button>`;
+      }).join("")}
+    </div>
+  `;
+
+  var noteSection = noteInput.parentNode;
+  customModal.querySelector(".modal-card").insertBefore(box, noteSection);
+}
+
+function toggleRemoveOption(name) {
+  if (selectedRemoves.indexOf(name) !== -1) {
+    selectedRemoves = selectedRemoves.filter(function(item) { return item !== name; });
+  } else {
+    selectedRemoves.push(name);
+  }
+  renderRemoveOptions();
+}
+
 function toggleExtra(name, price) {
   const exists = selectedExtras.some(extra => extra.name === name);
 
@@ -1049,6 +1146,8 @@ confirmCustomBtn.addEventListener("click", () => {
       : null,
     extras: selectedExtras,
     addons: selectedExtras,
+    removes: selectedRemoves,
+    removeOptionsSelected: selectedRemoves,
     note: noteInput.value.trim(),
     subtotal
   });
@@ -1070,6 +1169,7 @@ function renderCart() {
 
   cartList.innerHTML = cart.map(item => {
     const extras = itemExtras(item);
+    const removes = itemRemoves(item);
 
     return `
       <div class="cart-item">
@@ -1082,6 +1182,7 @@ function renderCart() {
             ${item.satay ? `<p>沙茶：${item.satay}</p>` : ""}
             ${item.requiredOption ? `<p>${item.requiredOption.title}：${item.requiredOption.value}</p>` : ""}
             ${extras.length ? `<p>加料：${extras.map(extra => extra.name).join("、")}</p>` : ""}
+            ${removes.length ? `<p>不要：${removes.join("、")}</p>` : ""}
             ${item.note ? `<p>備註：${item.note}</p>` : ""}
             <p>小計：${money(itemSubtotal(item))}</p>
           </div>
@@ -1237,6 +1338,7 @@ function renderOrderCard(order) {
 
 function renderOrderItem(item) {
   const extras = itemExtras(item);
+  const removes = itemRemoves(item);
 
   return `
     <div class="order-item">
@@ -1248,6 +1350,7 @@ function renderOrderItem(item) {
         ${item.satay ? `<p>沙茶：${item.satay}</p>` : ""}
         ${item.requiredOption ? `<p>${item.requiredOption.title}：${item.requiredOption.value}</p>` : ""}
         ${extras.length ? `<p>加料：${extras.map(extra => extra.name).join("、")}</p>` : ""}
+        ${removes.length ? `<p>不要：${removes.join("、")}</p>` : ""}
         ${item.note ? `<p>備註：${item.note}</p>` : ""}
       </div>
     </div>
@@ -1306,6 +1409,7 @@ function renderEditOrderItems() {
 
   editOrderItems.innerHTML = editingItems.map((item, index) => {
     const extras = itemExtras(item);
+    const removes = itemRemoves(item);
 
     return `
       <div class="edit-order-item">
@@ -1318,6 +1422,7 @@ function renderEditOrderItems() {
             ${item.satay ? `<p>沙茶：${item.satay}</p>` : ""}
             ${item.requiredOption ? `<p>${item.requiredOption.title}：${item.requiredOption.value}</p>` : ""}
             ${extras.length ? `<p>加料：${extras.map(extra => extra.name).join("、")}</p>` : ""}
+            ${removes.length ? `<p>不要：${removes.join("、")}</p>` : ""}
             ${item.note ? `<p>備註：${item.note}</p>` : ""}
             <p>小計：${money(itemSubtotal(item))}</p>
           </div>
@@ -1410,6 +1515,7 @@ function openEditItemModal(index) {
 
   editQuantity = itemQty(item);
   editSelectedExtras = [...(item.addons || item.extras || [])];
+  editSelectedRemoves = itemRemoves(item).slice();
   editSelectedSatay = item.satay || "不要";
   editSelectedRequiredOption = (item.requiredOption && item.requiredOption.value) || "";
 
@@ -1424,6 +1530,7 @@ function openEditItemModal(index) {
   editItemSpicySelect.value = item.spicy || "";
   editItemQuantity.textContent = editQuantity;
   editItemSpicySelect.disabled = !allowSpicy(editingMenuItem);
+  renderSpicyButtons(editItemSpicySelect, "editSpicyChipBox", editItemSpicySelect.value || "不辣", !editItemSpicySelect.disabled, "selectEditSpicy");
 
   renderEditItemPortions();
   renderEditItemSatay();
@@ -1432,6 +1539,7 @@ function openEditItemModal(index) {
 
 
   renderEditItemExtras();
+  renderEditItemRemoves();
   updateEditItemSubtotal();
 
   editItemModal.classList.remove("hidden");
@@ -1445,11 +1553,18 @@ function closeEditItemModal() {
   const editRequiredOptionBox = document.getElementById("editRequiredOptionBox");
   if (editRequiredOptionBox) editRequiredOptionBox.remove();
 
+  const editSpicyChipBox = document.getElementById("editSpicyChipBox");
+  if (editSpicyChipBox) editSpicyChipBox.remove();
+
+  const editRemoveOptionBox = document.getElementById("editRemoveOptionBox");
+  if (editRemoveOptionBox) editRemoveOptionBox.remove();
+
   editingItemIndex = null;
   editingItemData = null;
   editingMenuItem = null;
 
   editSelectedExtras = [];
+  editSelectedRemoves = [];
   editSelectedSatay = "不要";
   editSelectedPortion = null;
   editQuantity = 1;
@@ -1573,6 +1688,39 @@ function renderEditItemExtras() {
   `;
 }
 
+function renderEditItemRemoves() {
+  var oldBox = document.getElementById("editRemoveOptionBox");
+  if (oldBox) oldBox.remove();
+
+  var removes = getRemoveOptions(editingMenuItem || editingItemData);
+  if (!removes.length) return;
+
+  var box = document.createElement("div");
+  box.id = "editRemoveOptionBox";
+  box.className = "pos-remove-box";
+  box.innerHTML = `
+    <h3>不要項目</h3>
+    <div class="option-grid">
+      ${removes.map(function(name) {
+        var active = editSelectedRemoves.indexOf(name) !== -1;
+        return `<button class="option-btn ${active ? "active" : ""}" type="button" onclick="toggleEditRemoveOption('${name}')">${name}</button>`;
+      }).join("")}
+    </div>
+  `;
+
+  var noteSection = editItemNoteInput.parentNode;
+  editItemModal.querySelector(".modal-card").insertBefore(box, noteSection);
+}
+
+function toggleEditRemoveOption(name) {
+  if (editSelectedRemoves.indexOf(name) !== -1) {
+    editSelectedRemoves = editSelectedRemoves.filter(function(item) { return item !== name; });
+  } else {
+    editSelectedRemoves.push(name);
+  }
+  renderEditItemRemoves();
+}
+
 function toggleEditExtra(name, price) {
   const exists = editSelectedExtras.some(extra => extra.name === name);
 
@@ -1583,6 +1731,7 @@ function toggleEditExtra(name, price) {
   }
 
   renderEditItemExtras();
+  renderEditItemRemoves();
   updateEditItemSubtotal();
 }
 
@@ -1649,6 +1798,8 @@ saveEditItemBtn.addEventListener("click", () => {
     
     addons: editSelectedExtras,
     extras: editSelectedExtras,
+    removes: editSelectedRemoves,
+    removeOptionsSelected: editSelectedRemoves,
     note: editItemNoteInput.value.trim(),
     qty: editQuantity,
     quantity: editQuantity,
@@ -2301,3 +2452,9 @@ window.posOpenFood = function (button, event) {
   document.addEventListener("click", openFromEvent, true);
   document.addEventListener("mouseup", openFromEvent, true);
 })();
+
+
+window.selectSpicy = selectSpicy;
+window.selectEditSpicy = selectEditSpicy;
+window.toggleRemoveOption = toggleRemoveOption;
+window.toggleEditRemoveOption = toggleEditRemoveOption;

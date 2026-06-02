@@ -1,8 +1,8 @@
 <!--
-  恩點系統 v58-1
-  日期：2026-05-22
+  恩點系統 v59-1
+  日期：2026-06-02
   端別：菜單後台 admin.html
-  用途：分類管理器 + 菜單管理
+  用途：分類管理器 + 菜單管理 + 不要項目
 -->
 
 <!DOCTYPE html>
@@ -17,7 +17,7 @@
 <body class="admin-page">
   <header class="topbar admin-topbar">
     <h1>恩點系統｜菜單後台</h1>
-    <p>v58-1 分類管理器｜分類新增、改名、隱藏、刪除、排序</p>
+    <p>v59-1 分類管理器｜分類、餐點、加料、必選、不要項目</p>
   </header>
 
   <main class="admin-v57-layout">
@@ -36,7 +36,7 @@
       </div>
 
       <div class="sort-hint">
-        提示：分類可拖拉排序。隱藏分類後，之後 v58-3 會同步讓 POS / QR 不顯示該分類。
+        提示：分類可拖拉排序。隱藏分類後，POS / QR 不顯示該分類。
       </div>
 
       <div id="categoryManagerList" class="category-manager-list"></div>
@@ -46,7 +46,7 @@
       <div class="panel-title-row">
         <div>
           <h2 id="formTitle">新增餐點</h2>
-          <p>建立餐點、分類、圖片與加料選項</p>
+          <p>建立餐點、分類、圖片、必選、加料與不要項目</p>
         </div>
       </div>
 
@@ -72,10 +72,14 @@
         <p class="form-help">留空代表此餐點沒有必選項目。</p>
       </div>
 
-
       <label>加料選項</label>
       <div id="addonEditor" class="addon-editor"></div>
       <button id="addAddonRowBtn" class="secondary-btn" type="button">＋ 新增加料</button>
+
+      <label>不要項目</label>
+      <div id="removeOptionEditor" class="addon-editor"></div>
+      <button id="addRemoveOptionRowBtn" class="secondary-btn" type="button">＋ 新增不要項目</button>
+      <p class="form-help">例如：不要蔥、不要香菜、不要胡椒。POS 點餐時會變成可直接點擊的按鈕。</p>
 
       <div class="admin-form-actions">
         <button id="addItemBtn" class="primary-btn">新增餐點</button>

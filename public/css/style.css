@@ -1491,3 +1491,95 @@ textarea.input {
   margin-left: 6px;
 }
 
+
+
+/* =========================
+   恩點系統 v59-1 KDS 廚房大字版
+   保留原排版，只放大文字與區分按鈕顏色
+========================= */
+.kitchen-board{
+  padding:22px;
+}
+.kitchen-board h2{
+  font-size:34px;
+  margin-bottom:18px;
+  color:#2b2118;
+}
+.kitchen-card{
+  padding:26px !important;
+  border-radius:24px !important;
+  border-left-width:12px !important;
+  box-shadow:0 10px 26px rgba(0,0,0,0.18) !important;
+}
+.kitchen-card-header h2{
+  font-size:36px !important;
+  line-height:1.2;
+}
+.kitchen-card-header p{
+  font-size:20px !important;
+  line-height:1.55;
+  color:#f5f5f5;
+}
+.status-badge{
+  font-size:20px !important;
+  padding:12px 18px !important;
+}
+.item-main{
+  font-size:30px !important;
+  line-height:1.35;
+}
+.item-detail{
+  font-size:22px !important;
+  line-height:1.9 !important;
+  color:#ffffff !important;
+}
+.kitchen-actions button{
+  font-size:24px !important;
+  padding:20px !important;
+  border-radius:16px !important;
+}
+.kitchen-card.confirmed .kitchen-actions button,
+.kitchen-card.waiting .kitchen-actions button{
+  background:#2563eb !important;
+  color:#ffffff !important;
+}
+.kitchen-card.cooking .kitchen-actions button{
+  background:#16a34a !important;
+  color:#ffffff !important;
+}
+.kitchen-card.cooking .status-badge{
+  background:#dbeafe !important;
+  color:#1d4ed8 !important;
+}
+.order-note{
+  font-size:22px !important;
+  line-height:1.7 !important;
+}
+
+/* v59-1 admin 舊平板相容與不要項目 */
+.remove-option-note,
+.form-help{
+  display:block;
+  margin-top:8px;
+}
+@media (min-width:700px) and (max-width:1180px){
+  .admin-v57-layout{
+    display:block !important;
+    padding:14px !important;
+  }
+  .admin-form-panel{
+    position:static !important;
+    margin-bottom:18px !important;
+  }
+  .admin-card-grid{
+    display:grid !important;
+    grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+  }
+  .admin-menu-card-v57,
+  .category-manager-card{
+    -webkit-user-select:none;
+    user-select:none;
+  }
+}
+
+.remove-option-row{grid-template-columns:1fr 70px !important;}

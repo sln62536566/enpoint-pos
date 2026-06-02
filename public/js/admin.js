@@ -30,6 +30,8 @@ const formTitle = document.getElementById("formTitle");
 
 const addonEditor = document.getElementById("addonEditor");
 const addAddonRowBtn = document.getElementById("addAddonRowBtn");
+const removeOptionEditor = document.getElementById("removeOptionEditor");
+const addRemoveOptionRowBtn = document.getElementById("addRemoveOptionRowBtn");
 
 const newCategoryName = document.getElementById("newCategoryName");
 const addCategoryBtn = document.getElementById("addCategoryBtn");
@@ -52,6 +54,7 @@ let draggedItemId = null;
 let draggedItemCategory = null;
 
 let addonRows = [];
+let removeOptionRows = [];
 
 /* =========================
    Helpers
@@ -63,11 +66,11 @@ function money(n) {
 
 function escapeHtml(value) {
   return String(value || "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 function getRequiredOptionFromForm() {
@@ -174,6 +177,67 @@ function addAddonRow() {
   });
 
   renderAddonEditor();
+  renderRemoveOptionEditor();
+}
+
+function renderRemoveOptionEditor() {
+  if (!removeOptionEditor) return;
+
+  if (removeOptionRows.length === 0) {
+    removeOptionEditor.innerHTML = `<div class="empty small-empty">尚未設定不要項目</div>`;
+    return;
+  }
+
+  removeOptionEditor.innerHTML = removeOptionRows.map((name, index) => `
+    <div class="addon-row remove-option-row">
+      <input
+        type="text"
+        placeholder="例如：不要蔥"
+        value="${escapeHtml(name || "")}"
+        data-index="${index}"
+      />
+      <button class="danger-btn" type="button" data-index="${index}">
+        刪除
+      </button>
+    </div>
+  `).join("");
+
+  removeOptionEditor.querySelectorAll("input").forEach(input => {
+    input.addEventListener("input", () => {
+      const index = Number(input.dataset.index);
+      removeOptionRows[index] = input.value;
+    });
+  });
+
+  removeOptionEditor.querySelectorAll("button").forEach(button => {
+    button.addEventListener("click", () => {
+      const index = Number(button.dataset.index);
+      removeOptionRows.splice(index, 1);
+      renderRemoveOptionEditor();
+    });
+  });
+}
+
+function addRemoveOptionRow() {
+  removeOptionRows.push("");
+  renderRemoveOptionEditor();
+}
+
+function getRemoveOptionsFromRows() {
+  const seen = {};
+  return removeOptionRows
+    .map(item => String(item || "").trim())
+    .filter(Boolean)
+    .filter(name => {
+      if (seen[name]) return false;
+      seen[name] = true;
+      return true;
+    });
+}
+
+function setRemoveOptionRows(options) {
+  removeOptionRows = Array.isArray(options) ? options.slice() : [];
+  renderRemoveOptionEditor();
 }
 
 function getOptionsFromAddonRows() {
@@ -217,7 +281,7 @@ function getCategoryItems() {
     id,
     name: category.name || "未命名分類",
     enabled: category.enabled !== false,
-    sortOrder: Number(category.sortOrder ?? 999999999),
+    sortOrder: Number(category.sortOrder !== undefined ? category.sortOrder : 999999999),
     createdAt: category.createdAt || 0
   }));
 
@@ -235,7 +299,7 @@ function getCategoryItems() {
         id: `legacy-${name}`,
         name,
         enabled: true,
-        sortOrder: Number(item.categoryOrder ?? 999999999),
+        sortOrder: Number(item.categoryOrder !== undefined ? item.categoryOrder : 999999999),
         createdAt: 0,
         legacy: true
       });
@@ -256,7 +320,7 @@ function findCategoryByName(name) {
 
 function getCategoryOrderByName(name) {
   const category = getCategoryItems().find(item => item.name === name);
-  return Number(category?.sortOrder ?? 999999999);
+  return Number(category ? (category.sortOrder !== undefined ? category.sortOrder : 999999999) : 999999999);
 }
 
 function groupItems() {
@@ -272,8 +336,8 @@ function groupItems() {
 
   Object.keys(grouped).forEach(category => {
     grouped[category].sort((a, b) => {
-      const orderA = Number(a.sortOrder ?? 999999999);
-      const orderB = Number(b.sortOrder ?? 999999999);
+      const orderA = Number(a.sortOrder !== undefined ? a.sortOrder : 999999999);
+      const orderB = Number(b.sortOrder !== undefined ? b.sortOrder : 999999999);
 
       if (orderA !== orderB) return orderA - orderB;
 
@@ -518,7 +582,9 @@ function resetForm() {
   setRequiredOptionToForm(null);
 
   addonRows = [];
+  removeOptionRows = [];
   renderAddonEditor();
+  renderRemoveOptionEditor();
 
   formTitle.textContent = "新增餐點";
   addItemBtn.textContent = "新增餐點";
@@ -555,6 +621,7 @@ async function saveItem() {
   const image = itemImage.value.trim();
   const description = itemDescription ? itemDescription.value.trim() : "";
   const options = getOptionsFromAddonRows();
+  const removeOptions = getRemoveOptionsFromRows();
   const requiredOption = getRequiredOptionFromForm();
 
   if (!name) {
@@ -583,10 +650,11 @@ async function saveItem() {
     image,
     description,
     options,
+    removeOptions,
     requiredOption,
     enabled: oldItem ? oldItem.enabled !== false : true,
     categoryOrder: getCategoryOrderByName(category),
-    sortOrder: oldItem ? Number(oldItem.sortOrder ?? now) : now,
+    sortOrder: oldItem ? Number(oldItem.sortOrder !== undefined ? oldItem.sortOrder : now) : now,
     updatedAt: now
   };
 
@@ -656,6 +724,7 @@ function editItem(id) {
 
   setRequiredOptionToForm(item.requiredOption || null);
   setAddonRowsFromOptions(item.options || {});
+  setRemoveOptionRows(item.removeOptions || []);
 
   formTitle.textContent = `編輯餐點｜${item.name || ""}`;
   addItemBtn.textContent = "更新餐點";
@@ -832,6 +901,7 @@ function renderMenu() {
     renderCategorySelect();
     renderCategoryFilters();
     renderAddonEditor();
+    renderRemoveOptionEditor();
     return;
   }
 
@@ -873,7 +943,7 @@ function renderMenuCard(item, category) {
 
   const descriptionText = item.description || "尚未填寫餐點描述";
 
-  const requiredOptionText = item.requiredOption?.title
+  const requiredOptionText = item.requiredOption && item.requiredOption.title
     ? `${item.requiredOption.title}：${(item.requiredOption.options || []).join("、")}`
     : "無必選項目";
 
@@ -881,6 +951,10 @@ function renderMenuCard(item, category) {
     item.options && Object.keys(item.options).length > 0
       ? Object.entries(item.options).map(([name, price]) => `${name} +${price}`).join("、")
       : "無加料";
+
+  const removeOptionsText = Array.isArray(item.removeOptions) && item.removeOptions.length > 0
+    ? item.removeOptions.join("、")
+    : "無不要項目";
 
   return `
     <article
@@ -920,6 +994,10 @@ function renderMenuCard(item, category) {
 
         <div class="admin-options">
           加料：${escapeHtml(optionsText)}
+        </div>
+
+        <div class="admin-options">
+          不要：${escapeHtml(removeOptionsText)}
         </div>
 
         <div class="admin-actions">
@@ -1004,6 +1082,10 @@ newCategoryName.addEventListener("keydown", event => {
 
 if (addAddonRowBtn) {
   addAddonRowBtn.addEventListener("click", addAddonRow);
+}
+
+if (addRemoveOptionRowBtn) {
+  addRemoveOptionRowBtn.addEventListener("click", addRemoveOptionRow);
 }
 
 addItemBtn.addEventListener("click", saveItem);

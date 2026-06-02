@@ -2586,3 +2586,151 @@ body.pos-modal-open #customModal{
 body.pos-modal-open #customModal .modal-card{
   z-index:1000000 !important;
 }
+
+
+/* =========================
+   恩點系統 v59-1 POS 白底商用版
+   只改顏色、清晰度、觸控大小；保留原本排版
+========================= */
+:root{
+  --pos-bg:#f5f6f8;
+  --pos-card:#ffffff;
+  --pos-card-soft:#f8fafc;
+  --pos-line:#e3e7ee;
+  --pos-text:#172033;
+  --pos-muted:#667085;
+  --pos-brand:#f5c542;
+  --pos-brand-dark:#7a5400;
+  --pos-danger:#d92d20;
+  --pos-success:#15803d;
+}
+body{
+  background:var(--pos-bg) !important;
+  color:var(--pos-text) !important;
+}
+.pos-header{
+  background:#ffffff !important;
+  border-bottom:1px solid var(--pos-line) !important;
+  box-shadow:0 4px 16px rgba(15,23,42,0.06) !important;
+}
+.pos-header h1{color:#111827 !important;}
+.pos-header p{color:var(--pos-muted) !important;}
+.tab-btn,
+.category-list button,
+.type-btn,
+.table-buttons button,
+.report-range-btn{
+  background:#eef2f7 !important;
+  color:#263244 !important;
+  border:1px solid #d9e0ea !important;
+}
+.tab-btn.active,
+.category-list button.active,
+.type-btn.active,
+.table-buttons button.active,
+.report-range-btn.active{
+  background:var(--pos-brand) !important;
+  color:#111827 !important;
+  border-color:#e0ab00 !important;
+}
+.menu-panel,
+.cart-panel,
+.orders-column,
+.stats-box,
+.stat-card,
+.pos-category-section{
+  background:var(--pos-card) !important;
+  border:1px solid var(--pos-line) !important;
+  box-shadow:0 8px 22px rgba(15,23,42,0.06) !important;
+}
+.panel-title{border-bottom:1px solid var(--pos-line) !important;}
+.panel-title h2,
+.pos-category-section h3{color:#172033 !important;}
+.panel-title p,.food-info small,.takeout-info,.muted,.empty{color:var(--pos-muted) !important;}
+.category-list{border-bottom:1px solid var(--pos-line) !important;}
+.pos-category-section h3{
+  background:#fff8d9 !important;
+  border:1px solid #f0d36b !important;
+}
+.pos-food-btn,
+.cart-item,
+.order-card,
+.order-item,
+.top-item-row,
+.closing-check-item,
+.closing-check-note,
+.edit-order-item,
+.edit-total{
+  background:#ffffff !important;
+  color:var(--pos-text) !important;
+  border:1px solid var(--pos-line) !important;
+  box-shadow:0 4px 14px rgba(15,23,42,0.05) !important;
+}
+.pos-food-btn:hover{box-shadow:0 10px 22px rgba(15,23,42,0.10) !important;}
+.food-img{background:#f1f5f9 !important;}
+.food-img span{color:#b77900 !important;}
+.food-info strong{color:#111827 !important;font-size:22px !important;}
+.food-info b,.cart-total strong,.order-total,.stat-card strong,.closing-check-item strong,.top-item-row strong,.edit-total strong{color:#b77900 !important;}
+.cart-detail p,.order-card-head p,.order-item-detail p{color:#475467 !important;}
+.cart-total{border-top:1px solid var(--pos-line) !important;}
+.primary-btn{background:var(--pos-brand) !important;color:#111827 !important;}
+.secondary-btn{background:#eef2f7 !important;color:#263244 !important;border:1px solid #d9e0ea !important;}
+.danger-btn{background:#fee4e2 !important;color:#b42318 !important;border:1px solid #fecdca !important;}
+.status-badge{background:#fff2b8 !important;color:#533900 !important;}
+.order-note{background:#fff8d9 !important;color:#7a5400 !important;border:1px solid #f0d36b !important;}
+.modal{background:rgba(15,23,42,0.52) !important;}
+.modal-card{
+  background:#ffffff !important;
+  color:var(--pos-text) !important;
+  border:1px solid var(--pos-line) !important;
+  box-shadow:0 18px 50px rgba(15,23,42,0.28) !important;
+}
+.modal-card h2{color:#111827 !important;font-size:38px !important;}
+.modal-price{color:#b77900 !important;font-size:20px !important;font-weight:900 !important;}
+.option-section h3,.required-option-select-box h3{color:#111827 !important;font-size:23px !important;}
+.option-btn{
+  background:#eef2f7 !important;
+  color:#182230 !important;
+  border:1px solid #d9e0ea !important;
+  padding:15px 20px !important;
+  font-size:18px !important;
+  border-radius:16px !important;
+}
+.option-btn.active{
+  background:var(--pos-brand) !important;
+  color:#111827 !important;
+  border-color:#e0ab00 !important;
+}
+.select-input{display:none !important;}
+.note-input{
+  background:#f8fafc !important;
+  color:#111827 !important;
+  border:1px solid #d9e0ea !important;
+  font-size:18px !important;
+}
+.qty-row{gap:28px !important;}
+.qty-row button{
+  width:64px !important;
+  height:64px !important;
+  border-radius:20px !important;
+  font-size:32px !important;
+}
+.qty-row span{font-size:34px !important;min-width:48px;text-align:center;}
+.required-option-select-box{
+  background:#fff8d9 !important;
+  border:1px solid #f0d36b !important;
+}
+.required-option-select-box h3::before{color:#111827 !important;}
+#extrasBox{border-top:1px solid #e3e7ee !important;}
+.pos-remove-box{
+  margin-top:18px;
+  padding-top:14px;
+  border-top:1px solid #e3e7ee;
+}
+.pos-remove-box h3{font-size:23px;color:#111827;margin-bottom:12px;}
+.pos-remove-box .option-btn.active{background:#fed7aa !important;border-color:#fb923c !important;color:#7c2d12 !important;}
+@media (min-width:700px) and (max-width:1180px){
+  .food-info strong{font-size:18px !important;}
+  .modal-card h2{font-size:32px !important;}
+  .option-btn{font-size:17px !important;padding:13px 17px !important;}
+}
