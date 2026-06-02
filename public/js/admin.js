@@ -125,7 +125,7 @@ function renderAddonEditor() {
       <input
         type="text"
         placeholder="加料名稱，例如：加蛋"
-        value="${escapeHtml(addon.name || "")}"
+        value="${escapeHtml(addon.name || "")}" 
         data-index="${index}"
         data-field="name"
       />
@@ -138,7 +138,12 @@ function renderAddonEditor() {
         data-field="price"
       />
 
-      <button class="danger-btn" type="button" data-index="${index}">
+      <div class="addon-move-actions">
+        <button class="row-move-btn" type="button" data-action="up" data-index="${index}">上移</button>
+        <button class="row-move-btn" type="button" data-action="down" data-index="${index}">下移</button>
+      </div>
+
+      <button class="danger-btn" type="button" data-action="delete" data-index="${index}">
         刪除
       </button>
     </div>
@@ -164,8 +169,14 @@ function renderAddonEditor() {
   addonEditor.querySelectorAll("button").forEach(button => {
     button.addEventListener("click", () => {
       const index = Number(button.dataset.index);
-      addonRows.splice(index, 1);
-      renderAddonEditor();
+      const action = button.dataset.action;
+
+      if (action === "up") moveAddonRow(index, -1);
+      if (action === "down") moveAddonRow(index, 1);
+      if (action === "delete") {
+        addonRows.splice(index, 1);
+        renderAddonEditor();
+      }
     });
   });
 }
@@ -193,10 +204,14 @@ function renderRemoveOptionEditor() {
       <input
         type="text"
         placeholder="例如：不要蔥"
-        value="${escapeHtml(name || "")}"
+        value="${escapeHtml(name || "")}" 
         data-index="${index}"
       />
-      <button class="danger-btn" type="button" data-index="${index}">
+      <div class="addon-move-actions">
+        <button class="row-move-btn" type="button" data-action="up" data-index="${index}">上移</button>
+        <button class="row-move-btn" type="button" data-action="down" data-index="${index}">下移</button>
+      </div>
+      <button class="danger-btn" type="button" data-action="delete" data-index="${index}">
         刪除
       </button>
     </div>
@@ -212,8 +227,14 @@ function renderRemoveOptionEditor() {
   removeOptionEditor.querySelectorAll("button").forEach(button => {
     button.addEventListener("click", () => {
       const index = Number(button.dataset.index);
-      removeOptionRows.splice(index, 1);
-      renderRemoveOptionEditor();
+      const action = button.dataset.action;
+
+      if (action === "up") moveRemoveOptionRow(index, -1);
+      if (action === "down") moveRemoveOptionRow(index, 1);
+      if (action === "delete") {
+        removeOptionRows.splice(index, 1);
+        renderRemoveOptionEditor();
+      }
     });
   });
 }
@@ -238,6 +259,46 @@ function getRemoveOptionsFromRows() {
 function setRemoveOptionRows(options) {
   removeOptionRows = Array.isArray(options) ? options.slice() : [];
   renderRemoveOptionEditor();
+}
+
+
+function moveArrayItem(list, index, direction) {
+  const nextIndex = index + direction;
+  if (nextIndex < 0 || nextIndex >= list.length) return false;
+  const moved = list.splice(index, 1)[0];
+  list.splice(nextIndex, 0, moved);
+  return true;
+}
+
+function moveAddonRow(index, direction) {
+  if (moveArrayItem(addonRows, index, direction)) {
+    renderAddonEditor();
+  }
+}
+
+function moveRemoveOptionRow(index, direction) {
+  if (moveArrayItem(removeOptionRows, index, direction)) {
+    renderRemoveOptionEditor();
+  }
+}
+
+async function moveCategoryByButton(categoryId, direction) {
+  const categories = getCategoryItems();
+  const index = categories.findIndex(category => String(category.id) === String(categoryId));
+  if (index < 0) return;
+  const targetIndex = index + direction;
+  if (targetIndex < 0 || targetIndex >= categories.length) return;
+  await reorderCategory(categoryId, categories[targetIndex].id);
+}
+
+async function moveMenuItemByButton(itemId, category, direction) {
+  const grouped = groupItems();
+  const items = grouped[category] || [];
+  const index = items.findIndex(item => String(item.id) === String(itemId));
+  if (index < 0) return;
+  const targetIndex = index + direction;
+  if (targetIndex < 0 || targetIndex >= items.length) return;
+  await reorderItem(category, itemId, items[targetIndex].id);
 }
 
 function getOptionsFromAddonRows() {
@@ -830,6 +891,11 @@ function renderCategoryManager() {
         </div>
       </div>
 
+      <div class="admin-move-actions">
+        <button data-action="moveUp" data-id="${escapeHtml(category.id)}" data-name="${escapeHtml(category.name)}">上移</button>
+        <button data-action="moveDown" data-id="${escapeHtml(category.id)}" data-name="${escapeHtml(category.name)}">下移</button>
+      </div>
+
       <div class="category-manager-actions">
         <button data-action="rename" data-id="${escapeHtml(category.id)}" data-name="${escapeHtml(category.name)}">改名</button>
         <button data-action="toggle" data-id="${escapeHtml(category.id)}" data-name="${escapeHtml(category.name)}">
@@ -863,6 +929,8 @@ function renderCategoryManager() {
       const id = button.dataset.id;
       const name = button.dataset.name;
 
+      if (action === "moveUp") moveCategoryByButton(id, -1);
+      if (action === "moveDown") moveCategoryByButton(id, 1);
       if (action === "rename") renameCategory(id, name);
       if (action === "toggle") toggleCategory(id, name);
       if (action === "delete") deleteCategory(id, name);
@@ -1000,6 +1068,11 @@ function renderMenuCard(item, category) {
           不要：${escapeHtml(removeOptionsText)}
         </div>
 
+        <div class="admin-move-actions">
+          <button data-action="moveUp" data-id="${escapeHtml(item.id)}" data-category="${escapeHtml(category)}">上移</button>
+          <button data-action="moveDown" data-id="${escapeHtml(item.id)}" data-category="${escapeHtml(category)}">下移</button>
+        </div>
+
         <div class="admin-actions">
           <button data-action="edit" data-id="${escapeHtml(item.id)}">編輯</button>
           <button data-action="toggle" data-id="${escapeHtml(item.id)}">
@@ -1042,11 +1115,14 @@ function bindMenuCardDragEvents() {
     });
   });
 
-  menuList.querySelectorAll(".admin-actions button").forEach(button => {
+  menuList.querySelectorAll(".admin-actions button, .admin-move-actions button").forEach(button => {
     button.addEventListener("click", () => {
       const action = button.dataset.action;
       const id = button.dataset.id;
+      const category = button.dataset.category;
 
+      if (action === "moveUp") moveMenuItemByButton(id, category, -1);
+      if (action === "moveDown") moveMenuItemByButton(id, category, 1);
       if (action === "edit") editItem(id);
       if (action === "toggle") toggleItem(id);
       if (action === "delete") deleteItem(id);

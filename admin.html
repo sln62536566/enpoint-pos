@@ -1,308 +1,113 @@
+<!--
+  恩點系統 v59-1
+  日期：2026-06-02
+  端別：菜單後台 admin.html
+  用途：分類管理器 + 菜單管理 + 不要項目
+-->
+
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<title>恩點系統｜菜單後台</title>
-
-<style>
-
-body{
-  margin:0;
-  font-family:sans-serif;
-  background:#f5f5f5;
-}
-
-header{
-  background:#222;
-  color:white;
-  padding:16px;
-  font-size:22px;
-  font-weight:bold;
-}
-
-.container{
-  padding:20px;
-}
-
-.card{
-  background:white;
-  border-radius:12px;
-  padding:20px;
-  margin-bottom:20px;
-  box-shadow:0 2px 8px rgba(0,0,0,0.08);
-}
-
-input{
-  width:100%;
-  padding:12px;
-  margin-top:10px;
-  box-sizing:border-box;
-  font-size:16px;
-}
-
-button{
-  margin-top:15px;
-  padding:12px 18px;
-  border:none;
-  border-radius:8px;
-  background:#222;
-  color:white;
-  cursor:pointer;
-  font-size:16px;
-}
-
-.menu-item{
-  border-bottom:1px solid #ddd;
-  padding:12px 0;
-}
-
-.menu-title{
-  font-size:18px;
-  font-weight:bold;
-}
-
-.menu-info{
-  color:#666;
-  margin-top:5px;
-}
-
-.delete-btn{
-  background:red;
-  margin-left:10px;
-}
-
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>恩點系統｜菜單後台</title>
+  <link rel="stylesheet" href="./css/style.css" />
 </head>
 
-<body>
+<body class="admin-page">
+  <header class="topbar admin-topbar">
+    <h1>恩點系統｜菜單後台</h1>
+    <p>v59-1 分類管理器｜分類、餐點、加料、必選、不要項目</p>
+  </header>
 
-<header>
-🍜 恩點系統｜菜單後台
-</header>
-
-<div class="container">
-
-  <!-- 新增菜單 -->
-  <div class="card">
-
-    <h2>新增餐點</h2>
-
-    <input type="text" id="menuName" placeholder="餐點名稱">
-
-    <input type="text" id="menuCategory" placeholder="分類">
-
-    <input type="number" id="menuPrice" placeholder="價格">
-
-    <button id="addMenuBtn">
-      新增餐點
-    </button>
-
-  </div>
-
-
-  <!-- 菜單列表 -->
-  <div class="card">
-
-    <h2>菜單列表</h2>
-
-    <div id="menuList"></div>
-
-  </div>
-
-</div>
-
-
-<script type="module">
-
-import {
-  listenMenus,
-  addMenuItem,
-  updateMenuItem,
-  deleteMenuItem,
-  toggleMenuStatus
-} from "./src/services/menuService.js";
-
-
-
-const menuList = document.getElementById("menuList");
-
-const addMenuBtn = document.getElementById("addMenuBtn");
-
-
-
-// ========================
-// 載入菜單
-// ========================
-function loadMenus(){
-
-  listenMenus((menus) => {
-
-    menuList.innerHTML = "";
-
-    const menuKeys = Object.keys(menus || {});
-
-    if(menuKeys.length === 0){
-
-      menuList.innerHTML = "目前沒有菜單";
-
-      return;
-    }
-
-    menuKeys.forEach(menuId => {
-
-      const item = menus[menuId];
-
-      const div = document.createElement("div");
-
-      div.className = "menu-item";
-
-      div.innerHTML = `
-        <div class="menu-title">
-          ${item.name}
+  <main class="admin-v57-layout">
+    <section class="admin-form-panel">
+      <div class="panel-title-row">
+        <div>
+          <h2>分類管理</h2>
+          <p>建立分類、排序、顯示或隱藏分類</p>
         </div>
+      </div>
 
-        <div class="menu-info">
-          分類：${item.category}
+      <label>新增分類</label>
+      <div class="admin-inline-form">
+        <input id="newCategoryName" type="text" placeholder="例如：鍋燒類" />
+        <button id="addCategoryBtn" class="primary-btn">新增</button>
+      </div>
+
+      <div class="sort-hint">
+        提示：分類可拖拉排序。隱藏分類後，POS / QR 不顯示該分類。
+      </div>
+
+      <div id="categoryManagerList" class="category-manager-list"></div>
+
+      <hr class="admin-divider" />
+
+      <div class="panel-title-row">
+        <div>
+          <h2 id="formTitle">新增餐點</h2>
+          <p>建立餐點、分類、圖片、必選、加料與不要項目</p>
         </div>
+      </div>
 
-        <div class="menu-info">
-          價格：$${item.price}
+      <label>餐點名稱</label>
+      <input id="itemName" type="text" placeholder="例如：鍋燒意麵" />
+
+      <label>分類</label>
+      <select id="itemCategory"></select>
+
+      <label>價格</label>
+      <input id="itemPrice" type="number" placeholder="例如：100" />
+
+      <label>圖片網址</label>
+      <input id="itemImage" type="text" placeholder="可先空白，之後可接圖片上傳" />
+
+      <label>餐點描述</label>
+      <textarea id="itemDescription" placeholder="例如：湯頭濃郁、份量充足，適合喜歡重口味的客人"></textarea>
+
+      <label>必選選項</label>
+      <div class="required-option-box">
+        <input id="requiredOptionTitle" type="text" placeholder="選項名稱，例如：湯底、甜度、冰量" />
+        <textarea id="requiredOptionChoices" placeholder="選項內容，用逗號分隔，例如：牛肉,肉骨,肉燥"></textarea>
+        <p class="form-help">留空代表此餐點沒有必選項目。</p>
+      </div>
+
+      <label>加料選項</label>
+      <div id="addonEditor" class="addon-editor"></div>
+      <button id="addAddonRowBtn" class="secondary-btn" type="button">＋ 新增加料</button>
+
+      <label>不要項目</label>
+      <div id="removeOptionEditor" class="addon-editor"></div>
+      <button id="addRemoveOptionRowBtn" class="secondary-btn" type="button">＋ 新增不要項目</button>
+      <p class="form-help">例如：不要蔥、不要香菜、不要胡椒。POS 點餐時會變成可直接點擊的按鈕。</p>
+
+      <div class="admin-form-actions">
+        <button id="addItemBtn" class="primary-btn">新增餐點</button>
+        <button id="cancelEditBtn" class="secondary-btn" type="button">取消編輯</button>
+      </div>
+    </section>
+
+    <section class="admin-menu-panel">
+      <div class="panel-title-row">
+        <div>
+          <h2>目前菜單</h2>
+          <p>可拖拉餐點調整同分類內顯示順序</p>
         </div>
-        
-        <div class="menu-info">
-          狀態：${item.enabled ? "🟢上架" : "🔴停售"}
-        </div>
-        
-        <button class="edit-btn" data-id="${menuId}">
-          編輯
-        </button>
-        
-        <button class="toggle-btn" data-id="${menuId}">
-          ${item.enabled ? "停用" : "啟用"}
-        </button>
+      </div>
 
-        <button class="delete-btn" data-id="${menuId}">
-          刪除
-        </button>
-      `;
+      <div class="admin-tools">
+        <input id="menuSearchInput" type="text" placeholder="搜尋餐點名稱或分類..." />
+        <div id="categoryFilterList" class="admin-filter-list"></div>
+      </div>
 
-const editBtn = div.querySelector(".edit-btn");
-const deleteBtn = div.querySelector(".delete-btn");
-const toggleBtn = div.querySelector(".toggle-btn");
+      <div class="sort-hint">
+        提示：餐點卡片可拖拉排序。分類排序請在左側「分類管理」操作。
+      </div>
 
+      <div id="menuList" class="admin-menu-list"></div>
+    </section>
+  </main>
 
-
-// ========================
-// 啟用 / 停用
-// ========================
-toggleBtn.addEventListener("click", async () => {
-
-  await toggleMenuStatus(menuId, item.enabled);
-
-});
-
-
-
-
-// ========================
-// 編輯
-// ========================
-editBtn.addEventListener("click", async () => {
-
-  const newName = prompt("新的餐點名稱", item.name);
-
-  if(newName === null) return;
-
-  const newCategory = prompt("新的分類", item.category);
-
-  if(newCategory === null) return;
-
-  const newPrice = prompt("新的價格", item.price);
-
-  if(newPrice === null) return;
-
-
-  await updateMenuItem(menuId, {
-    name: newName,
-    category: newCategory,
-    price: Number(newPrice)
-  });
-
-});
-
-
-
-// ========================
-// 刪除
-// ========================
-deleteBtn.addEventListener("click", async () => {
-
-  const ok = confirm("確定刪除？");
-
-  if(!ok) return;
-
-  await deleteMenuItem(menuId);
-
-});
-
-
-
-menuList.appendChild(div);
-
-    });
-
-  });
-
-}
-
-
-
-// ========================
-// 新增菜單
-// ========================
-addMenuBtn.addEventListener("click", async () => {
-
-  const name = document.getElementById("menuName").value;
-
-  const category = document.getElementById("menuCategory").value;
-
-  const price = document.getElementById("menuPrice").value;
-
-
-  if(!name || !category || !price){
-
-    alert("請填寫完整");
-
-    return;
-  }
-
-
-  await addMenuItem({
-    name,
-    category,
-    price
-  });
-
-
-  document.getElementById("menuName").value = "";
-
-  document.getElementById("menuCategory").value = "";
-
-  document.getElementById("menuPrice").value = "";
-
-
-  
-
-});
-
-
-
-// 啟動
-loadMenus();
-
-</script>
-
+  <script type="module" src="./js/admin.js"></script>
 </body>
 </html>

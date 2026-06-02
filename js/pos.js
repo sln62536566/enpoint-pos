@@ -21,17 +21,6 @@ window.posOpenFoodById = function (itemId, event) {
     if (event.stopPropagation) event.stopPropagation();
   }
   if (!itemId) return false;
-
-  var now = Date.now ? Date.now() : new Date().getTime();
-  if (lastFoodOpenId === String(itemId) && now - lastFoodOpenAt < 900) {
-    return false;
-  }
-  if (typeof customModal !== "undefined" && customModal && (" " + (customModal.className || "") + " ").indexOf(" hidden ") === -1) {
-    return false;
-  }
-  lastFoodOpenId = String(itemId);
-  lastFoodOpenAt = now;
-
   try {
     openCustomModal(String(itemId));
     if (typeof customModal !== "undefined" && customModal) {
@@ -174,8 +163,6 @@ let editSelectedRequiredOption = "";
 let editQuantity = 1;
 
 let businessDayCloseData = null;
-let lastFoodOpenAt = 0;
-let lastFoodOpenId = "";
 
 const tables = ["1", "2", "3", "4", "5", "6", "7", "8"];
 
@@ -867,7 +854,7 @@ function renderPosFoodButton(item) {
   var displayName = item.name || "未命名餐點";
 
   return `
-    <button type="button" class="pos-food-btn pos-food-real-btn" data-id="${item.id}">
+    <button type="button" class="pos-food-btn pos-food-real-btn" data-id="${item.id}" onclick="return window.posOpenFoodById('${safeId}', event)" ontouchend="return window.posOpenFoodById('${safeId}', event)">
       <div class="food-img">
         ${imageUrl ? `<img src="${imageUrl}" alt="${displayName}">` : `<span>恩點</span>`}
       </div>
@@ -885,6 +872,10 @@ function bindPosLegacySelectButtons() {
   var buttons = document.querySelectorAll ? document.querySelectorAll('.pos-select-food-btn, .pos-food-real-btn') : [];
   for (var i = 0; i < buttons.length; i++) {
     buttons[i].onclick = function(event) {
+      var id = this.getAttribute('data-id');
+      return window.posOpenFoodById(id, event);
+    };
+    buttons[i].ontouchend = function(event) {
       var id = this.getAttribute('data-id');
       return window.posOpenFoodById(id, event);
     };
@@ -2259,7 +2250,7 @@ if (posMenuList) {
     if (!touch) return;
     var dx = Math.abs((touch.clientX || 0) - posFoodTouchStartX);
     var dy = Math.abs((touch.clientY || 0) - posFoodTouchStartY);
-    if (dx > 16 || dy > 16) posFoodTouchMoved = true;
+    if (dx > 8 || dy > 8) posFoodTouchMoved = true;
   }, true);
 
   posMenuList.addEventListener("touchend", function (event) {
@@ -2272,7 +2263,7 @@ if (posMenuList) {
     var itemId = button.getAttribute("data-id");
     if (!itemId) return;
     event.preventDefault && event.preventDefault();
-    window.posOpenFoodById(itemId, event);
+    openCustomModal(itemId);
   }, true);
 
   posMenuList.addEventListener("click", function (event) {
@@ -2280,7 +2271,7 @@ if (posMenuList) {
     if (!button) return;
     var itemId = button.getAttribute("data-id");
     if (!itemId) return;
-    window.posOpenFoodById(itemId, event);
+    openCustomModal(itemId);
   }, true);
 }
 

@@ -1583,3 +1583,53 @@ textarea.input {
 }
 
 .remove-option-row{grid-template-columns:1fr 70px !important;}
+
+
+/* =========================
+   v59-2 KDS 與後台排序按鈕
+========================= */
+.admin-move-actions{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+  margin-top:8px;
+}
+.admin-move-actions button,
+.row-move-btn{
+  border:none;
+  background:#f3f0ea;
+  color:#514538;
+  border:1px solid #ded6ca;
+  padding:9px 8px;
+  border-radius:10px;
+  cursor:pointer;
+  font-weight:900;
+}
+.addon-row{
+  align-items:center;
+}
+.addon-move-actions{
+  display:flex;
+  gap:6px;
+}
+.addon-move-actions button{
+  min-width:42px;
+}
+.remove-option-row{
+  grid-template-columns:1fr 110px 70px !important;
+}
+.kitchen-card-header h2{
+  color:#ffffff !important;
+}
+.kitchen-card.confirmed .status-badge{
+  background:#ffedd5 !important;
+  color:#c2410c !important;
+}
+.kitchen-card.cooking .status-badge{
+  background:#dbeafe !important;
+  color:#1d4ed8 !important;
+}
+@media (max-width:520px){
+  .remove-option-row{grid-template-columns:1fr !important;}
+  .addon-move-actions{display:grid;grid-template-columns:1fr 1fr;}
+}
