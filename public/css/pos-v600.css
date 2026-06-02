@@ -3483,3 +3483,23 @@ html body .pos-tabs .tab-btn.active,
     background: #fffaf2 !important;
   }
 }
+
+
+/* =========================
+   v600-1 底部按鈕往上微調
+========================= */
+
+.cart-footer,
+.cart-actions,
+.pos-cart-footer {
+  padding-bottom: 18px !important;
+}
+
+.cart-actions {
+  margin-bottom: 12px !important;
+}
+
+.create-order-btn,
+.clear-cart-btn {
+  margin-bottom: 6px !important;
+}
