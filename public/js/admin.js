@@ -34,6 +34,9 @@ const addItemBtn = document.getElementById("addItemBtn");
 const cancelEditBtn = document.getElementById("cancelEditBtn");
 const formTitle = document.getElementById("formTitle");
 
+const sizeEditor = document.getElementById("sizeEditor");
+const addSizeRowBtn = document.getElementById("addSizeRowBtn");
+
 const addonEditor = document.getElementById("addonEditor");
 const addAddonRowBtn = document.getElementById("addAddonRowBtn");
 const removeOptionEditor = document.getElementById("removeOptionEditor");
@@ -59,6 +62,7 @@ let draggedCategoryId = null;
 let draggedItemId = null;
 let draggedItemCategory = null;
 
+let sizeRows = [];
 let addonRows = [];
 let removeOptionRows = [];
 
@@ -215,6 +219,82 @@ function renderImagePreview(url) {
     return;
   }
   imagePreviewBox.innerHTML = `<img src="${escapeHtml(url)}" alt="餐點圖片預覽">`;
+}
+
+
+/* =========================
+   份量 UI 編輯器
+========================= */
+
+function renderSizeEditor() {
+  if (!sizeEditor) return;
+
+  if (sizeRows.length === 0) {
+    sizeEditor.innerHTML = `<div class="empty small-empty">尚未設定份量，系統會使用上方價格作為「一般」。</div>`;
+    return;
+  }
+
+  sizeEditor.innerHTML = sizeRows.map((size, index) => `
+    <div class="addon-row size-row">
+      <input type="text" placeholder="份量名稱，例如：小份 / 大份" value="${escapeHtml(size.name || "")}" data-index="${index}" data-field="name" />
+      <input type="number" placeholder="價格" value="${Number(size.price || 0)}" data-index="${index}" data-field="price" />
+      <div class="addon-move-actions">
+        <button class="row-move-btn" type="button" data-action="up" data-index="${index}">上移</button>
+        <button class="row-move-btn" type="button" data-action="down" data-index="${index}">下移</button>
+      </div>
+      <button class="danger-btn" type="button" data-action="delete" data-index="${index}">刪除</button>
+    </div>
+  `).join("");
+
+  sizeEditor.querySelectorAll("input").forEach(input => {
+    input.addEventListener("input", () => {
+      const index = Number(input.dataset.index);
+      const field = input.dataset.field;
+      if (!sizeRows[index]) return;
+      if (field === "name") sizeRows[index].name = input.value;
+      if (field === "price") sizeRows[index].price = Number(input.value || 0);
+    });
+  });
+
+  sizeEditor.querySelectorAll("button").forEach(button => {
+    button.addEventListener("click", () => {
+      const index = Number(button.dataset.index);
+      const action = button.dataset.action;
+      if (action === "up") moveSizeRow(index, -1);
+      if (action === "down") moveSizeRow(index, 1);
+      if (action === "delete") { sizeRows.splice(index, 1); renderSizeEditor(); }
+    });
+  });
+}
+
+function addSizeRow() {
+  sizeRows.push({ name: "", price: Number(itemPrice && itemPrice.value ? itemPrice.value : 0) });
+  renderSizeEditor();
+}
+
+function moveSizeRow(index, direction) {
+  if (moveArrayItem(sizeRows, index, direction)) renderSizeEditor();
+}
+
+function getSizesFromRows() {
+  const sizes = {};
+  sizeRows.forEach(size => {
+    const name = String(size.name || "").trim();
+    const price = Number(size.price || 0);
+    if (!name) return;
+    if (Number.isNaN(price) || price <= 0) return;
+    sizes[name] = price;
+  });
+  return sizes;
+}
+
+function setSizeRowsFromSizes(sizes = {}) {
+  if (sizes && typeof sizes === "object" && !Array.isArray(sizes)) {
+    sizeRows = Object.entries(sizes).map(([name, price]) => ({ name, price: Number(price || 0) }));
+  } else {
+    sizeRows = [];
+  }
+  renderSizeEditor();
 }
 
 /* =========================
@@ -793,8 +873,10 @@ function resetForm() {
   if (itemDescription) itemDescription.value = "";
   setRequiredOptionToForm(null);
 
+  sizeRows = [];
   addonRows = [];
   removeOptionRows = [];
+  renderSizeEditor();
   renderAddonEditor();
   renderRemoveOptionEditor();
 
@@ -833,6 +915,7 @@ async function saveItem() {
   let image = itemImage.value.trim();
   const description = itemDescription ? itemDescription.value.trim() : "";
   const options = getOptionsFromAddonRows();
+  const sizes = getSizesFromRows();
   const removeOptions = getRemoveOptionsFromRows();
   const requiredOption = getRequiredOptionFromForm();
 
@@ -868,6 +951,7 @@ async function saveItem() {
       category,
       price,
       image,
+      sizes,
       description,
       options,
       removeOptions,
@@ -943,6 +1027,7 @@ function editItem(id) {
   }
 
   setRequiredOptionToForm(item.requiredOption || null);
+  setSizeRowsFromSizes(item.sizes || {});
   setAddonRowsFromOptions(item.options || {});
   setRemoveOptionRows(item.removeOptions || []);
 
@@ -1129,6 +1214,7 @@ function renderMenu() {
     renderCategoryManager();
     renderCategorySelect();
     renderCategoryFilters();
+    renderSizeEditor();
     renderAddonEditor();
     renderRemoveOptionEditor();
     return;
@@ -1164,6 +1250,7 @@ function renderMenu() {
   renderCategoryManager();
   renderCategorySelect();
   renderCategoryFilters();
+  renderSizeEditor();
   renderAddonEditor();
 }
 
@@ -1175,6 +1262,11 @@ function renderMenuCard(item, category) {
   const requiredOptionText = item.requiredOption && item.requiredOption.title
     ? `${item.requiredOption.title}：${(item.requiredOption.options || []).join("、")}`
     : "無必選項目";
+
+  const sizesText =
+    item.sizes && Object.keys(item.sizes).length > 0
+      ? Object.entries(item.sizes).map(([name, price]) => `${name} ${money(price)}`).join("、")
+      : "一般：" + money(item.price || 0);
 
   const optionsText =
     item.options && Object.keys(item.options).length > 0
@@ -1215,6 +1307,10 @@ function renderMenuCard(item, category) {
 
         <div class="admin-description">
           ${escapeHtml(descriptionText)}
+        </div>
+
+        <div class="admin-options">
+          份量：${escapeHtml(sizesText)}
         </div>
 
         <div class="admin-required-option">
@@ -1319,6 +1415,10 @@ newCategoryName.addEventListener("keydown", event => {
     addCategory();
   }
 });
+
+if (addSizeRowBtn) {
+  addSizeRowBtn.addEventListener("click", addSizeRow);
+}
 
 if (addAddonRowBtn) {
   addAddonRowBtn.addEventListener("click", addAddonRow);

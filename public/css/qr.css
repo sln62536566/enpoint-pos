@@ -2232,3 +2232,56 @@ body.qr-page.qr-tab-order #topOrderPanel{
 .qr-progress-step.active span,.qr-progress-step.done span{background:#ff9800;color:#fff;}
 .qr-progress-step.done span{background:#2e7d32;}
 @media(max-width:520px){.qr-big-order-number strong{font-size:44px}.qr-status-card{align-items:flex-start}.qr-progress-step p{font-size:12px}}
+
+
+/* =========================
+   v61-5 QR 手機防誤觸 + 餐點視窗圖片
+========================= */
+.menu-card {
+  touch-action: pan-y;
+  -webkit-tap-highlight-color: rgba(255, 152, 0, 0.18);
+}
+
+.menu-card * {
+  pointer-events: none;
+}
+
+.qr-modal-food-image {
+  width: 100%;
+  height: 190px;
+  border-radius: 20px;
+  overflow: hidden;
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, #ffcc80, #ffe0b2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.qr-modal-food-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.qr-modal-no-image {
+  width: 84px;
+  height: 84px;
+  border-radius: 24px;
+  background: rgba(255,255,255,0.78);
+  color: #b45f00;
+  font-size: 24px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 520px) {
+  .qr-modal-food-image {
+    height: 150px;
+    border-radius: 16px;
+    margin-bottom: 12px;
+  }
+}

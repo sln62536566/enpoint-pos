@@ -384,7 +384,7 @@ function renderMenuCard(item) {
   const requiredOption = getRequiredOption(item);
 
   return `
-  <button type="button" class="menu-card" data-id="${item.id}" onclick="return window.qrOpenMenuItem(this,event)" ontouchend="return window.qrOpenMenuItem(this,event)">
+  <button type="button" class="menu-card" data-id="${item.id}">
       <div class="menu-image">
         ${
           imageUrl
@@ -495,6 +495,27 @@ function renderMenu() {
   bindMenuCardEvents();
 }
 
+
+function renderQrModalFoodImage(item) {
+  if (!itemModal || !modalItemName) return;
+
+  var oldBox = document.getElementById("qrModalFoodImageBox");
+  if (oldBox && oldBox.parentNode) oldBox.parentNode.removeChild(oldBox);
+
+  var imageUrl = getImageUrl(item || {});
+  var box = document.createElement("div");
+  box.id = "qrModalFoodImageBox";
+  box.className = "qr-modal-food-image";
+
+  if (imageUrl) {
+    box.innerHTML = '<img src="' + imageUrl + '" alt="餐點圖片">';
+  } else {
+    box.innerHTML = '<div class="qr-modal-no-image">恩點</div>';
+  }
+
+  modalItemName.parentNode.insertBefore(box, modalItemName);
+}
+
 function openItemModal(item) {
   if (!item) {
     alert("找不到這個餐點");
@@ -525,6 +546,7 @@ function openItemModal(item) {
 
   modalItemName.textContent = item.name || "未命名餐點";
   modalItemPrice.textContent = "起價 " + money(getBasePrice(item));
+  renderQrModalFoodImage(item);
 
   itemModal.classList.remove("hidden");
   itemModal.classList.add("show-force");
@@ -1255,6 +1277,7 @@ loadMenu();
 var qrMenuTouchStartX = 0;
 var qrMenuTouchStartY = 0;
 var qrMenuTouchMoved = false;
+var qrLastTouchOpenAt = 0;
 
 menuList.addEventListener("touchstart", function (event) {
   var touch = event.touches && event.touches.length ? event.touches[0] : null;
@@ -1270,10 +1293,17 @@ menuList.addEventListener("touchmove", function (event) {
   if (!touch) return;
   var dx = Math.abs((touch.clientX || 0) - qrMenuTouchStartX);
   var dy = Math.abs((touch.clientY || 0) - qrMenuTouchStartY);
-  if (dx > 8 || dy > 8) qrMenuTouchMoved = true;
+  if (dx > 18 || dy > 18) qrMenuTouchMoved = true;
 }, true);
 
 menuList.addEventListener("click", function (event) {
+  var now = Date.now ? Date.now() : new Date().getTime();
+  if (now - qrLastTouchOpenAt < 900) {
+    if (event && event.preventDefault) event.preventDefault();
+    if (event && event.stopPropagation) event.stopPropagation();
+    return false;
+  }
+
   var target = event.target;
 
   while (target && target !== menuList) {
@@ -1300,6 +1330,7 @@ menuList.addEventListener("touchend", function (event) {
       event.preventDefault();
 
       var itemId = target.getAttribute("data-id");
+      qrLastTouchOpenAt = Date.now ? Date.now() : new Date().getTime();
       openItemModalById(itemId);
       return;
     }

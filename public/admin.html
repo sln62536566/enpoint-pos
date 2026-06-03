@@ -17,7 +17,7 @@
 <body class="admin-page">
   <header class="topbar admin-topbar">
     <h1>恩點系統｜菜單後台</h1>
-    <p>v61 分類、餐點、加料、必選、不要項目、圖片上傳</p>
+    <p>v61-5 分類、餐點、圖片、份量、加料、必選、不要項目</p>
   </header>
 
   <main class="admin-v57-layout">
@@ -46,7 +46,7 @@
       <div class="panel-title-row">
         <div>
           <h2 id="formTitle">新增餐點</h2>
-          <p>建立餐點、分類、圖片、必選、加料與不要項目</p>
+          <p>建立餐點、分類、圖片、份量、必選、加料與不要項目</p>
         </div>
       </div>
 
@@ -69,6 +69,11 @@
 
       <label>餐點描述</label>
       <textarea id="itemDescription" placeholder="例如：湯頭濃郁、份量充足，適合喜歡重口味的客人"></textarea>
+
+      <label>份量選項</label>
+      <div id="sizeEditor" class="addon-editor"></div>
+      <button id="addSizeRowBtn" class="secondary-btn" type="button">＋ 新增份量</button>
+      <p class="form-help">例如：小份 80、大份 100。留空時會使用上方價格作為「一般」。</p>
 
       <label>必選選項</label>
       <div class="required-option-box">

@@ -1655,3 +1655,11 @@ textarea.input {
   object-fit:cover;
   border-radius:14px;
 }
+
+
+/* =========================
+   v61-5 後台份量選項
+========================= */
+.size-row input:first-child {
+  min-width: 120px;
+}
