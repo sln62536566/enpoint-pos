@@ -192,11 +192,15 @@ function loadOrders() {
 
 async function setKitchenStatus(orderId, status) {
   try {
-    await update(ref(db, `orders/${orderId}`), {
+    const now = Date.now();
+    const updates = {
       status,
       kitchenStatus: status,
-      updatedAt: Date.now()
-    });
+      statusText: status === "cooking" ? "餐點製作中" : status,
+      updatedAt: now
+    };
+    if (status === "cooking") updates.cookingAt = now;
+    await update(ref(db, `orders/${orderId}`), updates);
   } catch (error) {
     console.error(error);
     alert("更新廚房狀態失敗");

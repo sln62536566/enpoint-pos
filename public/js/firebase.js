@@ -13,6 +13,13 @@ import {
   get
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
+import {
+  getStorage,
+  ref as storageRef,
+  uploadBytes,
+  getDownloadURL
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+
 // Firebase Config
 const firebaseConfig = {
   apiKey: "AIzaSyBz5ixYBa6q6yB4uObJNdUVqDuL8X4uyw0",
@@ -27,6 +34,7 @@ const firebaseConfig = {
 // 初始化
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
+const storage = getStorage(app);
 
 // ===== 營業日 =====
 function getBusinessDate() {
@@ -62,6 +70,7 @@ async function generateDailyOrderNumber() {
 
 export {
   db,
+  storage,
   ref,
   push,
   set,
@@ -69,6 +78,9 @@ export {
   remove,
   onValue,
   get,
+  storageRef,
+  uploadBytes,
+  getDownloadURL,
   getBusinessDate,
   generateDailyOrderNumber
 };

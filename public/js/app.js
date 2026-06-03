@@ -2879,3 +2879,147 @@ window.openLastQrOrderFromTop = openLastQrOrderFromTop;
   if (qrIsViewOrderMode && qrIsViewOrderMode()) showOrder(null);
   else showMenu(null);
 })();
+
+
+/* =====================================================
+   v61 QR 客人端流程可視化 final override
+   - 大訂單號
+   - 進度條
+   - 等待動畫
+   - 完成提示音 / 震動
+===================================================== */
+var qrLastNotifiedDoneOrderId = "";
+
+function getQrStatusMeta(order) {
+  if (!order) {
+    return { step: 1, key: "waiting", title: "等待櫃檯確認", message: "請至櫃檯結帳，店員確認後會安排製作。", icon: "🧾" };
+  }
+
+  if (order.status === "cancelled" || order.kitchenStatus === "cancelled" || order.cancelled === true) {
+    return { step: 0, key: "cancelled", title: "訂單已取消", message: "如有疑問請洽櫃檯。", icon: "⚠️" };
+  }
+
+  if (order.kitchenStatus === "done" || order.status === "done") {
+    return { step: 4, key: "done", title: "餐點已完成", message: "請至櫃檯取餐或等候送餐，謝謝您。", icon: "🎉" };
+  }
+
+  if (order.kitchenStatus === "cooking" || order.status === "cooking") {
+    return { step: 3, key: "cooking", title: "餐點製作中", message: "廚房正在為您準備餐點，請稍候。", icon: "👨‍🍳" };
+  }
+
+  if (order.kitchenStatus === "confirmed" || order.status === "confirmed" || order.paymentStatus === "paid" || order.paid === true) {
+    return { step: 2, key: "confirmed", title: "店家已確認訂單", message: "餐點已送至廚房，正在等待製作。", icon: "✅" };
+  }
+
+  return { step: 1, key: "waiting", title: "訂單已送出", message: "請至櫃檯確認付款，店員確認後會安排製作餐點。", icon: "🧾" };
+}
+
+function getOrderStatusText(order) {
+  var meta = getQrStatusMeta(order);
+  return meta.title + "｜" + meta.message;
+}
+
+function qrPlayDoneNotice(order) {
+  if (!order) return;
+  var orderId = order.id || order.orderNumber || "";
+  if (!orderId || qrLastNotifiedDoneOrderId === orderId) return;
+  qrLastNotifiedDoneOrderId = orderId;
+
+  try {
+    if (navigator && navigator.vibrate) navigator.vibrate([180, 80, 180]);
+  } catch (e) {}
+
+  try {
+    var AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    var ctx = new AudioCtx();
+    var oscillator = ctx.createOscillator();
+    var gain = ctx.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.value = 880;
+    oscillator.connect(gain);
+    gain.connect(ctx.destination);
+    gain.gain.setValueAtTime(0.001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
+    oscillator.start(ctx.currentTime);
+    oscillator.stop(ctx.currentTime + 0.5);
+  } catch (e) {}
+}
+
+function buildQrProgressHtml(order) {
+  var meta = getQrStatusMeta(order);
+  var labels = ["送出", "確認", "製作", "完成"];
+  var step = Number(meta.step || 0);
+
+  var stepsHtml = labels.map(function(label, index) {
+    var current = index + 1;
+    var cls = current < step ? "done" : (current === step ? "active" : "");
+    return '<div class="qr-progress-step ' + cls + '"><span>' + current + '</span><p>' + label + '</p></div>';
+  }).join('');
+
+  var percent = step <= 0 ? 0 : Math.min(100, (step - 1) / 3 * 100);
+
+  return '' +
+    '<div class="qr-status-card qr-status-' + meta.key + '">' +
+      '<div class="qr-status-icon">' + meta.icon + '</div>' +
+      '<div class="qr-status-main">' +
+        '<h3>' + meta.title + '</h3>' +
+        '<p>' + meta.message + '</p>' +
+        (meta.key !== "done" && meta.key !== "cancelled" ? '<div class="qr-waiting-dots"><i></i><i></i><i></i></div>' : '') +
+      '</div>' +
+    '</div>' +
+    '<div class="qr-progress-box">' +
+      '<div class="qr-progress-line"><div style="width:' + percent + '%"></div></div>' +
+      '<div class="qr-progress-steps">' + stepsHtml + '</div>' +
+    '</div>';
+}
+
+function buildQrOrderHtml(order) {
+  var itemsHtml = Array.isArray(order.items) ? order.items.map(function(item) {
+    var qty = item.qty || item.quantity || 1;
+    var subtotal = item.subtotal || (Number(item.price || item.unitPrice || 0) * Number(qty));
+    return '' +
+      '<div class="success-item">' +
+        '<div class="success-item-main">• ' + (item.name || '餐點') + ' × ' + qty + '</div>' +
+        '<div class="success-item-detail">' +
+          renderItemDetail(item) +
+          '<p>小計：' + money(subtotal) + '</p>' +
+        '</div>' +
+      '</div>';
+  }).join('') : '';
+
+  return '' +
+    buildQrProgressHtml(order) +
+    '<div class="qr-big-order-number">' +
+      '<span>您的訂單號</span>' +
+      '<strong>' + (order.orderNumber || order.id || '-') + '</strong>' +
+      '<p>請用此單號至櫃檯結帳 / 取餐</p>' +
+    '</div>' +
+    '<div class="success-time">時間：' + (order.createdAt ? new Date(order.createdAt).toLocaleString("zh-TW", { hour12: false }) : '-') + '</div>' +
+    '<div class="success-table">' + (order.type || 'QR 點餐') + (order.table ? '｜' + order.table + '桌' : '') + '</div>' +
+    itemsHtml +
+    '<div class="success-total">總計：' + money(order.total) + '</div>';
+}
+
+function showSuccessPage(order) {
+  orderPage.classList.add("hidden");
+  successPage.classList.remove("hidden");
+  successPage.style.display = "flex";
+
+  if (orderStatusBox) {
+    var meta = getQrStatusMeta(order);
+    orderStatusBox.textContent = meta.title + "｜" + meta.message;
+  }
+
+  var orderHtml = buildQrOrderHtml(order);
+
+  successContent.innerHTML = orderHtml;
+
+  if (topOrderContent) {
+    topOrderContent.innerHTML = orderHtml;
+  }
+
+  var metaNow = getQrStatusMeta(order);
+  if (metaNow.key === "done") qrPlayDoneNotice(order);
+}

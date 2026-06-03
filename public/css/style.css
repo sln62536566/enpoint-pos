@@ -1633,3 +1633,25 @@ textarea.input {
   .remove-option-row{grid-template-columns:1fr !important;}
   .addon-move-actions{display:grid;grid-template-columns:1fr 1fr;}
 }
+
+
+/* =========================
+   v61 後台圖片上傳預覽
+========================= */
+.admin-image-preview-box{
+  margin-top:10px;
+  min-height:48px;
+  border:1px dashed #d9bd93;
+  background:#fffdf9;
+  border-radius:16px;
+  padding:10px;
+  color:#8a6b45;
+  font-weight:800;
+}
+.admin-image-preview-box img{
+  display:block;
+  width:100%;
+  max-height:180px;
+  object-fit:cover;
+  border-radius:14px;
+}

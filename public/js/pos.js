@@ -1299,8 +1299,31 @@ async function submitOrder() {
     return;
   }
 
+  const total = calculateTotal(cart);
+  const orderNumberPreview = "系統送出後產生";
+  const itemsText = cart.map((item, index) => {
+    const extras = itemExtras(item);
+    const removes = itemRemoves(item);
+    const detail = [
+      item.size && item.size !== "一般" ? `份量：${item.size}` : "",
+      item.requiredOption ? `${item.requiredOption.title}：${item.requiredOption.value}` : "",
+      item.spicy ? `辣度：${item.spicy}` : "",
+      item.satay ? `沙茶：${item.satay}` : "",
+      extras.length ? `加料：${extras.map(extra => extra.name).join("、")}` : "",
+      removes.length ? `不要：${removes.join("、")}` : "",
+      item.note ? `備註：${item.note}` : ""
+    ].filter(Boolean).join("｜");
+
+    return `${index + 1}. ${item.name} × ${itemQty(item)}｜小計 ${money(itemSubtotal(item))}${detail ? `\n   ${detail}` : ""}`;
+  }).join("\n\n");
+
+  const checkoutText = `確認結帳並送出？\n\n類型：${currentOrderType}${currentOrderType === "內用" ? `｜${selectedTable}桌` : "｜外帶"}\n\n餐點：\n${itemsText}\n\n總計：${money(total)}\n\n確認已收款後，按「確定」會直接送廚房。`;
+
+  const ok = confirm(checkoutText);
+  if (!ok) return;
+
   submitOrderBtn.disabled = true;
-  submitOrderBtn.textContent = "建立中...";
+  submitOrderBtn.textContent = "送出中...";
 
   try {
     const newOrderRef = push(ordersRef);
@@ -1325,32 +1348,34 @@ async function submitOrder() {
       customerName: currentOrderType === "外帶" ? `外帶-${orderNumber}` : "",
       customerLabel,
       items: cart,
-      total: calculateTotal(cart),
-      status: "pending_payment",
-      statusText: "等待櫃檯確認付款",
-      paymentStatus: "unpaid",
-      kitchenStatus: "waiting",
-      confirmed: false,
-      paid: false,
+      total,
+      status: STORE_MODE === "pro" ? "cooking" : "confirmed",
+      statusText: STORE_MODE === "pro" ? "已結帳，餐點製作中" : "已結帳，已送廚房",
+      paymentStatus: "paid",
+      kitchenStatus: STORE_MODE === "pro" ? "not_required" : "confirmed",
+      confirmed: true,
+      paid: true,
       closed: false,
       cancelled: false,
+      paidAt: now,
+      sentToKitchenAt: STORE_MODE === "pro" ? null : now,
       createdAt: now,
       updatedAt: now
     };
 
     await set(newOrderRef, order);
 
-    alert(`已建立未結帳訂單：${customerLabel}`);
+    alert(`結帳完成，已送出：${customerLabel}\n單號：${orderNumber}`);
 
     cart = [];
     renderCart();
   } catch (error) {
-    console.error("建立訂單失敗：", error);
-    alert("建立訂單失敗");
+    console.error("結帳送出失敗：", error);
+    alert("結帳送出失敗");
   }
 
   submitOrderBtn.disabled = false;
-  submitOrderBtn.textContent = "建立未結帳訂單";
+  submitOrderBtn.textContent = "結帳";
 }
 
 /* =========================
@@ -2476,179 +2501,3 @@ window.posOpenFoodById = function (itemId, event) {
   }
   return false;
 };
-
-window.posOpenFood = function (button, event) {
-  var itemId = button && button.getAttribute ? button.getAttribute("data-id") : "";
-  return window.posOpenFoodById(itemId, event);
-};
-
-
-/* =========================
-   v59-5 POS capture fallback
-   舊 iPad 若 inline 沒吃到，從 document 捕捉餐點按鈕
-========================= */
-(function(){
-  if (typeof document === "undefined") return;
-  var sx = 0, sy = 0, moved = false;
-  function hasClass(el, name){ return el && (" " + (el.className || "") + " ").indexOf(" " + name + " ") !== -1; }
-  function findFood(el){
-    while(el && el !== document){
-      if (hasClass(el, "pos-select-food-btn")) return el;
-      el = el.parentNode;
-    }
-    return null;
-  }
-  document.addEventListener("touchstart", function(e){
-    var b = findFood(e.target || e.srcElement);
-    if (!b) return;
-    moved = false;
-    var t = e.touches && e.touches.length ? e.touches[0] : null;
-    if (t) { sx = t.clientX || 0; sy = t.clientY || 0; }
-  }, true);
-  document.addEventListener("touchmove", function(e){
-    var t = e.touches && e.touches.length ? e.touches[0] : null;
-    if (!t) return;
-    if (Math.abs((t.clientX||0)-sx) > 10 || Math.abs((t.clientY||0)-sy) > 10) moved = true;
-  }, true);
-  function openFromEvent(e){
-    var b = findFood(e.target || e.srcElement);
-    if (!b) return;
-    if (e.type === "touchend" && moved) { moved = false; return; }
-    var id = b.getAttribute("data-id");
-    if (!id) return;
-    if (e.preventDefault) e.preventDefault();
-    if (e.stopPropagation) e.stopPropagation();
-    window.posOpenFoodById(id, e);
-  }
-  document.addEventListener("touchend", openFromEvent, true);
-  document.addEventListener("click", openFromEvent, true);
-  document.addEventListener("mouseup", openFromEvent, true);
-})();
-
-
-window.selectSpicy = selectSpicy;
-window.selectEditSpicy = selectEditSpicy;
-window.toggleRemoveOption = toggleRemoveOption;
-window.toggleEditRemoveOption = toggleEditRemoveOption;
-
-
-/* =====================================================
-   v60 FINAL POS TOUCH GUARD
-   目的：舊平板滑動餐點區不誤開小視窗；電腦滑鼠仍可正常點餐。
-===================================================== */
-(function () {
-  if (typeof document === "undefined") return;
-
-  var touchStartX = 0;
-  var touchStartY = 0;
-  var touchMoved = false;
-  var lastTouchHandledAt = 0;
-  var lastOpenAt = 0;
-  var MOVE_LIMIT = 18;
-  var BLOCK_CLICK_AFTER_TOUCH = 900;
-  var OPEN_COOLDOWN = 1100;
-
-  function now() {
-    return Date.now ? Date.now() : new Date().getTime();
-  }
-
-  function hasClass(el, name) {
-    return el && (" " + (el.className || "") + " ").indexOf(" " + name + " ") !== -1;
-  }
-
-  function findFoodCard(el) {
-    while (el && el !== document) {
-      if (hasClass(el, "pos-food-real-btn") || hasClass(el, "pos-food-btn")) return el;
-      el = el.parentNode;
-    }
-    return null;
-  }
-
-  function stop(e) {
-    if (!e) return;
-    if (e.preventDefault) e.preventDefault();
-    if (e.stopPropagation) e.stopPropagation();
-    if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-  }
-
-  var originalOpen = window.posOpenFoodById;
-
-  window.posOpenFoodById = function (itemId, event) {
-    if (event) stop(event);
-    if (!itemId) return false;
-
-    var t = now();
-    if (t - lastOpenAt < OPEN_COOLDOWN) return false;
-
-    if (typeof customModal !== "undefined" && customModal) {
-      var cls = " " + (customModal.className || "") + " ";
-      if (cls.indexOf(" hidden ") === -1 && customModal.style.display !== "none") return false;
-    }
-
-    lastOpenAt = t;
-
-    try {
-      if (typeof openCustomModal === "function") {
-        openCustomModal(String(itemId));
-      } else if (typeof originalOpen === "function") {
-        originalOpen(String(itemId), null);
-      }
-      if (typeof customModal !== "undefined" && customModal) {
-        customModal.className = (customModal.className || "").replace(/\bhidden\b/g, "");
-        if ((" " + customModal.className + " ").indexOf(" show-force ") === -1) {
-          customModal.className += " show-force";
-        }
-        customModal.style.display = "flex";
-      }
-      if (typeof addPosModalOpenClass === "function") addPosModalOpenClass();
-      if (typeof resetPosCustomModalScroll === "function") resetPosCustomModalScroll();
-    } catch (error) {
-      alert("餐點視窗開啟失敗：" + (error && error.message ? error.message : error));
-    }
-    return false;
-  };
-
-  document.addEventListener("touchstart", function (e) {
-    var card = findFoodCard(e.target || e.srcElement);
-    if (!card) return;
-    var touch = e.touches && e.touches.length ? e.touches[0] : null;
-    if (!touch) return;
-    touchStartX = Number(touch.clientX || 0);
-    touchStartY = Number(touch.clientY || 0);
-    touchMoved = false;
-  }, true);
-
-  document.addEventListener("touchmove", function (e) {
-    var card = findFoodCard(e.target || e.srcElement);
-    if (!card) return;
-    var touch = e.touches && e.touches.length ? e.touches[0] : null;
-    if (!touch) return;
-    var dx = Math.abs(Number(touch.clientX || 0) - touchStartX);
-    var dy = Math.abs(Number(touch.clientY || 0) - touchStartY);
-    if (dx > MOVE_LIMIT || dy > MOVE_LIMIT) touchMoved = true;
-  }, true);
-
-  document.addEventListener("touchend", function (e) {
-    var card = findFoodCard(e.target || e.srcElement);
-    if (!card) return;
-    stop(e);
-    lastTouchHandledAt = now();
-    if (touchMoved) {
-      touchMoved = false;
-      return false;
-    }
-    var id = card.getAttribute("data-id");
-    if (!id) return false;
-    return window.posOpenFoodById(id, e);
-  }, true);
-
-  document.addEventListener("click", function (e) {
-    var card = findFoodCard(e.target || e.srcElement);
-    if (!card) return;
-    stop(e);
-    if (now() - lastTouchHandledAt < BLOCK_CLICK_AFTER_TOUCH) return false;
-    var id = card.getAttribute("data-id");
-    if (!id) return false;
-    return window.posOpenFoodById(id, e);
-  }, true);
-})();

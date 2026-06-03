@@ -13,13 +13,19 @@ import {
   set,
   update,
   remove,
-  onValue
+  onValue,
+  storage,
+  storageRef,
+  uploadBytes,
+  getDownloadURL
 } from "./firebase.js";
 
 const itemName = document.getElementById("itemName");
 const itemCategory = document.getElementById("itemCategory");
 const itemPrice = document.getElementById("itemPrice");
 const itemImage = document.getElementById("itemImage");
+const itemImageFile = document.getElementById("itemImageFile");
+const imagePreviewBox = document.getElementById("imagePreviewBox");
 const itemDescription = document.getElementById("itemDescription");
 const requiredOptionTitle = document.getElementById("requiredOptionTitle");
 const requiredOptionChoices = document.getElementById("requiredOptionChoices");
@@ -106,6 +112,41 @@ function setRequiredOptionToForm(requiredOption) {
   requiredOptionChoices.value = Array.isArray(requiredOption.options)
     ? requiredOption.options.join(",")
     : "";
+}
+
+
+async function uploadMenuImageIfNeeded() {
+  if (!itemImageFile || !itemImageFile.files || itemImageFile.files.length === 0) {
+    return itemImage.value.trim();
+  }
+
+  const file = itemImageFile.files[0];
+  const safeName = String(file.name || "menu-image").replace(/[^a-zA-Z0-9._-]/g, "_");
+  const path = `menuImages/${Date.now()}-${safeName}`;
+  const fileRef = storageRef(storage, path);
+
+  if (imagePreviewBox) {
+    imagePreviewBox.textContent = "圖片上傳中，請稍候...";
+  }
+
+  await uploadBytes(fileRef, file);
+  const url = await getDownloadURL(fileRef);
+  itemImage.value = url;
+
+  if (imagePreviewBox) {
+    imagePreviewBox.innerHTML = `<img src="${escapeHtml(url)}" alt="餐點圖片預覽">`;
+  }
+
+  return url;
+}
+
+function renderImagePreview(url) {
+  if (!imagePreviewBox) return;
+  if (!url) {
+    imagePreviewBox.innerHTML = "尚未選擇圖片";
+    return;
+  }
+  imagePreviewBox.innerHTML = `<img src="${escapeHtml(url)}" alt="餐點圖片預覽">`;
 }
 
 /* =========================
@@ -678,6 +719,8 @@ function resetForm() {
   itemName.value = "";
   itemPrice.value = "";
   itemImage.value = "";
+  if (itemImageFile) itemImageFile.value = "";
+  renderImagePreview("");
 
   if (itemDescription) itemDescription.value = "";
   setRequiredOptionToForm(null);
@@ -719,7 +762,7 @@ async function saveItem() {
   const name = itemName.value.trim();
   const category = itemCategory.value.trim();
   const price = Number(itemPrice.value);
-  const image = itemImage.value.trim();
+  let image = itemImage.value.trim();
   const description = itemDescription ? itemDescription.value.trim() : "";
   const options = getOptionsFromAddonRows();
   const removeOptions = getRemoveOptionsFromRows();
@@ -763,6 +806,9 @@ async function saveItem() {
 
   try {
     addItemBtn.disabled = true;
+    addItemBtn.textContent = "儲存中...";
+
+    image = await uploadMenuImageIfNeeded();
 
     if (!foundCategory) {
       const newCategoryRef = push(categoriesRef);
@@ -802,6 +848,7 @@ async function saveItem() {
     alert("儲存失敗，請看 Console");
   } finally {
     addItemBtn.disabled = false;
+    addItemBtn.textContent = editingId ? "更新餐點" : "新增餐點";
   }
 }
 
@@ -818,6 +865,8 @@ function editItem(id) {
   itemCategory.value = item.category || "";
   itemPrice.value = item.price || "";
   itemImage.value = item.image || "";
+  if (itemImageFile) itemImageFile.value = "";
+  renderImagePreview(item.image || "");
 
   if (itemDescription) {
     itemDescription.value = item.description || "";
@@ -1212,6 +1261,14 @@ if (addRemoveOptionRowBtn) {
 addItemBtn.addEventListener("click", saveItem);
 cancelEditBtn.addEventListener("click", resetForm);
 menuSearchInput.addEventListener("input", renderMenu);
+
+if (itemImageFile) {
+  itemImageFile.addEventListener("change", function() {
+    if (itemImageFile.files && itemImageFile.files[0]) {
+      try { renderImagePreview(URL.createObjectURL(itemImageFile.files[0])); } catch(e) {}
+    }
+  });
+}
 
 resetForm();
 
