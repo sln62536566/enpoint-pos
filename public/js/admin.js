@@ -129,7 +129,7 @@ async function compressImageFileToDataUrl(file) {
 
         img.onload = function() {
           try {
-            var maxSize = 900;
+            var maxSize = 700;
             var width = img.width || maxSize;
             var height = img.height || maxSize;
 
@@ -148,7 +148,7 @@ async function compressImageFileToDataUrl(file) {
             var ctx = canvas.getContext("2d");
             ctx.drawImage(img, 0, 0, width, height);
 
-            var dataUrl = canvas.toDataURL("image/jpeg", 0.72);
+            var dataUrl = canvas.toDataURL("image/jpeg", 0.62);
             resolve(dataUrl || originalDataUrl);
           } catch (canvasError) {
             resolve(originalDataUrl);
@@ -185,44 +185,26 @@ async function uploadMenuImageIfNeeded() {
     return itemImage.value.trim();
   }
 
+  // v61-3：先用相容模式存圖片，避免 Firebase Storage 權限未開時卡在「上傳中」。
   if (imagePreviewBox) {
-    imagePreviewBox.textContent = "圖片處理中，請稍候...";
+    imagePreviewBox.textContent = "圖片壓縮中，請稍候...";
   }
 
-  // v61-2：先嘗試 Firebase Storage；如果 Storage 規則尚未開啟，改用壓縮後 Data URL 寫進 Realtime Database。
   try {
-    const safeName = String(file.name || "menu-image").replace(/[^a-zA-Z0-9._-]/g, "_");
-    const path = `menuImages/${Date.now()}-${safeName}`;
-    const fileRef = storageRef(storage, path);
+    const dataUrl = await compressImageFileToDataUrl(file);
+    if (!dataUrl) throw new Error("圖片轉換失敗");
 
-    await uploadBytes(fileRef, file);
-    const url = await getDownloadURL(fileRef);
-    itemImage.value = url;
+    itemImage.value = dataUrl;
 
     if (imagePreviewBox) {
-      imagePreviewBox.innerHTML = `<img src="${escapeHtml(url)}" alt="餐點圖片預覽">`;
+      imagePreviewBox.innerHTML = `<img src="${escapeHtml(dataUrl)}" alt="餐點圖片預覽"><p class="form-help">已使用相容模式儲存圖片。</p>`;
     }
 
-    return url;
-  } catch (storageError) {
-    console.warn("Firebase Storage 上傳失敗，改用壓縮圖片寫入資料庫：", storageError);
-
-    try {
-      const dataUrl = await compressImageFileToDataUrl(file);
-      if (!dataUrl) throw new Error("圖片轉換失敗");
-
-      itemImage.value = dataUrl;
-
-      if (imagePreviewBox) {
-        imagePreviewBox.innerHTML = `<img src="${escapeHtml(dataUrl)}" alt="餐點圖片預覽"><p class="form-help">已使用相容模式儲存圖片。</p>`;
-      }
-
-      return dataUrl;
-    } catch (fallbackError) {
-      console.error("圖片相容模式也失敗：", fallbackError);
-      alert("圖片上傳失敗。請先改用圖片網址，或稍後檢查 Firebase Storage 權限。\n\n錯誤：" + (storageError && storageError.message ? storageError.message : storageError));
-      return itemImage.value.trim();
-    }
+    return dataUrl;
+  } catch (fallbackError) {
+    console.error("圖片相容模式失敗：", fallbackError);
+    alert("圖片處理失敗，請先改用圖片網址，或換一張較小的圖片。\n\n錯誤：" + (fallbackError && fallbackError.message ? fallbackError.message : fallbackError));
+    return itemImage.value.trim();
   }
 }
 

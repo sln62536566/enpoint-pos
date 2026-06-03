@@ -47,7 +47,7 @@ function saveQrLastOrderId(orderId) {
 
 function clearQrLastOrderId() {
   try {
-    clearQrLastOrderId();
+    localStorage.removeItem(LAST_ORDER_KEY);
     localStorage.removeItem(LAST_ORDER_TIME_KEY);
   } catch (e) {}
 }
@@ -3095,4 +3095,80 @@ function showSuccessPage(order) {
   window.qrForceMenuVisible = forceQrMenuVisible;
   try { setTimeout(forceQrMenuVisible, 300); } catch(e) {}
   try { setTimeout(forceQrMenuVisible, 1000); } catch(e) {}
+})();
+
+
+/* =====================================================
+   v61-3 QR final hotfix
+   目的：修手機/電腦菜單空白、強制點餐頁顯示菜單、查看訂單不影響點餐。
+===================================================== */
+(function(){
+  function hasClass(el, name){ return el && (" " + (el.className || "") + " ").indexOf(" " + name + " ") >= 0; }
+  function addClass(el, name){ if (el && !hasClass(el, name)) el.className = (el.className ? el.className + " " : "") + name; }
+  function removeClass(el, name){ if (el) el.className = String(el.className || "").replace(new RegExp("\\b" + name + "\\b", "g"), "").replace(/\s+/g, " "); }
+  function isViewMode(){ try { return String(window.location.search || "").indexOf("view=last") >= 0; } catch(e){ return false; } }
+
+  function showMenuFinal(e){
+    if (e) { if (e.preventDefault) e.preventDefault(); if (e.stopPropagation) e.stopPropagation(); }
+    if (document && document.body) {
+      removeClass(document.body, "qr-tab-order");
+      addClass(document.body, "qr-tab-menu");
+    }
+    if (orderPage) { removeClass(orderPage, "hidden"); orderPage.style.display = "block"; }
+    if (successPage) { addClass(successPage, "hidden"); successPage.style.display = "none"; }
+    if (topOrderPanel) { addClass(topOrderPanel, "hidden"); topOrderPanel.style.display = "none"; }
+    if (floatingCartBtn) floatingCartBtn.style.display = "block";
+    var orderTab = document.getElementById("qrOrderTabLink");
+    var viewTab = document.getElementById("qrViewOrderPlainLink");
+    addClass(orderTab, "active");
+    removeClass(viewTab, "active");
+    try { renderCategories(); renderMenu(); } catch(err) { console.error("QR v61-3 rerender failed", err); }
+    return false;
+  }
+
+  function showOrderFinal(e){
+    if (e) { if (e.preventDefault) e.preventDefault(); if (e.stopPropagation) e.stopPropagation(); }
+    if (document && document.body) {
+      removeClass(document.body, "qr-tab-menu");
+      addClass(document.body, "qr-tab-order");
+    }
+    if (orderPage) { addClass(orderPage, "hidden"); orderPage.style.display = "none"; }
+    if (successPage) { addClass(successPage, "hidden"); successPage.style.display = "none"; }
+    if (floatingCartBtn) floatingCartBtn.style.display = "none";
+    if (topOrderPanel) { removeClass(topOrderPanel, "hidden"); topOrderPanel.style.display = "block"; }
+    var orderTab = document.getElementById("qrOrderTabLink");
+    var viewTab = document.getElementById("qrViewOrderPlainLink");
+    removeClass(orderTab, "active");
+    addClass(viewTab, "active");
+    try {
+      var id = getValidQrLastOrderId ? getValidQrLastOrderId() : "";
+      if (!id) {
+        if (topOrderContent) topOrderContent.innerHTML = '<div class="empty">目前沒有可查詢的訂單，或上一筆訂單已超過 60 分鐘，請重新點餐。</div>';
+        return false;
+      }
+      onValue(ref(db, "orders/" + id), function(snapshot){
+        var order = snapshot.val();
+        if (!order) {
+          clearQrLastOrderId && clearQrLastOrderId();
+          if (topOrderContent) topOrderContent.innerHTML = '<div class="empty">找不到剛剛的訂單，請重新點餐。</div>';
+          return;
+        }
+        var full = Object.assign({ id: id }, order);
+        if (topOrderContent) topOrderContent.innerHTML = buildQrOrderHtml(full);
+        if (orderStatusBox) orderStatusBox.textContent = "狀態：" + getOrderStatusText(full);
+      });
+    } catch(err) {
+      if (topOrderContent) topOrderContent.innerHTML = '<div class="empty">讀取訂單失敗，請重新整理。</div>';
+    }
+    return false;
+  }
+
+  window.qrShowMenuTab = showMenuFinal;
+  window.qrShowOrderTab = showOrderFinal;
+  var orderTab = document.getElementById("qrOrderTabLink");
+  var viewTab = document.getElementById("qrViewOrderPlainLink");
+  if (orderTab) { orderTab.href = "javascript:void(0)"; orderTab.onclick = showMenuFinal; orderTab.ontouchend = showMenuFinal; }
+  if (viewTab) { viewTab.href = "javascript:void(0)"; viewTab.onclick = showOrderFinal; viewTab.ontouchend = showOrderFinal; }
+  setTimeout(function(){ if (isViewMode()) showOrderFinal(null); else showMenuFinal(null); }, 50);
+  setTimeout(function(){ if (!isViewMode()) showMenuFinal(null); }, 500);
 })();
