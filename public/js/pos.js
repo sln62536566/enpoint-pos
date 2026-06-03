@@ -162,6 +162,7 @@ let selectedRequiredOption = "";
 
 let editingOrderId = null;
 let editingItems = [];
+let editingCartId = null;
 
 let editingItemIndex = null;
 let editingItemData = null;
@@ -1034,6 +1035,8 @@ function closeCustomModal() {
   removePosModalOpenClass();
 
   currentItem = null;
+  editingCartId = null;
+  if (confirmCustomBtn) confirmCustomBtn.textContent = "加入訂單";
   currentQuantity = 1;
   selectedPortion = null;
   selectedExtras = [];
@@ -1202,8 +1205,8 @@ confirmCustomBtn.addEventListener("click", () => {
   const unitPrice = basePrice + extrasTotal;
   const subtotal = unitPrice * currentQuantity;
 
-  cart.push({
-    cartId: Date.now().toString() + Math.random().toString(36).slice(2),
+  const nextCartItem = {
+    cartId: editingCartId || (Date.now().toString() + Math.random().toString(36).slice(2)),
     id: currentItem.id,
     itemId: currentItem.id,
     name: currentItem.name,
@@ -1228,7 +1231,17 @@ confirmCustomBtn.addEventListener("click", () => {
     removeOptionsSelected: selectedRemoves,
     note: noteInput.value.trim(),
     subtotal
-  });
+  };
+
+  if (editingCartId) {
+    const editIndex = cart.findIndex(item => String(item.cartId) === String(editingCartId));
+    if (editIndex >= 0) cart[editIndex] = nextCartItem;
+    else cart.push(nextCartItem);
+    editingCartId = null;
+    confirmCustomBtn.textContent = "加入訂單";
+  } else {
+    cart.push(nextCartItem);
+  }
 
   renderCart();
   closeCustomModal();
@@ -1245,7 +1258,7 @@ function renderCart() {
     return;
   }
 
-  cartList.innerHTML = cart.map(item => {
+  cartList.innerHTML = cart.map((item, index) => {
     const extras = itemExtras(item);
     const removes = itemRemoves(item);
 
@@ -1266,7 +1279,10 @@ function renderCart() {
           </div>
         </div>
 
-        <button class="danger-btn" onclick="removeFromCart('${item.cartId}')">刪除</button>
+        <div class="cart-item-actions">
+          <button class="secondary-btn" type="button" onclick="openCartItemEditModal(${index})">修改</button>
+          <button class="danger-btn" type="button" onclick="removeFromCart('${item.cartId}')">刪除</button>
+        </div>
       </div>
     `;
   }).join("");
@@ -1279,6 +1295,45 @@ function removeFromCart(cartId) {
   renderCart();
 }
 
+function openCartItemEditModal(index) {
+  const cartItem = cart[Number(index)];
+  if (!cartItem) return;
+
+  const menuItem = getMenuItemByOrderItem(cartItem);
+  if (!menuItem) {
+    alert("找不到原始餐點資料，無法修改");
+    return;
+  }
+
+  editingCartId = cartItem.cartId;
+  openCustomModal(menuItem.id || cartItem.itemId || cartItem.id);
+
+  currentQuantity = itemQty(cartItem);
+  modalQuantity.textContent = currentQuantity;
+  selectedExtras = itemExtras(cartItem).map(extra => ({ name: extra.name, price: Number(extra.price || 0) }));
+  selectedRemoves = itemRemoves(cartItem).slice();
+  selectedSatay = cartItem.satay || "不要";
+  selectedRequiredOption = cartItem.requiredOption ? cartItem.requiredOption.value : "";
+  noteInput.value = cartItem.note || "";
+
+  const portions = getPortionOptions(currentItem);
+  const matchedPortion = portions.find(option => option.name === cartItem.size);
+  selectedPortion = matchedPortion || { name: cartItem.size || "一般", price: Number(cartItem.basePrice || cartItem.unitPrice || cartItem.price || 0) };
+
+  if (allowSpicy(currentItem)) {
+    spicySelect.value = cartItem.spicy || "不辣";
+  }
+
+  renderPortionOptions();
+  renderSatayOptions();
+  renderRequiredOptionBox();
+  renderExtrasOptions();
+  renderRemoveOptions();
+  renderSpicyButtons(spicySelect, "spicyChipBox", spicySelect.value, !spicySelect.disabled, "selectSpicy");
+
+  if (confirmCustomBtn) confirmCustomBtn.textContent = "更新餐點";
+}
+
 function clearCart() {
   cart = [];
   renderCart();
@@ -1289,6 +1344,7 @@ function clearCart() {
 ========================= */
 
 async function submitOrder() {
+  if (submitOrderBtn && submitOrderBtn.disabled) return;
   if (cart.length === 0) {
     alert("請先加入餐點");
     return;
@@ -2367,7 +2423,11 @@ if (posMenuList) {
    Events / Window
 ========================= */
 
-submitOrderBtn.addEventListener("click", submitOrder);
+submitOrderBtn.addEventListener("click", function(event) {
+  if (event && event.preventDefault) event.preventDefault();
+  if (event && event.stopPropagation) event.stopPropagation();
+  submitOrder();
+}, true);
 clearCartBtn.addEventListener("click", clearCart);
 
 if (closeBusinessDayBtn) {
@@ -2408,6 +2468,7 @@ window.selectTable = selectTable;
   }
 
   function routeLegacyControl(event) {
+    if (event && event.defaultPrevented) return;
     var target = event.target || event.srcElement;
     var button = closestButton(target);
     if (!button) return;
@@ -2418,6 +2479,7 @@ window.selectTable = selectTable;
     if (event.type === "touchend") lastTouchAt = new Date().getTime();
 
     if (id === "submitOrderBtn" && typeof window.submitOrder === "function") {
+      if (button.disabled) return false;
       event.preventDefault && event.preventDefault();
       window.submitOrder();
       return false;
@@ -2441,6 +2503,7 @@ window.selectPortion = selectPortion;
 window.selectSatay = selectSatay;
 window.toggleExtra = toggleExtra;
 window.removeFromCart = removeFromCart;
+window.openCartItemEditModal = openCartItemEditModal;
 
 window.confirmPaidAndProcess = confirmPaidAndProcess;
 window.confirmPaidAndSendKitchen = confirmPaidAndProcess;

@@ -35,6 +35,37 @@ window.qrHardAddToCart = function(event){
 
 const STORE_ID = "defaultStore";
 const LAST_ORDER_KEY = "enpoint_last_qr_order_id";
+const LAST_ORDER_TIME_KEY = "enpoint_last_qr_order_saved_at";
+const QR_LAST_ORDER_TTL = 60 * 60 * 1000; // v61-1：QR 查詢保留 60 分鐘
+
+function saveQrLastOrderId(orderId) {
+  try {
+    localStorage.setItem(LAST_ORDER_KEY, orderId);
+    localStorage.setItem(LAST_ORDER_TIME_KEY, String(Date.now()));
+  } catch (e) {}
+}
+
+function clearQrLastOrderId() {
+  try {
+    clearQrLastOrderId();
+    localStorage.removeItem(LAST_ORDER_TIME_KEY);
+  } catch (e) {}
+}
+
+function getValidQrLastOrderId() {
+  try {
+    var id = localStorage.getItem(LAST_ORDER_KEY) || "";
+    var savedAt = Number(localStorage.getItem(LAST_ORDER_TIME_KEY) || 0);
+    if (!id) return "";
+    if (!savedAt || Date.now() - savedAt > QR_LAST_ORDER_TTL) {
+      clearQrLastOrderId();
+      return "";
+    }
+    return id;
+  } catch (e) {
+    return "";
+  }
+}
 
 const params = new URLSearchParams(window.location.search);
 const table = params.get("table") || "";
@@ -199,8 +230,14 @@ qrTakeOutBtn.addEventListener("click", () => {
 function normalizeMenu(raw) {
   if (!raw) return [];
 
+  // v61-1 保險：若未來菜單改成 menu/defaultStore，也能正常讀取
+  if (raw.defaultStore && typeof raw.defaultStore === "object") {
+    raw = raw.defaultStore;
+  }
+
   return Object.entries(raw)
     .map(([id, item]) => ({ id, ...item }))
+    .filter(item => item && typeof item === "object")
     .filter(item => item.enabled !== false);
 }
 
@@ -828,7 +865,7 @@ function forceResetQrOrder(event) {
   }
 
   try {
-    localStorage.removeItem(LAST_ORDER_KEY);
+    clearQrLastOrderId();
   } catch (e) {}
 
   cart = [];
@@ -1081,7 +1118,7 @@ function submitConfirmedQrOrder(event) {
       });
     })
     .then(function (order) {
-      localStorage.setItem(LAST_ORDER_KEY, order.id);
+      saveQrLastOrderId(order.id);
 
       confirmModal.classList.add("hidden");
       showSuccessPage(order);
@@ -1215,7 +1252,7 @@ function loadLastOrderIfExists() {
     return;
   }
   qrShowOrderMode();
-  const lastOrderId = localStorage.getItem(LAST_ORDER_KEY);
+  const lastOrderId = getValidQrLastOrderId();
   if (!lastOrderId) return;
 
   const orderRef = ref(db, `orders/${lastOrderId}`);
@@ -1224,7 +1261,7 @@ function loadLastOrderIfExists() {
     const order = snapshot.val();
 
     if (!order) {
-      localStorage.removeItem(LAST_ORDER_KEY);
+      clearQrLastOrderId();
       return;
     }
 
@@ -2360,7 +2397,7 @@ window.qrLegacyDirectSubmitOrder = function (event) {
         });
       })
       .then(function (order) {
-        try { localStorage.setItem(LAST_ORDER_KEY, order.id); } catch (e) {}
+        try { saveQrLastOrderId(order.id); } catch (e) {}
 
         if (confirmModal) {
           confirmModal.className = (confirmModal.className || "") + " hidden";
@@ -2819,9 +2856,9 @@ window.openLastQrOrderFromTop = openLastQrOrderFromTop;
   }
   function readLastOrder(){
     var id = "";
-    try { id = localStorage.getItem(LAST_ORDER_KEY) || ""; } catch(e) {}
+    try { id = getValidQrLastOrderId(); } catch(e) {}
     if (!id) {
-      renderEmptyOrder();
+      if (topOrderContent) topOrderContent.innerHTML = '<div class="empty">目前沒有可查詢的訂單，或上一筆訂單已超過 60 分鐘，請重新點餐。</div>';
       return;
     }
     try {
@@ -3023,3 +3060,39 @@ function showSuccessPage(order) {
   var metaNow = getQrStatusMeta(order);
   if (metaNow.key === "done") qrPlayDoneNotice(order);
 }
+
+
+/* =====================================================
+   v61-1 QR hotfix
+   - 一般點餐頁強制保持菜單顯示
+   - 查看訂單只讀 60 分鐘內的本機最後訂單
+===================================================== */
+(function(){
+  function removeHidden(el){
+    if (!el) return;
+    el.className = String(el.className || '').replace(/\bhidden\b/g, '').replace(/\s+/g, ' ');
+  }
+  function addHidden(el){
+    if (!el) return;
+    if ((' ' + String(el.className || '') + ' ').indexOf(' hidden ') < 0) el.className += ' hidden';
+  }
+  function forceQrMenuVisible(){
+    if (qrIsViewOrderMode && qrIsViewOrderMode()) return;
+    removeHidden(orderPage);
+    if (orderPage) orderPage.style.display = 'block';
+    addHidden(successPage);
+    if (successPage) successPage.style.display = 'none';
+    addHidden(topOrderPanel);
+    if (topOrderPanel) topOrderPanel.style.display = 'none';
+    if (floatingCartBtn) floatingCartBtn.style.display = 'block';
+    try {
+      renderCategories();
+      renderMenu();
+    } catch(e) {
+      console.error('v61-1 QR menu rerender failed:', e);
+    }
+  }
+  window.qrForceMenuVisible = forceQrMenuVisible;
+  try { setTimeout(forceQrMenuVisible, 300); } catch(e) {}
+  try { setTimeout(forceQrMenuVisible, 1000); } catch(e) {}
+})();

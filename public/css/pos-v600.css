@@ -3519,3 +3519,19 @@ html body .pos-tabs .tab-btn.active,
   margin-bottom:14px !important;
   padding-bottom:22px !important;
 }
+
+/* =========================
+   v61-1 POS current cart edit buttons
+========================= */
+.cart-item-actions{
+  display:flex !important;
+  flex-direction:column !important;
+  gap:8px !important;
+  min-width:74px !important;
+}
+.cart-item-actions .secondary-btn,
+.cart-item-actions .danger-btn{
+  width:100% !important;
+  padding:10px 8px !important;
+  font-size:15px !important;
+}
