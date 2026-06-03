@@ -35,37 +35,6 @@ window.qrHardAddToCart = function(event){
 
 const STORE_ID = "defaultStore";
 const LAST_ORDER_KEY = "enpoint_last_qr_order_id";
-const LAST_ORDER_TIME_KEY = "enpoint_last_qr_order_saved_at";
-const QR_LAST_ORDER_TTL = 60 * 60 * 1000; // v61-1：QR 查詢保留 60 分鐘
-
-function saveQrLastOrderId(orderId) {
-  try {
-    localStorage.setItem(LAST_ORDER_KEY, orderId);
-    localStorage.setItem(LAST_ORDER_TIME_KEY, String(Date.now()));
-  } catch (e) {}
-}
-
-function clearQrLastOrderId() {
-  try {
-    localStorage.removeItem(LAST_ORDER_KEY);
-    localStorage.removeItem(LAST_ORDER_TIME_KEY);
-  } catch (e) {}
-}
-
-function getValidQrLastOrderId() {
-  try {
-    var id = localStorage.getItem(LAST_ORDER_KEY) || "";
-    var savedAt = Number(localStorage.getItem(LAST_ORDER_TIME_KEY) || 0);
-    if (!id) return "";
-    if (!savedAt || Date.now() - savedAt > QR_LAST_ORDER_TTL) {
-      clearQrLastOrderId();
-      return "";
-    }
-    return id;
-  } catch (e) {
-    return "";
-  }
-}
 
 const params = new URLSearchParams(window.location.search);
 const table = params.get("table") || "";
@@ -230,14 +199,8 @@ qrTakeOutBtn.addEventListener("click", () => {
 function normalizeMenu(raw) {
   if (!raw) return [];
 
-  // v61-1 保險：若未來菜單改成 menu/defaultStore，也能正常讀取
-  if (raw.defaultStore && typeof raw.defaultStore === "object") {
-    raw = raw.defaultStore;
-  }
-
   return Object.entries(raw)
     .map(([id, item]) => ({ id, ...item }))
-    .filter(item => item && typeof item === "object")
     .filter(item => item.enabled !== false);
 }
 
@@ -865,7 +828,7 @@ function forceResetQrOrder(event) {
   }
 
   try {
-    clearQrLastOrderId();
+    localStorage.removeItem(LAST_ORDER_KEY);
   } catch (e) {}
 
   cart = [];
@@ -1118,7 +1081,7 @@ function submitConfirmedQrOrder(event) {
       });
     })
     .then(function (order) {
-      saveQrLastOrderId(order.id);
+      localStorage.setItem(LAST_ORDER_KEY, order.id);
 
       confirmModal.classList.add("hidden");
       showSuccessPage(order);
@@ -1252,7 +1215,7 @@ function loadLastOrderIfExists() {
     return;
   }
   qrShowOrderMode();
-  const lastOrderId = getValidQrLastOrderId();
+  const lastOrderId = localStorage.getItem(LAST_ORDER_KEY);
   if (!lastOrderId) return;
 
   const orderRef = ref(db, `orders/${lastOrderId}`);
@@ -1261,7 +1224,7 @@ function loadLastOrderIfExists() {
     const order = snapshot.val();
 
     if (!order) {
-      clearQrLastOrderId();
+      localStorage.removeItem(LAST_ORDER_KEY);
       return;
     }
 
@@ -2397,7 +2360,7 @@ window.qrLegacyDirectSubmitOrder = function (event) {
         });
       })
       .then(function (order) {
-        try { saveQrLastOrderId(order.id); } catch (e) {}
+        try { localStorage.setItem(LAST_ORDER_KEY, order.id); } catch (e) {}
 
         if (confirmModal) {
           confirmModal.className = (confirmModal.className || "") + " hidden";
@@ -2856,9 +2819,9 @@ window.openLastQrOrderFromTop = openLastQrOrderFromTop;
   }
   function readLastOrder(){
     var id = "";
-    try { id = getValidQrLastOrderId(); } catch(e) {}
+    try { id = localStorage.getItem(LAST_ORDER_KEY) || ""; } catch(e) {}
     if (!id) {
-      if (topOrderContent) topOrderContent.innerHTML = '<div class="empty">目前沒有可查詢的訂單，或上一筆訂單已超過 60 分鐘，請重新點餐。</div>';
+      renderEmptyOrder();
       return;
     }
     try {
@@ -2917,258 +2880,125 @@ window.openLastQrOrderFromTop = openLastQrOrderFromTop;
   else showMenu(null);
 })();
 
-
 /* =====================================================
-   v61 QR 客人端流程可視化 final override
-   - 大訂單號
-   - 進度條
-   - 等待動畫
-   - 完成提示音 / 震動
-===================================================== */
-var qrLastNotifiedDoneOrderId = "";
-
-function getQrStatusMeta(order) {
-  if (!order) {
-    return { step: 1, key: "waiting", title: "等待櫃檯確認", message: "請至櫃檯結帳，店員確認後會安排製作。", icon: "🧾" };
-  }
-
-  if (order.status === "cancelled" || order.kitchenStatus === "cancelled" || order.cancelled === true) {
-    return { step: 0, key: "cancelled", title: "訂單已取消", message: "如有疑問請洽櫃檯。", icon: "⚠️" };
-  }
-
-  if (order.kitchenStatus === "done" || order.status === "done") {
-    return { step: 4, key: "done", title: "餐點已完成", message: "請至櫃檯取餐或等候送餐，謝謝您。", icon: "🎉" };
-  }
-
-  if (order.kitchenStatus === "cooking" || order.status === "cooking") {
-    return { step: 3, key: "cooking", title: "餐點製作中", message: "廚房正在為您準備餐點，請稍候。", icon: "👨‍🍳" };
-  }
-
-  if (order.kitchenStatus === "confirmed" || order.status === "confirmed" || order.paymentStatus === "paid" || order.paid === true) {
-    return { step: 2, key: "confirmed", title: "店家已確認訂單", message: "餐點已送至廚房，正在等待製作。", icon: "✅" };
-  }
-
-  return { step: 1, key: "waiting", title: "訂單已送出", message: "請至櫃檯確認付款，店員確認後會安排製作餐點。", icon: "🧾" };
-}
-
-function getOrderStatusText(order) {
-  var meta = getQrStatusMeta(order);
-  return meta.title + "｜" + meta.message;
-}
-
-function qrPlayDoneNotice(order) {
-  if (!order) return;
-  var orderId = order.id || order.orderNumber || "";
-  if (!orderId || qrLastNotifiedDoneOrderId === orderId) return;
-  qrLastNotifiedDoneOrderId = orderId;
-
-  try {
-    if (navigator && navigator.vibrate) navigator.vibrate([180, 80, 180]);
-  } catch (e) {}
-
-  try {
-    var AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtx) return;
-    var ctx = new AudioCtx();
-    var oscillator = ctx.createOscillator();
-    var gain = ctx.createGain();
-    oscillator.type = "sine";
-    oscillator.frequency.value = 880;
-    oscillator.connect(gain);
-    gain.connect(ctx.destination);
-    gain.gain.setValueAtTime(0.001, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
-    oscillator.start(ctx.currentTime);
-    oscillator.stop(ctx.currentTime + 0.5);
-  } catch (e) {}
-}
-
-function buildQrProgressHtml(order) {
-  var meta = getQrStatusMeta(order);
-  var labels = ["送出", "確認", "製作", "完成"];
-  var step = Number(meta.step || 0);
-
-  var stepsHtml = labels.map(function(label, index) {
-    var current = index + 1;
-    var cls = current < step ? "done" : (current === step ? "active" : "");
-    return '<div class="qr-progress-step ' + cls + '"><span>' + current + '</span><p>' + label + '</p></div>';
-  }).join('');
-
-  var percent = step <= 0 ? 0 : Math.min(100, (step - 1) / 3 * 100);
-
-  return '' +
-    '<div class="qr-status-card qr-status-' + meta.key + '">' +
-      '<div class="qr-status-icon">' + meta.icon + '</div>' +
-      '<div class="qr-status-main">' +
-        '<h3>' + meta.title + '</h3>' +
-        '<p>' + meta.message + '</p>' +
-        (meta.key !== "done" && meta.key !== "cancelled" ? '<div class="qr-waiting-dots"><i></i><i></i><i></i></div>' : '') +
-      '</div>' +
-    '</div>' +
-    '<div class="qr-progress-box">' +
-      '<div class="qr-progress-line"><div style="width:' + percent + '%"></div></div>' +
-      '<div class="qr-progress-steps">' + stepsHtml + '</div>' +
-    '</div>';
-}
-
-function buildQrOrderHtml(order) {
-  var itemsHtml = Array.isArray(order.items) ? order.items.map(function(item) {
-    var qty = item.qty || item.quantity || 1;
-    var subtotal = item.subtotal || (Number(item.price || item.unitPrice || 0) * Number(qty));
-    return '' +
-      '<div class="success-item">' +
-        '<div class="success-item-main">• ' + (item.name || '餐點') + ' × ' + qty + '</div>' +
-        '<div class="success-item-detail">' +
-          renderItemDetail(item) +
-          '<p>小計：' + money(subtotal) + '</p>' +
-        '</div>' +
-      '</div>';
-  }).join('') : '';
-
-  return '' +
-    buildQrProgressHtml(order) +
-    '<div class="qr-big-order-number">' +
-      '<span>您的訂單號</span>' +
-      '<strong>' + (order.orderNumber || order.id || '-') + '</strong>' +
-      '<p>請用此單號至櫃檯結帳 / 取餐</p>' +
-    '</div>' +
-    '<div class="success-time">時間：' + (order.createdAt ? new Date(order.createdAt).toLocaleString("zh-TW", { hour12: false }) : '-') + '</div>' +
-    '<div class="success-table">' + (order.type || 'QR 點餐') + (order.table ? '｜' + order.table + '桌' : '') + '</div>' +
-    itemsHtml +
-    '<div class="success-total">總計：' + money(order.total) + '</div>';
-}
-
-function showSuccessPage(order) {
-  orderPage.classList.add("hidden");
-  successPage.classList.remove("hidden");
-  successPage.style.display = "flex";
-
-  if (orderStatusBox) {
-    var meta = getQrStatusMeta(order);
-    orderStatusBox.textContent = meta.title + "｜" + meta.message;
-  }
-
-  var orderHtml = buildQrOrderHtml(order);
-
-  successContent.innerHTML = orderHtml;
-
-  if (topOrderContent) {
-    topOrderContent.innerHTML = orderHtml;
-  }
-
-  var metaNow = getQrStatusMeta(order);
-  if (metaNow.key === "done") qrPlayDoneNotice(order);
-}
-
-
-/* =====================================================
-   v61-1 QR hotfix
-   - 一般點餐頁強制保持菜單顯示
-   - 查看訂單只讀 60 分鐘內的本機最後訂單
+   v61-4 QR 回穩版：訂單查詢 60 分鐘時效 + 狀態視覺，不影響 v59 菜單 render
 ===================================================== */
 (function(){
-  function removeHidden(el){
-    if (!el) return;
-    el.className = String(el.className || '').replace(/\bhidden\b/g, '').replace(/\s+/g, ' ');
-  }
-  function addHidden(el){
-    if (!el) return;
-    if ((' ' + String(el.className || '') + ' ').indexOf(' hidden ') < 0) el.className += ' hidden';
-  }
-  function forceQrMenuVisible(){
-    if (qrIsViewOrderMode && qrIsViewOrderMode()) return;
-    removeHidden(orderPage);
-    if (orderPage) orderPage.style.display = 'block';
-    addHidden(successPage);
-    if (successPage) successPage.style.display = 'none';
-    addHidden(topOrderPanel);
-    if (topOrderPanel) topOrderPanel.style.display = 'none';
-    if (floatingCartBtn) floatingCartBtn.style.display = 'block';
-    try {
-      renderCategories();
-      renderMenu();
-    } catch(e) {
-      console.error('v61-1 QR menu rerender failed:', e);
-    }
-  }
-  window.qrForceMenuVisible = forceQrMenuVisible;
-  try { setTimeout(forceQrMenuVisible, 300); } catch(e) {}
-  try { setTimeout(forceQrMenuVisible, 1000); } catch(e) {}
-})();
+  var LAST_ORDER_KEY_V614 = "enpoint_last_qr_order_id";
+  var LAST_ORDER_TIME_KEY_V614 = "enpoint_last_qr_order_saved_at";
+  var TTL_V614 = 60 * 60 * 1000;
 
-
-/* =====================================================
-   v61-3 QR final hotfix
-   目的：修手機/電腦菜單空白、強制點餐頁顯示菜單、查看訂單不影響點餐。
-===================================================== */
-(function(){
-  function hasClass(el, name){ return el && (" " + (el.className || "") + " ").indexOf(" " + name + " ") >= 0; }
-  function addClass(el, name){ if (el && !hasClass(el, name)) el.className = (el.className ? el.className + " " : "") + name; }
-  function removeClass(el, name){ if (el) el.className = String(el.className || "").replace(new RegExp("\\b" + name + "\\b", "g"), "").replace(/\s+/g, " "); }
-  function isViewMode(){ try { return String(window.location.search || "").indexOf("view=last") >= 0; } catch(e){ return false; } }
-
-  function showMenuFinal(e){
-    if (e) { if (e.preventDefault) e.preventDefault(); if (e.stopPropagation) e.stopPropagation(); }
-    if (document && document.body) {
-      removeClass(document.body, "qr-tab-order");
-      addClass(document.body, "qr-tab-menu");
-    }
-    if (orderPage) { removeClass(orderPage, "hidden"); orderPage.style.display = "block"; }
-    if (successPage) { addClass(successPage, "hidden"); successPage.style.display = "none"; }
-    if (topOrderPanel) { addClass(topOrderPanel, "hidden"); topOrderPanel.style.display = "none"; }
-    if (floatingCartBtn) floatingCartBtn.style.display = "block";
-    var orderTab = document.getElementById("qrOrderTabLink");
-    var viewTab = document.getElementById("qrViewOrderPlainLink");
-    addClass(orderTab, "active");
-    removeClass(viewTab, "active");
-    try { renderCategories(); renderMenu(); } catch(err) { console.error("QR v61-3 rerender failed", err); }
-    return false;
-  }
-
-  function showOrderFinal(e){
-    if (e) { if (e.preventDefault) e.preventDefault(); if (e.stopPropagation) e.stopPropagation(); }
-    if (document && document.body) {
-      removeClass(document.body, "qr-tab-menu");
-      addClass(document.body, "qr-tab-order");
-    }
-    if (orderPage) { addClass(orderPage, "hidden"); orderPage.style.display = "none"; }
-    if (successPage) { addClass(successPage, "hidden"); successPage.style.display = "none"; }
-    if (floatingCartBtn) floatingCartBtn.style.display = "none";
-    if (topOrderPanel) { removeClass(topOrderPanel, "hidden"); topOrderPanel.style.display = "block"; }
-    var orderTab = document.getElementById("qrOrderTabLink");
-    var viewTab = document.getElementById("qrViewOrderPlainLink");
-    removeClass(orderTab, "active");
-    addClass(viewTab, "active");
-    try {
-      var id = getValidQrLastOrderId ? getValidQrLastOrderId() : "";
-      if (!id) {
-        if (topOrderContent) topOrderContent.innerHTML = '<div class="empty">目前沒有可查詢的訂單，或上一筆訂單已超過 60 分鐘，請重新點餐。</div>';
-        return false;
+  function now(){ return Date.now ? Date.now() : new Date().getTime(); }
+  function getValidLastOrderId(){
+    try{
+      var id = localStorage.getItem(LAST_ORDER_KEY_V614) || "";
+      var savedAt = Number(localStorage.getItem(LAST_ORDER_TIME_KEY_V614) || 0);
+      if(!id) return "";
+      if(!savedAt || now() - savedAt > TTL_V614){
+        localStorage.removeItem(LAST_ORDER_KEY_V614);
+        localStorage.removeItem(LAST_ORDER_TIME_KEY_V614);
+        return "";
       }
-      onValue(ref(db, "orders/" + id), function(snapshot){
-        var order = snapshot.val();
-        if (!order) {
-          clearQrLastOrderId && clearQrLastOrderId();
-          if (topOrderContent) topOrderContent.innerHTML = '<div class="empty">找不到剛剛的訂單，請重新點餐。</div>';
-          return;
-        }
-        var full = Object.assign({ id: id }, order);
-        if (topOrderContent) topOrderContent.innerHTML = buildQrOrderHtml(full);
-        if (orderStatusBox) orderStatusBox.textContent = "狀態：" + getOrderStatusText(full);
-      });
-    } catch(err) {
-      if (topOrderContent) topOrderContent.innerHTML = '<div class="empty">讀取訂單失敗，請重新整理。</div>';
-    }
-    return false;
+      return id;
+    }catch(e){ return ""; }
   }
 
-  window.qrShowMenuTab = showMenuFinal;
-  window.qrShowOrderTab = showOrderFinal;
-  var orderTab = document.getElementById("qrOrderTabLink");
-  var viewTab = document.getElementById("qrViewOrderPlainLink");
-  if (orderTab) { orderTab.href = "javascript:void(0)"; orderTab.onclick = showMenuFinal; orderTab.ontouchend = showMenuFinal; }
-  if (viewTab) { viewTab.href = "javascript:void(0)"; viewTab.onclick = showOrderFinal; viewTab.ontouchend = showOrderFinal; }
-  setTimeout(function(){ if (isViewMode()) showOrderFinal(null); else showMenuFinal(null); }, 50);
-  setTimeout(function(){ if (!isViewMode()) showMenuFinal(null); }, 500);
+  window.enpointQrSaveLastOrderV614 = function(orderId){
+    try{
+      localStorage.setItem(LAST_ORDER_KEY_V614, orderId);
+      localStorage.setItem(LAST_ORDER_TIME_KEY_V614, String(now()));
+    }catch(e){}
+  };
+
+  var oldBuild = window.buildQrOrderHtml;
+  function statusInfo(order){
+    var status = (order && (order.kitchenStatus || order.status || order.paymentStatus)) || "pending_payment";
+    if(order && (order.cancelled || status === "cancelled")) return {step:1, icon:"⚠️", title:"訂單已取消", text:"請洽櫃檯重新確認。", cls:"qr-status-cancelled"};
+    if(order && (order.kitchenStatus === "done" || order.status === "done")) return {step:4, icon:"🎉", title:"餐點已完成", text:"請至櫃檯取餐，謝謝您。", cls:"qr-status-done"};
+    if(order && (order.kitchenStatus === "cooking" || order.status === "cooking")) return {step:3, icon:"👨‍🍳", title:"餐點製作中", text:"店家正在為您準備餐點，請稍候。", cls:"qr-status-cooking"};
+    if(order && (order.kitchenStatus === "confirmed" || order.status === "confirmed" || order.paymentStatus === "paid" || order.paid === true)) return {step:2, icon:"🧾", title:"店家已確認", text:"餐點已送至廚房，正在等待製作。", cls:""};
+    return {step:1, icon:"✅", title:"訂單已送出", text:"請至櫃檯確認付款，店員確認後會送廚房。", cls:""};
+  }
+  function progressHtml(step){
+    var names = ["送出", "確認", "製作", "完成"];
+    var width = Math.max(1, Math.min(4, step)) / 4 * 100;
+    var html = '<div class="qr-progress-box"><div class="qr-progress-line"><div style="width:'+width+'%"></div></div><div class="qr-progress-steps">';
+    for(var i=1;i<=4;i++){
+      var cls = i < step ? "done" : (i === step ? "active" : "");
+      html += '<div class="qr-progress-step '+cls+'"><span>'+i+'</span><p>'+names[i-1]+'</p></div>';
+    }
+    html += '</div></div>';
+    return html;
+  }
+  window.buildQrOrderHtml = function(order){
+    var base = "";
+    try { base = oldBuild ? oldBuild(order) : ""; } catch(e) { base = ""; }
+    var info = statusInfo(order || {});
+    var number = (order && (order.orderNumber || order.id)) || "-";
+    var top = ''+
+      '<div class="qr-big-order-number"><span>您的訂單號</span><strong>'+ number +'</strong><p>請用此單號至櫃檯結帳 / 取餐</p></div>'+
+      '<div class="qr-status-card '+info.cls+'"><div class="qr-status-icon">'+info.icon+'</div><div class="qr-status-main"><h3>'+info.title+'</h3><p>'+info.text+'</p></div></div>'+
+      progressHtml(info.step);
+    return top + base;
+  };
+
+  // 攔截送單成功後儲存時間，避免共用 QR 下一位客人看到上一位過久訂單
+  var tryPatchCount = 0;
+  function patchLastOrderSetter(){
+    tryPatchCount++;
+    try{
+      var originalSetItem = localStorage.setItem.bind(localStorage);
+      if(!window.__ENPOINT_QR_LOCALSTORAGE_PATCHED_V614__){
+        window.__ENPOINT_QR_LOCALSTORAGE_PATCHED_V614__ = true;
+        localStorage.setItem = function(key, value){
+          var result = originalSetItem(key, value);
+          if(String(key) === LAST_ORDER_KEY_V614 && value){
+            originalSetItem(LAST_ORDER_TIME_KEY_V614, String(now()));
+          }
+          return result;
+        };
+      }
+    }catch(e){}
+  }
+  patchLastOrderSetter();
+
+  // 重新綁定分頁：點餐一定回到 v59 菜單，不被查看訂單覆蓋
+  function removeClass(el,name){ if(el) el.className = String(el.className||"").replace(new RegExp("\\b"+name+"\\b","g"),"").replace(/\s+/g," "); }
+  function addClass(el,name){ if(el && (" "+String(el.className||"")+" ").indexOf(" "+name+" ")<0) el.className += (el.className?" ":"")+name; }
+  function showMenu(e){
+    if(e){ e.preventDefault&&e.preventDefault(); e.stopPropagation&&e.stopPropagation(); }
+    removeClass(document.body,"qr-tab-order"); addClass(document.body,"qr-tab-menu");
+    var orderPage=document.getElementById("orderPage"), successPage=document.getElementById("successPage"), topOrderPanel=document.getElementById("topOrderPanel"), floatingCartBtn=document.getElementById("floatingCartBtn");
+    removeClass(orderPage,"hidden"); if(orderPage) orderPage.style.display="block";
+    addClass(successPage,"hidden"); if(successPage) successPage.style.display="none";
+    addClass(topOrderPanel,"hidden"); if(topOrderPanel) topOrderPanel.style.display="none";
+    if(floatingCartBtn) floatingCartBtn.style.display="block";
+    try{ if(typeof renderCategories === "function") renderCategories(); if(typeof renderMenu === "function") renderMenu(); }catch(err){ console.error("QR v61-4 render menu failed", err); }
+    return false;
+  }
+  function showOrder(e){
+    if(e){ e.preventDefault&&e.preventDefault(); e.stopPropagation&&e.stopPropagation(); }
+    removeClass(document.body,"qr-tab-menu"); addClass(document.body,"qr-tab-order");
+    var orderPage=document.getElementById("orderPage"), successPage=document.getElementById("successPage"), topOrderPanel=document.getElementById("topOrderPanel"), topOrderContent=document.getElementById("topOrderContent"), floatingCartBtn=document.getElementById("floatingCartBtn");
+    addClass(orderPage,"hidden"); if(orderPage) orderPage.style.display="none";
+    addClass(successPage,"hidden"); if(successPage) successPage.style.display="none";
+    if(floatingCartBtn) floatingCartBtn.style.display="none";
+    removeClass(topOrderPanel,"hidden"); if(topOrderPanel) topOrderPanel.style.display="block";
+    var id = getValidLastOrderId();
+    if(!id){ if(topOrderContent) topOrderContent.innerHTML='<div class="empty">目前沒有可查詢的訂單，或上一筆訂單已超過 60 分鐘，請重新點餐。</div>'; return false; }
+    try{
+      onValue(ref(db,"orders/"+id),function(snapshot){
+        var order=snapshot.val();
+        if(!order){ if(topOrderContent) topOrderContent.innerHTML='<div class="empty">找不到剛剛的訂單，請重新點餐。</div>'; return; }
+        if(topOrderContent) topOrderContent.innerHTML=window.buildQrOrderHtml(Object.assign({id:id},order));
+      });
+    }catch(err){ if(topOrderContent) topOrderContent.innerHTML='<div class="empty">讀取訂單失敗，請重新整理。</div>'; }
+    return false;
+  }
+  window.qrShowMenuTab = showMenu;
+  window.qrShowOrderTab = showOrder;
+  var a=document.getElementById("qrOrderTabLink"), b=document.getElementById("qrViewOrderPlainLink");
+  if(a){ a.href="javascript:void(0)"; a.onclick=showMenu; a.ontouchend=showMenu; }
+  if(b){ b.href="javascript:void(0)"; b.onclick=showOrder; b.ontouchend=showOrder; }
+  setTimeout(function(){ if(String(window.location.search||"").indexOf("view=last")>=0) showOrder(null); else showMenu(null); }, 100);
 })();

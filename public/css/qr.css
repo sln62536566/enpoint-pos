@@ -2153,10 +2153,57 @@ body.qr-page #qrCartPanel.cart-area.cart-open {
   }
 }
 
-
 /* =========================
-   v61 QR 訂單流程可視化
+   v61-4 QR 回穩版
+   目標：保留 v59 穩定菜單排版，避免 menuList 變成橫向分類格造成舊平板爆版。
 ========================= */
+body.qr-page:not(.qr-tab-order) #orderPage.qr-layout,
+body.qr-page.qr-tab-menu #orderPage.qr-layout{
+  display:block !important;
+  visibility:visible !important;
+  opacity:1 !important;
+}
+body.qr-page:not(.qr-tab-order) #menuList.menu-list,
+body.qr-page.qr-tab-menu #menuList.menu-list{
+  display:block !important;
+  width:100% !important;
+  max-width:1180px !important;
+  margin:0 auto !important;
+  visibility:visible !important;
+  opacity:1 !important;
+}
+body.qr-page:not(.qr-tab-order) .qr-category-section,
+body.qr-page.qr-tab-menu .qr-category-section{
+  display:block !important;
+  width:100% !important;
+  margin:0 0 18px !important;
+}
+body.qr-page:not(.qr-tab-order) .qr-category-grid,
+body.qr-page.qr-tab-menu .qr-category-grid{
+  display:grid !important;
+  grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+  gap:12px !important;
+}
+@media (min-width:700px){
+  body.qr-page:not(.qr-tab-order) .qr-category-grid,
+  body.qr-page.qr-tab-menu .qr-category-grid{
+    grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+  }
+}
+@media (min-width:980px){
+  body.qr-page:not(.qr-tab-order) .qr-category-grid,
+  body.qr-page.qr-tab-menu .qr-category-grid{
+    grid-template-columns:repeat(4,minmax(0,1fr)) !important;
+  }
+}
+body.qr-page.qr-tab-order #orderPage{
+  display:none !important;
+}
+body.qr-page.qr-tab-order #topOrderPanel{
+  display:block !important;
+}
+
+/* v61-4 保留訂單狀態視覺 */
 .qr-big-order-number{
   margin:18px 0;
   padding:22px;
@@ -2169,11 +2216,7 @@ body.qr-page #qrCartPanel.cart-area.cart-open {
 .qr-big-order-number span{display:block;font-size:16px;opacity:.9;margin-bottom:8px;}
 .qr-big-order-number strong{display:block;font-size:54px;letter-spacing:2px;line-height:1;font-weight:900;}
 .qr-big-order-number p{margin-top:10px;color:#ffe3a3;font-weight:800;}
-.qr-status-card{
-  display:flex;gap:14px;align-items:center;
-  padding:18px;border-radius:20px;margin:16px 0;
-  background:#fff3e0;border:1px solid #ffd49a;color:#3a2b20;
-}
+.qr-status-card{display:flex;gap:14px;align-items:center;padding:18px;border-radius:20px;margin:16px 0;background:#fff3e0;border:1px solid #ffd49a;color:#3a2b20;}
 .qr-status-icon{font-size:38px;line-height:1;}
 .qr-status-main h3{font-size:24px;margin-bottom:6px;color:#2b2118;}
 .qr-status-main p{margin:0;color:#6b4d32;font-weight:800;}
@@ -2188,34 +2231,4 @@ body.qr-page #qrCartPanel.cart-area.cart-open {
 .qr-progress-step p{font-size:13px;margin-top:6px;color:#7a6040;font-weight:900;}
 .qr-progress-step.active span,.qr-progress-step.done span{background:#ff9800;color:#fff;}
 .qr-progress-step.done span{background:#2e7d32;}
-.qr-waiting-dots{display:flex;gap:6px;margin-top:10px;}
-.qr-waiting-dots i{width:8px;height:8px;border-radius:50%;background:#ff9800;display:block;animation:qrDot 1s infinite ease-in-out;}
-.qr-waiting-dots i:nth-child(2){animation-delay:.15s;}.qr-waiting-dots i:nth-child(3){animation-delay:.3s;}
-@keyframes qrDot{0%,80%,100%{opacity:.25;transform:translateY(0)}40%{opacity:1;transform:translateY(-4px)}}
 @media(max-width:520px){.qr-big-order-number strong{font-size:44px}.qr-status-card{align-items:flex-start}.qr-progress-step p{font-size:12px}}
-
-
-/* =========================
-   v61-3 QR 菜單顯示修正
-========================= */
-body.qr-page.qr-tab-menu #orderPage,
-body.qr-page:not(.qr-tab-order) #orderPage{
-  display:block !important;
-  visibility:visible !important;
-  opacity:1 !important;
-}
-body.qr-page.qr-tab-menu #menuList,
-body.qr-page:not(.qr-tab-order) #menuList{
-  display:grid !important;
-  visibility:visible !important;
-  opacity:1 !important;
-  min-height:120px !important;
-}
-body.qr-page.qr-tab-menu .qr-category-section,
-body.qr-page:not(.qr-tab-order) .qr-category-section{
-  display:block !important;
-}
-body.qr-page.qr-tab-menu .qr-category-grid,
-body.qr-page:not(.qr-tab-order) .qr-category-grid{
-  display:grid !important;
-}

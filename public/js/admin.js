@@ -855,28 +855,30 @@ async function saveItem() {
   const oldItem = editingId ? menuData[editingId] : null;
   const foundCategory = findCategoryByName(category);
 
-  const itemData = {
-    name,
-    category,
-    price,
-    image,
-    description,
-    options,
-    removeOptions,
-    requiredOption,
-    enabled: oldItem ? oldItem.enabled !== false : true,
-    categoryOrder: getCategoryOrderByName(category),
-    sortOrder: oldItem ? Number(oldItem.sortOrder !== undefined ? oldItem.sortOrder : now) : now,
-    updatedAt: now
-  };
-
   const updates = {};
 
   try {
     addItemBtn.disabled = true;
-    addItemBtn.textContent = "儲存中...";
+    addItemBtn.textContent = "圖片處理中...";
 
     image = await uploadMenuImageIfNeeded();
+
+    const itemData = {
+      name,
+      category,
+      price,
+      image,
+      description,
+      options,
+      removeOptions,
+      requiredOption,
+      enabled: oldItem ? oldItem.enabled !== false : true,
+      categoryOrder: getCategoryOrderByName(category),
+      sortOrder: oldItem ? Number(oldItem.sortOrder !== undefined ? oldItem.sortOrder : now) : now,
+      updatedAt: now
+    };
+
+    addItemBtn.textContent = "儲存中...";
 
     if (!foundCategory) {
       const newCategoryRef = push(categoriesRef);
