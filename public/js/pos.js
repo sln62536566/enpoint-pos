@@ -80,6 +80,7 @@ const tableButtons = document.getElementById("tableButtons");
 const takeOutInfo = document.getElementById("takeOutInfo");
 
 const submitOrderBtn = document.getElementById("submitOrderBtn");
+const submitTestOrderBtn = document.getElementById("submitTestOrderBtn");
 const clearCartBtn = document.getElementById("clearCartBtn");
 
 const pendingOrderList = document.getElementById("pendingOrderList");
@@ -173,6 +174,18 @@ let editSelectedRemoves = [];
 let editSelectedSatay = "不要";
 let editSelectedRequiredOption = "";
 let editQuantity = 1;
+
+/* =========================
+   v61-6 hotfix：module 內函式掛到 window
+   修正 HTML onclick 找不到 toggleRemoveOption 的問題
+========================= */
+window.toggleRemoveOption = function(name) {
+  return toggleRemoveOption(name);
+};
+
+window.toggleEditRemoveOption = function(name) {
+  return toggleEditRemoveOption(name);
+};
 
 let businessDayCloseData = null;
 let lastFoodOpenAt = 0;
@@ -594,8 +607,24 @@ function isPaid(order) {
   return order.paymentStatus === "paid" || order.paid === true;
 }
 
+function isTestOrder(order) {
+  return order.isTestOrder === true || order.testOrder === true;
+}
+
+function isRevenueExcluded(order) {
+  return isCancelled(order) || isTestOrder(order) || order.revenueExcluded === true;
+}
+
+function getOrderFlagHtml(order) {
+  const flags = [];
+  if (isTestOrder(order)) flags.push(`<span class="order-flag test">測試單</span>`);
+  if (isCancelled(order)) flags.push(`<span class="order-flag cancelled">已作廢</span>`);
+  if (order.revenueExcluded === true && !isCancelled(order) && !isTestOrder(order)) flags.push(`<span class="order-flag excluded">不計營收</span>`);
+  return flags.length ? `<div class="order-flags">${flags.join("")}</div>` : "";
+}
+
 function getOrderStatusText(order) {
-  if (isCancelled(order)) return "已取消";
+  if (isCancelled(order)) return "已作廢 / 不計營收";
   if (isClosed(order)) return "已結案";
   if (isDone(order)) return "已完成，待結案";
 
@@ -672,7 +701,7 @@ function getTodayOrders() {
 }
 
 function getEffectiveTodayOrders() {
-  return getTodayOrders().filter(order => !isCancelled(order));
+  return getTodayOrders().filter(order => !isRevenueExcluded(order));
 }
 
 function getPendingOrders() {
@@ -1129,28 +1158,56 @@ function renderExtrasOptions() {
   `;
 }
 
+
+
 function renderRemoveOptions() {
-  var oldBox = document.getElementById("removeOptionBox");
+  const oldBox = document.getElementById("removeOptionBox");
   if (oldBox) oldBox.remove();
 
-  var removes = getRemoveOptions(currentItem);
+  const removes = getRemoveOptions(currentItem);
   if (!removes.length) return;
 
-  var box = document.createElement("div");
+  const box = document.createElement("div");
   box.id = "removeOptionBox";
   box.className = "pos-remove-box";
+
   box.innerHTML = `
     <h3>不要項目</h3>
     <div class="option-grid">
-      ${removes.map(function(name) {
-        var active = selectedRemoves.indexOf(name) !== -1;
-        return `<button class="option-btn ${active ? "active" : ""}" type="button" onclick="toggleRemoveOption('${name}')">${name}</button>`;
+      ${removes.map(name => {
+        const active = selectedRemoves.includes(name);
+        return `
+          <button
+            type="button"
+            class="option-btn remove-option-btn ${active ? "active" : ""}"
+            data-name="${String(name).replace(/"/g, "&quot;")}">
+            ${name}
+          </button>
+        `;
       }).join("")}
     </div>
   `;
 
-  var noteSection = noteInput.parentNode;
-  customModal.querySelector(".modal-card").insertBefore(box, noteSection);
+  const noteSection = noteInput.parentNode;
+  const modalCard = customModal.querySelector(".modal-card");
+  modalCard.insertBefore(box, noteSection);
+
+  box.querySelectorAll(".remove-option-btn").forEach(button => {
+    button.addEventListener("click", event => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const name = button.getAttribute("data-name");
+
+      if (selectedRemoves.includes(name)) {
+        selectedRemoves = selectedRemoves.filter(item => item !== name);
+      } else {
+        selectedRemoves.push(name);
+      }
+
+      renderRemoveOptions();
+    });
+  });
 }
 
 function toggleRemoveOption(name) {
@@ -1344,7 +1401,16 @@ function clearCart() {
 ========================= */
 
 async function submitOrder() {
+  return submitOrderCore(false);
+}
+
+async function submitTestOrder() {
+  return submitOrderCore(true);
+}
+
+async function submitOrderCore(isTestMode) {
   if (submitOrderBtn && submitOrderBtn.disabled) return;
+  if (submitTestOrderBtn && submitTestOrderBtn.disabled) return;
   if (cart.length === 0) {
     alert("請先加入餐點");
     return;
@@ -1373,13 +1439,15 @@ async function submitOrder() {
     return `${index + 1}. ${item.name} × ${itemQty(item)}｜小計 ${money(itemSubtotal(item))}${detail ? `\n   ${detail}` : ""}`;
   }).join("\n\n");
 
-  const checkoutText = `確認結帳並送出？\n\n類型：${currentOrderType}${currentOrderType === "內用" ? `｜${selectedTable}桌` : "｜外帶"}\n\n餐點：\n${itemsText}\n\n總計：${money(total)}\n\n確認已收款後，按「確定」會直接送廚房。`;
+  const checkoutText = `${isTestMode ? "【測試訂單】\n此單會送到廚房、可完整跑流程，但不會計入營收與收班。\n\n" : ""}確認結帳並送出？\n\n類型：${currentOrderType}${currentOrderType === "內用" ? `｜${selectedTable}桌` : "｜外帶"}\n\n餐點：\n${itemsText}\n\n總計：${money(total)}\n\n確認已收款後，按「確定」會直接送廚房。`;
 
   const ok = confirm(checkoutText);
   if (!ok) return;
 
   submitOrderBtn.disabled = true;
+  if (submitTestOrderBtn) submitTestOrderBtn.disabled = true;
   submitOrderBtn.textContent = "送出中...";
+  if (isTestMode && submitTestOrderBtn) submitTestOrderBtn.textContent = "測試送出中...";
 
   try {
     const newOrderRef = push(ordersRef);
@@ -1398,15 +1466,18 @@ async function submitOrder() {
       businessDate,
       storeId: STORE_ID,
       storeMode: STORE_MODE,
-      source: "店員POS",
+      source: isTestMode ? "店員POS測試" : "店員POS",
       type: currentOrderType,
       table: currentOrderType === "內用" ? selectedTable : "",
       customerName: currentOrderType === "外帶" ? `外帶-${orderNumber}` : "",
-      customerLabel,
+      customerLabel: isTestMode ? `測試單-${customerLabel}` : customerLabel,
+      isTestOrder: isTestMode,
+      revenueExcluded: isTestMode,
+      testOrderNote: isTestMode ? "POS 建立的測試訂單，不計入營收 / 收班 / 報表" : "",
       items: cart,
       total,
       status: STORE_MODE === "pro" ? "cooking" : "confirmed",
-      statusText: STORE_MODE === "pro" ? "已結帳，餐點製作中" : "已結帳，已送廚房",
+      statusText: isTestMode ? "測試訂單：已送廚房，不計營收" : (STORE_MODE === "pro" ? "已結帳，餐點製作中" : "已結帳，已送廚房"),
       paymentStatus: "paid",
       kitchenStatus: STORE_MODE === "pro" ? "not_required" : "confirmed",
       confirmed: true,
@@ -1421,7 +1492,7 @@ async function submitOrder() {
 
     await set(newOrderRef, order);
 
-    alert(`結帳完成，已送出：${customerLabel}\n單號：${orderNumber}`);
+    alert(`${isTestMode ? "測試訂單已送出" : "結帳完成，已送出"}：${order.customerLabel}\n單號：${orderNumber}`);
 
     cart = [];
     renderCart();
@@ -1431,7 +1502,9 @@ async function submitOrder() {
   }
 
   submitOrderBtn.disabled = false;
+  if (submitTestOrderBtn) submitTestOrderBtn.disabled = false;
   submitOrderBtn.textContent = "結帳";
+  if (submitTestOrderBtn) submitTestOrderBtn.textContent = "測試訂單";
 }
 
 /* =========================
@@ -1457,7 +1530,8 @@ function renderOrderCard(order) {
 
   const canConfirm = !locked && !isPaid(order) && !isCancelled(order) && !isClosed(order);
   const canCancel = !locked && !isPaid(order) && !isCancelled(order) && !isClosed(order);
-  const canClose = !locked && isDone(order) && !isClosed(order) && !isCancelled(order);
+  const canVoid = !locked && !isCancelled(order) && (isPaid(order) || isDone(order) || isClosed(order) || isTestOrder(order));
+  const canClose = !locked && isDone(order) && !isClosed(order) && !isCancelled(order) && !isTestOrder(order);
   const editable = !locked && canEditOrder(order);
 
   return `
@@ -1467,6 +1541,7 @@ function renderOrderCard(order) {
           <strong>#${order.orderNumber || order.id}</strong>
           <p>${getCustomerLabel(order)}｜${order.source || "未知"}｜${order.type || "未分類"}</p>
           <p>${formatTime(order.createdAt)}</p>
+          ${getOrderFlagHtml(order)}
         </div>
 
         <span class="status-badge">${statusText}</span>
@@ -1488,6 +1563,8 @@ function renderOrderCard(order) {
         ${STORE_MODE === "pro" && order.status === "cooking" ? `<button class="primary-btn" onclick="markOrderDoneByPOS('${order.id}')">POS 標記完成</button>` : ""}
 
         ${canClose ? `<button class="primary-btn" onclick="closeOrder('${order.id}')">結案</button>` : ""}
+
+        ${canVoid ? `<button class="danger-btn" onclick="voidOrder('${order.id}')">作廢 / 不計營收</button>` : ""}
 
         ${canCancel ? `<button class="danger-btn" onclick="cancelOrder('${order.id}')">取消</button>` : ""}
       </div>
@@ -1848,27 +1925,53 @@ function renderEditItemExtras() {
 }
 
 function renderEditItemRemoves() {
-  var oldBox = document.getElementById("editRemoveOptionBox");
+  const oldBox = document.getElementById("editRemoveOptionBox");
   if (oldBox) oldBox.remove();
 
-  var removes = getRemoveOptions(editingMenuItem || editingItemData);
+  const removes = getRemoveOptions(editingMenuItem || editingItemData);
   if (!removes.length) return;
 
-  var box = document.createElement("div");
+  const box = document.createElement("div");
   box.id = "editRemoveOptionBox";
   box.className = "pos-remove-box";
+
   box.innerHTML = `
     <h3>不要項目</h3>
     <div class="option-grid">
-      ${removes.map(function(name) {
-        var active = editSelectedRemoves.indexOf(name) !== -1;
-        return `<button class="option-btn ${active ? "active" : ""}" type="button" onclick="toggleEditRemoveOption('${name}')">${name}</button>`;
+      ${removes.map(name => {
+        const active = editSelectedRemoves.includes(name);
+        return `
+          <button
+            type="button"
+            class="option-btn edit-remove-option-btn ${active ? "active" : ""}"
+            data-name="${String(name).replace(/"/g, "&quot;")}">
+            ${name}
+          </button>
+        `;
       }).join("")}
     </div>
   `;
 
-  var noteSection = editItemNoteInput.parentNode;
-  editItemModal.querySelector(".modal-card").insertBefore(box, noteSection);
+  const noteSection = editItemNoteInput.parentNode;
+  const modalCard = editItemModal.querySelector(".modal-card");
+  modalCard.insertBefore(box, noteSection);
+
+  box.querySelectorAll(".edit-remove-option-btn").forEach(button => {
+    button.addEventListener("click", event => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const name = button.getAttribute("data-name");
+
+      if (editSelectedRemoves.includes(name)) {
+        editSelectedRemoves = editSelectedRemoves.filter(item => item !== name);
+      } else {
+        editSelectedRemoves.push(name);
+      }
+
+      renderEditItemRemoves();
+    });
+  });
 }
 
 function toggleEditRemoveOption(name) {
@@ -2084,12 +2187,19 @@ async function closeOrder(orderId) {
   }
 }
 
+async function voidOrder(orderId) {
+  return cancelOrder(orderId);
+}
+
 async function cancelOrder(orderId) {
   const order = ordersData[orderId];
 
   if (!order) return;
 
-  const ok = confirm(`確定要取消「${getCustomerLabel(order)}」這張訂單嗎？取消後不會計入營收與有效訂單。`);
+  const reason = prompt(`請輸入取消原因：\n例如：測試單、客人取消、打錯單、其他`, isTestOrder(order) ? "測試單" : "客人取消");
+  if (reason === null) return;
+
+  const ok = confirm(`確定要取消 / 作廢「${getCustomerLabel(order)}」這張訂單嗎？\n原因：${reason || "未填寫"}\n\n此單會保留紀錄，但不會計入營收與有效訂單。`);
   if (!ok) return;
 
   try {
@@ -2099,6 +2209,8 @@ async function cancelOrder(orderId) {
       paymentStatus: "cancelled",
       kitchenStatus: "cancelled",
       cancelled: true,
+      revenueExcluded: true,
+      cancelReason: reason || "未填寫",
       cancelledAt: Date.now(),
       updatedAt: Date.now()
     });
@@ -2186,7 +2298,7 @@ function renderTopItems(orders) {
   const counter = {};
 
   orders.forEach(order => {
-    if (isCancelled(order)) return;
+    if (isRevenueExcluded(order)) return;
 
     const items = normalizeOrderItems(order.items);
 
@@ -2216,7 +2328,7 @@ function renderTopItems(orders) {
 function renderStats() {
   const orders = getOrdersByRange();
 
-  const effectiveOrders = orders.filter(order => !isCancelled(order));
+  const effectiveOrders = orders.filter(order => !isRevenueExcluded(order));
 
   const unpaidOrders = effectiveOrders.filter(order => {
     return !isPaid(order) && !isClosed(order);
@@ -2316,7 +2428,7 @@ async function closeBusinessDay() {
   if (!ok) return;
 
   const orders = getTodayOrders();
-  const effectiveOrders = orders.filter(order => !isCancelled(order));
+  const effectiveOrders = orders.filter(order => !isRevenueExcluded(order));
   const cancelledOrders = orders.filter(order => isCancelled(order));
   const doneOrders = effectiveOrders.filter(order => isDone(order) || isClosed(order));
 
@@ -2429,6 +2541,7 @@ submitOrderBtn.addEventListener("click", function(event) {
   submitOrder();
 }, true);
 clearCartBtn.addEventListener("click", clearCart);
+if (submitTestOrderBtn) submitTestOrderBtn.addEventListener("click", submitTestOrder);
 
 if (closeBusinessDayBtn) {
   closeBusinessDayBtn.addEventListener("click", () => {
@@ -2485,6 +2598,13 @@ window.selectTable = selectTable;
       return false;
     }
 
+    if (id === "submitTestOrderBtn" && typeof window.submitTestOrder === "function") {
+      if (button.disabled) return false;
+      event.preventDefault && event.preventDefault();
+      window.submitTestOrder();
+      return false;
+    }
+
     if (id === "clearCartBtn" && typeof window.clearCart === "function") {
       event.preventDefault && event.preventDefault();
       window.clearCart();
@@ -2497,11 +2617,13 @@ window.selectTable = selectTable;
 })();
 
 window.submitOrder = submitOrder;
+window.submitTestOrder = submitTestOrder;
 window.clearCart = clearCart;
 window.openCustomModal = openCustomModal;
 window.selectPortion = selectPortion;
 window.selectSatay = selectSatay;
 window.toggleExtra = toggleExtra;
+window.toggleRemoveOption = toggleRemoveOption;
 window.removeFromCart = removeFromCart;
 window.openCartItemEditModal = openCartItemEditModal;
 
@@ -2510,6 +2632,7 @@ window.confirmPaidAndSendKitchen = confirmPaidAndProcess;
 window.markOrderDoneByPOS = markOrderDoneByPOS;
 window.closeOrder = closeOrder;
 window.cancelOrder = cancelOrder;
+window.voidOrder = voidOrder;
 
 window.openEditOrderModal = openEditOrderModal;
 window.changeEditItemQty = changeEditItemQty;
@@ -2519,6 +2642,7 @@ window.openEditItemModal = openEditItemModal;
 window.selectEditPortion = selectEditPortion;
 window.selectEditSatay = selectEditSatay;
 window.toggleEditExtra = toggleEditExtra;
+window.toggleEditRemoveOption = toggleEditRemoveOption;
 
 window.selectEditRequiredOption = selectEditRequiredOption;
 
@@ -2563,4 +2687,51 @@ window.posOpenFoodById = function (itemId, event) {
     console.error(error);
   }
   return false;
+};
+
+
+window.selectTable = selectTable;
+window.selectCategory = selectCategory;
+window.selectPortion = selectPortion;
+window.selectSatay = selectSatay;
+window.toggleExtra = toggleExtra;
+window.toggleRemoveOption = toggleRemoveOption;
+window.openCartItemEditModal = openCartItemEditModal;
+window.removeFromCart = removeFromCart;
+
+window.openEditOrderModal = openEditOrderModal;
+window.confirmPaidAndProcess = confirmPaidAndProcess;
+window.markOrderDoneByPOS = markOrderDoneByPOS;
+window.closeOrder = closeOrder;
+window.cancelOrder = cancelOrder;
+window.voidOrder = voidOrder;
+
+window.openEditItemModal = openEditItemModal;
+window.changeEditItemQty = changeEditItemQty;
+window.removeEditItem = removeEditItem;
+window.selectEditPortion = selectEditPortion;
+window.selectEditSatay = selectEditSatay;
+window.selectEditRequiredOption = selectEditRequiredOption;
+window.toggleEditExtra = toggleEditExtra;
+window.toggleEditRemoveOption = toggleEditRemoveOption;
+
+/* =========================
+   v61-6 final safety bridge
+========================= */
+window.toggleRemoveOption = function(name) {
+  if (selectedRemoves.indexOf(name) !== -1) {
+    selectedRemoves = selectedRemoves.filter(function(item) { return item !== name; });
+  } else {
+    selectedRemoves.push(name);
+  }
+  renderRemoveOptions();
+};
+
+window.toggleEditRemoveOption = function(name) {
+  if (editSelectedRemoves.indexOf(name) !== -1) {
+    editSelectedRemoves = editSelectedRemoves.filter(function(item) { return item !== name; });
+  } else {
+    editSelectedRemoves.push(name);
+  }
+  renderEditItemRemoves();
 };

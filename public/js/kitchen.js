@@ -9,6 +9,7 @@ const orderList = document.getElementById("orderList");
 const ordersRef = ref(db, "orders");
 
 const STATUS_TEXT = {
+  cancelled: "已作廢",
   confirmed: "等待製作",
   cooking: "製作中",
   done: "已完成"
@@ -16,6 +17,21 @@ const STATUS_TEXT = {
 
 function getStatus(order) {
   return order.kitchenStatus || order.status || "waiting";
+}
+
+function isTestOrder(order) {
+  return order.isTestOrder === true || order.testOrder === true;
+}
+
+function isCancelled(order) {
+  return order.status === "cancelled" || order.kitchenStatus === "cancelled" || order.cancelled === true;
+}
+
+function getKitchenFlags(order) {
+  const flags = [];
+  if (isTestOrder(order)) flags.push(`<span class="kitchen-flag test">測試單</span>`);
+  if (isCancelled(order)) flags.push(`<span class="kitchen-flag cancelled">已作廢</span>`);
+  return flags.length ? `<div class="kitchen-flags">${flags.join("")}</div>` : "";
 }
 
 function formatTime(timestamp) {
@@ -136,6 +152,7 @@ function renderOrders(orders) {
             <p>來源：${order.source || "未知"}｜${order.type || "未分類"}</p>
             ${order.type === "內用" ? `<p>桌號：${getTableText(order)}</p>` : ""}
             <p>時間：${formatTime(order.createdAt)}</p>
+            ${getKitchenFlags(order)}
           </div>
 
           <span class="status-badge">
@@ -151,13 +168,13 @@ function renderOrders(orders) {
 
         <div class="kitchen-actions">
           ${
-            status === "confirmed"
+            status === "confirmed" && !isCancelled(order)
               ? `<button onclick="setKitchenStatus('${order.id}', 'cooking')">開始製作</button>`
               : ""
           }
 
           ${
-            status === "cooking"
+            status === "cooking" && !isCancelled(order)
               ? `<button onclick="confirmDoneOrder('${order.id}')">完成</button>`
               : ""
           }
@@ -180,8 +197,8 @@ function loadOrders() {
         const status = getStatus(order);
 
         return (
-          status === "confirmed" ||
-          status === "cooking"
+          status === "confirmed" && !isCancelled(order) ||
+          status === "cooking" && !isCancelled(order)
         );
       })
       .sort((a, b) => Number(a.createdAt || 0) - Number(b.createdAt || 0));

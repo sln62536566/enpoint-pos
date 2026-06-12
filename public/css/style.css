@@ -1663,3 +1663,9 @@ textarea.input {
 .size-row input:first-child {
   min-width: 120px;
 }
+
+/* v61-6 KDS 測試單 / 作廢單標籤 */
+.kitchen-flags{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;}
+.kitchen-flag{display:inline-flex;align-items:center;width:fit-content;border-radius:999px;padding:6px 10px;font-size:14px;font-weight:900;}
+.kitchen-flag.test{background:#fff3cd;color:#6b4700;border:1px solid rgba(255,193,7,0.55);}
+.kitchen-flag.cancelled{background:#ffebee;color:#9f1d1d;border:1px solid rgba(211,47,47,0.35);}
