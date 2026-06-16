@@ -653,6 +653,80 @@ textarea.input {
   background: #f6efe5;
 }
 
+.admin-page-tabs {
+  display: flex;
+  gap: 10px;
+  padding: 16px 22px 0;
+  overflow-x: auto;
+}
+
+.admin-tab-btn {
+  flex: 0 0 auto;
+  border: 1px solid #dfc8a8;
+  background: #fffaf2;
+  color: #3a2b20;
+  padding: 12px 18px;
+  border-radius: 14px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 900;
+  box-shadow: 0 4px 12px rgba(67, 40, 18, 0.08);
+}
+
+.admin-tab-btn.active {
+  background: #2b2118;
+  color: #fff7e6;
+  border-color: #2b2118;
+}
+
+.admin-v62-layout {
+  padding: 22px;
+}
+
+.admin-tab-panel {
+  display: none;
+}
+
+.admin-tab-panel.active {
+  display: block;
+}
+
+.admin-v62-single {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.admin-v62-two-column {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 22px;
+  align-items: start;
+}
+
+.admin-v62-single .admin-form-panel,
+.admin-shared-actions {
+  position: static;
+}
+
+.admin-option-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.admin-option-card {
+  background: #fffdf9;
+  border: 1px solid #ead7bd;
+  border-radius: 18px;
+  padding: 16px;
+}
+
+.admin-shared-actions {
+  max-width: 1180px;
+  margin: 18px auto 0;
+  padding: 16px 22px;
+}
+
 .admin-topbar,
 .topbar {
   background: linear-gradient(135deg, #1f1710, #5c3b1f);
@@ -986,6 +1060,15 @@ textarea.input {
 }
 
 @media (max-width: 980px) {
+  .admin-v62-layout {
+    padding: 14px;
+  }
+
+  .admin-v62-two-column,
+  .admin-option-grid {
+    grid-template-columns: 1fr;
+  }
+
   .admin-v57-layout {
     grid-template-columns: 1fr;
     padding: 14px;
@@ -1001,6 +1084,15 @@ textarea.input {
 }
 
 @media (max-width: 520px) {
+  .admin-page-tabs {
+    padding: 12px 14px 0;
+  }
+
+  .admin-tab-btn {
+    padding: 10px 14px;
+    font-size: 15px;
+  }
+
   .admin-card-grid {
     grid-template-columns: 1fr;
   }

@@ -1,123 +1,169 @@
-<!--
-  恩點系統 v61
-  日期：2026-06-03
-  端別：菜單後台 admin.html
-  用途：分類管理器 + 菜單管理 + 不要項目 + 圖片上傳
--->
-
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>恩點系統｜菜單後台</title>
-  <link rel="stylesheet" href="./css/style.css?v=614" />
+  <link rel="stylesheet" href="./css/style.css?v=615" />
 </head>
 
 <body class="admin-page">
   <header class="topbar admin-topbar">
-    <h1>恩點系統｜菜單後台</h1>
-    <p>v61-5 分類、餐點、圖片、份量、加料、必選、不要項目</p>
+    <h1>恩點菜單後台</h1>
+    <p>分類、餐點、選項與圖片管理</p>
   </header>
 
-  <main class="admin-v57-layout">
-    <section class="admin-form-panel">
-      <div class="panel-title-row">
-        <div>
-          <h2>分類管理</h2>
-          <p>建立分類、排序、顯示或隱藏分類</p>
-        </div>
+  <nav class="admin-page-tabs" aria-label="菜單後台分頁">
+    <button class="admin-tab-btn active" type="button" data-admin-tab="categoryAdminTab">分類管理</button>
+    <button class="admin-tab-btn" type="button" data-admin-tab="itemAdminTab">餐點管理</button>
+    <button class="admin-tab-btn" type="button" data-admin-tab="optionAdminTab">選項管理</button>
+    <button class="admin-tab-btn" type="button" data-admin-tab="mediaAdminTab">圖片/其他設定</button>
+  </nav>
+
+  <main class="admin-v62-layout">
+    <section id="categoryAdminTab" class="admin-tab-panel active">
+      <div class="admin-v62-single">
+        <section class="admin-form-panel">
+          <div class="panel-title-row">
+            <div>
+              <h2>分類管理</h2>
+              <p>新增分類、調整排序，或隱藏暫停供應的分類。</p>
+            </div>
+          </div>
+
+          <label>新增分類</label>
+          <div class="admin-inline-form">
+            <input id="newCategoryName" type="text" placeholder="例如：鍋燒類" />
+            <button id="addCategoryBtn" class="primary-btn">新增</button>
+          </div>
+
+          <div class="sort-hint">
+            可拖曳分類或使用上移 / 下移調整排序，POS / QR 會同步套用。
+          </div>
+
+          <div id="categoryManagerList" class="category-manager-list"></div>
+        </section>
       </div>
+    </section>
 
-      <label>新增分類</label>
-      <div class="admin-inline-form">
-        <input id="newCategoryName" type="text" placeholder="例如：鍋燒類" />
-        <button id="addCategoryBtn" class="primary-btn">新增</button>
+    <section id="itemAdminTab" class="admin-tab-panel">
+      <div class="admin-v62-two-column">
+        <section class="admin-form-panel">
+          <div class="panel-title-row">
+            <div>
+              <h2 id="formTitle">新增餐點</h2>
+              <p>設定餐點名稱、分類與基礎價格。選項與圖片可到其他分頁補完。</p>
+            </div>
+          </div>
+
+          <label>餐點名稱</label>
+          <input id="itemName" type="text" placeholder="例如：鍋燒意麵" />
+
+          <label>分類</label>
+          <select id="itemCategory"></select>
+
+          <label>價格</label>
+          <input id="itemPrice" type="number" placeholder="例如：100" />
+        </section>
+
+        <section class="admin-menu-panel">
+          <div class="panel-title-row">
+            <div>
+              <h2>餐點列表</h2>
+              <p>搜尋、編輯、刪除、顯示/隱藏餐點，並調整同分類排序。</p>
+            </div>
+          </div>
+
+          <div class="admin-tools">
+            <input id="menuSearchInput" type="text" placeholder="搜尋餐點名稱或分類..." />
+            <div id="categoryFilterList" class="admin-filter-list"></div>
+          </div>
+
+          <div class="sort-hint">
+            可拖曳餐點卡片或使用上移 / 下移調整順序。
+          </div>
+
+          <div id="menuList" class="admin-menu-list"></div>
+        </section>
       </div>
+    </section>
 
-      <div class="sort-hint">
-        提示：分類可拖拉排序。隱藏分類後，POS / QR 不顯示該分類。
+    <section id="optionAdminTab" class="admin-tab-panel">
+      <div class="admin-v62-single">
+        <section class="admin-form-panel admin-option-panel">
+          <div class="panel-title-row">
+            <div>
+              <h2>選項管理</h2>
+              <p>設定必選項目、加料、不要項目與份量。這些設定會跟目前餐點表單一起儲存。</p>
+            </div>
+          </div>
+
+          <div class="admin-option-grid">
+            <div class="admin-option-card">
+              <label>份量選項</label>
+              <div id="sizeEditor" class="addon-editor"></div>
+              <button id="addSizeRowBtn" class="secondary-btn" type="button">＋ 新增份量</button>
+              <p class="form-help">例如：小份 80、大份 100。留空時會使用上方價格作為「一般」。</p>
+            </div>
+
+            <div class="admin-option-card">
+              <label>必選項目</label>
+              <div class="required-option-box">
+                <input id="requiredOptionTitle" type="text" placeholder="選項名稱，例如：湯底、甜度、冰量" />
+                <textarea id="requiredOptionChoices" placeholder="選項內容，用逗號分隔，例如：牛肉,肉骨,肉燥"></textarea>
+                <p class="form-help">留空代表此餐點沒有必選項目。</p>
+              </div>
+            </div>
+
+            <div class="admin-option-card">
+              <label>加料選項</label>
+              <div id="addonEditor" class="addon-editor"></div>
+              <button id="addAddonRowBtn" class="secondary-btn" type="button">＋ 新增加料</button>
+            </div>
+
+            <div class="admin-option-card">
+              <label>不要項目</label>
+              <div id="removeOptionEditor" class="addon-editor"></div>
+              <button id="addRemoveOptionRowBtn" class="secondary-btn" type="button">＋ 新增不要項目</button>
+              <p class="form-help">例如：不要蔥、不要香菜、不要胡椒。POS 點餐時會變成可直接點擊的按鈕。</p>
+            </div>
+          </div>
+        </section>
       </div>
+    </section>
 
-      <div id="categoryManagerList" class="category-manager-list"></div>
+    <section id="mediaAdminTab" class="admin-tab-panel">
+      <div class="admin-v62-single">
+        <section class="admin-form-panel">
+          <div class="panel-title-row">
+            <div>
+              <h2>圖片/其他設定</h2>
+              <p>管理餐點圖片網址、圖片上傳與餐點描述。</p>
+            </div>
+          </div>
 
-      <hr class="admin-divider" />
+          <label>圖片網址</label>
+          <input id="itemImage" type="text" placeholder="可貼圖片網址，也可用下方上傳圖片" />
 
-      <div class="panel-title-row">
-        <div>
-          <h2 id="formTitle">新增餐點</h2>
-          <p>建立餐點、分類、圖片、份量、必選、加料與不要項目</p>
-        </div>
+          <label>上傳餐點圖片</label>
+          <input id="itemImageFile" type="file" accept="image/*" />
+          <div id="imagePreviewBox" class="admin-image-preview-box"></div>
+          <p class="form-help">上傳後會自動寫入圖片網址，QR / POS 會同步顯示。</p>
+
+          <label>餐點描述</label>
+          <textarea id="itemDescription" placeholder="例如：湯頭濃郁、份量充足，適合喜歡重口味的客人"></textarea>
+        </section>
       </div>
+    </section>
 
-      <label>餐點名稱</label>
-      <input id="itemName" type="text" placeholder="例如：鍋燒意麵" />
-
-      <label>分類</label>
-      <select id="itemCategory"></select>
-
-      <label>價格</label>
-      <input id="itemPrice" type="number" placeholder="例如：100" />
-
-      <label>圖片網址</label>
-      <input id="itemImage" type="text" placeholder="可貼圖片網址，也可用下方上傳圖片" />
-
-      <label>上傳餐點照片</label>
-      <input id="itemImageFile" type="file" accept="image/*" />
-      <div id="imagePreviewBox" class="admin-image-preview-box"></div>
-      <p class="form-help">上傳後會自動寫入圖片網址，QR / POS 會同步顯示。</p>
-
-      <label>餐點描述</label>
-      <textarea id="itemDescription" placeholder="例如：湯頭濃郁、份量充足，適合喜歡重口味的客人"></textarea>
-
-      <label>份量選項</label>
-      <div id="sizeEditor" class="addon-editor"></div>
-      <button id="addSizeRowBtn" class="secondary-btn" type="button">＋ 新增份量</button>
-      <p class="form-help">例如：小份 80、大份 100。留空時會使用上方價格作為「一般」。</p>
-
-      <label>必選選項</label>
-      <div class="required-option-box">
-        <input id="requiredOptionTitle" type="text" placeholder="選項名稱，例如：湯底、甜度、冰量" />
-        <textarea id="requiredOptionChoices" placeholder="選項內容，用逗號分隔，例如：牛肉,肉骨,肉燥"></textarea>
-        <p class="form-help">留空代表此餐點沒有必選項目。</p>
-      </div>
-
-      <label>加料選項</label>
-      <div id="addonEditor" class="addon-editor"></div>
-      <button id="addAddonRowBtn" class="secondary-btn" type="button">＋ 新增加料</button>
-
-      <label>不要項目</label>
-      <div id="removeOptionEditor" class="addon-editor"></div>
-      <button id="addRemoveOptionRowBtn" class="secondary-btn" type="button">＋ 新增不要項目</button>
-      <p class="form-help">例如：不要蔥、不要香菜、不要胡椒。POS 點餐時會變成可直接點擊的按鈕。</p>
-
+    <section id="adminSharedActions" class="admin-form-panel admin-shared-actions hidden">
       <div class="admin-form-actions">
         <button id="addItemBtn" class="primary-btn">新增餐點</button>
         <button id="cancelEditBtn" class="secondary-btn" type="button">取消編輯</button>
       </div>
     </section>
-
-    <section class="admin-menu-panel">
-      <div class="panel-title-row">
-        <div>
-          <h2>目前菜單</h2>
-          <p>可拖拉餐點調整同分類內顯示順序</p>
-        </div>
-      </div>
-
-      <div class="admin-tools">
-        <input id="menuSearchInput" type="text" placeholder="搜尋餐點名稱或分類..." />
-        <div id="categoryFilterList" class="admin-filter-list"></div>
-      </div>
-
-      <div class="sort-hint">
-        提示：餐點卡片可拖拉排序。分類排序請在左側「分類管理」操作。
-      </div>
-
-      <div id="menuList" class="admin-menu-list"></div>
-    </section>
   </main>
 
-  <script type="module" src="./js/admin.js?v=614"></script>
+  <script type="module" src="./js/admin.js?v=615"></script>
 </body>
 </html>

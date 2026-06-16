@@ -49,6 +49,9 @@ const categoryManagerList = document.getElementById("categoryManagerList");
 const menuSearchInput = document.getElementById("menuSearchInput");
 const categoryFilterList = document.getElementById("categoryFilterList");
 const menuList = document.getElementById("menuList");
+const adminTabButtons = document.querySelectorAll(".admin-tab-btn");
+const adminTabPanels = document.querySelectorAll(".admin-tab-panel");
+const adminSharedActions = document.getElementById("adminSharedActions");
 
 const menuRef = ref(db, "menu");
 const categoriesRef = ref(db, "categories");
@@ -72,6 +75,22 @@ let removeOptionRows = [];
 
 function money(n) {
   return `NT$${Number(n || 0)}`;
+}
+
+function switchAdminTab(tabId) {
+  if (!tabId) return;
+
+  adminTabButtons.forEach(button => {
+    button.classList.toggle("active", button.dataset.adminTab === tabId);
+  });
+
+  adminTabPanels.forEach(panel => {
+    panel.classList.toggle("active", panel.id === tabId);
+  });
+
+  if (adminSharedActions) {
+    adminSharedActions.classList.toggle("hidden", tabId === "categoryAdminTab");
+  }
 }
 
 function escapeHtml(value) {
@@ -1034,6 +1053,7 @@ function editItem(id) {
   formTitle.textContent = `編輯餐點｜${item.name || ""}`;
   addItemBtn.textContent = "更新餐點";
   cancelEditBtn.style.display = "block";
+  switchAdminTab("itemAdminTab");
 
   window.scrollTo({
     top: 0,
@@ -1432,6 +1452,12 @@ addItemBtn.addEventListener("click", saveItem);
 cancelEditBtn.addEventListener("click", resetForm);
 menuSearchInput.addEventListener("input", renderMenu);
 
+adminTabButtons.forEach(button => {
+  button.addEventListener("click", () => {
+    switchAdminTab(button.dataset.adminTab);
+  });
+});
+
 if (itemImageFile) {
   itemImageFile.addEventListener("change", function() {
     if (itemImageFile.files && itemImageFile.files[0]) {
@@ -1441,6 +1467,7 @@ if (itemImageFile) {
 }
 
 resetForm();
+switchAdminTab("categoryAdminTab");
 
 /* =====================================================
    v60 FINAL ADMIN ITEM MOVE
