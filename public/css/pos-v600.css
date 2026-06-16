@@ -3748,3 +3748,17 @@ html body .pos-tabs .tab-btn.active,
 .pos-food-btn .food-info small{
   display:none !important;
 }
+
+/* v63 print-ready actions */
+.order-actions .print-btn{
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  min-height:42px !important;
+  flex:1 1 130px !important;
+  background:#fff7e6 !important;
+  color:#2b2118 !important;
+  border:1px solid #d9bd93 !important;
+  pointer-events:auto !important;
+  visibility:visible !important;
+}

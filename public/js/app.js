@@ -47,7 +47,9 @@ const topOrderContent = document.getElementById("topOrderContent");
 
 function qrIsViewOrderMode() {
   try {
-    return String(window.location.search || "").indexOf("view=last") >= 0;
+    var searchParams = new URLSearchParams(window.location.search || "");
+    var view = searchParams.get("view");
+    return view === "last" || (view === "order" && !!searchParams.get("orderId"));
   } catch (e) {
     return false;
   }
@@ -140,6 +142,8 @@ let selectedSpicy = "不辣";
 let selectedSatay = "不要";
 let selectedRequiredOption = "";
 let selectedQty = 1;
+var qrLastOrderTypeAlertAt = 0;
+var qrLastSubmitTapAt = 0;
 
 const SPICY_OPTIONS = ["不辣", "微辣", "小辣", "中辣", "大辣"];
 
@@ -986,7 +990,11 @@ function validateOrderType() {
     const tableValue = (table || qrTableInput.value.trim()).trim();
 
     if (!tableValue) {
-      alert("請輸入桌號，或改選外帶。");
+      var nowTime = Date.now ? Date.now() : new Date().getTime();
+      if (nowTime - qrLastOrderTypeAlertAt > 1200) {
+        qrLastOrderTypeAlertAt = nowTime;
+        alert("請輸入桌號，或改選外帶。");
+      }
       return false;
     }
   }
@@ -1035,13 +1043,12 @@ window.qrSubmitOrderNow = function (event) {
   return false;
 };
 
-submitOrderBtn.addEventListener("click", () => {
-  if (cart.length === 0) {
-    alert("購物車目前是空的");
-    return;
+submitOrderBtn.addEventListener("click", event => {
+  if (event && event.defaultPrevented) return false;
+  if (typeof window.qrLegacyDirectSubmitOrder === "function") {
+    return window.qrLegacyDirectSubmitOrder(event);
   }
-
-  renderConfirmModal();
+  return window.qrSubmitOrderNow(event);
 });
 
 backToCartBtn.addEventListener("click", () => {
@@ -1053,6 +1060,10 @@ function submitConfirmedQrOrder(event) {
     event.preventDefault && event.preventDefault();
     event.stopPropagation && event.stopPropagation();
   }
+
+  var nowTap = Date.now ? Date.now() : new Date().getTime();
+  if (qrLastSubmitTapAt && nowTap - qrLastSubmitTapAt < 900) return false;
+  qrLastSubmitTapAt = nowTap;
 
   if (!validateOrderType()) return false;
   if (!cart || cart.length === 0) {
@@ -1118,7 +1129,7 @@ function submitConfirmedQrOrder(event) {
       renderCart();
     })
     .catch(function (error) {
-      console.error(error);
+      console.error("QR 送出失敗：", error);
       alert("送出失敗：" + (error && error.message ? error.message : "請稍後再試。"));
     })
     .then(function () {
@@ -1179,6 +1190,113 @@ function buildQrOrderHtml(order) {
 
     <div class="success-total">總計：${money(order.total)}</div>
   `;
+}
+
+function escapeHtml(value) {
+  return String(value === undefined || value === null ? "" : value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function getDirectOrderIdFromUrl() {
+  try {
+    var searchParams = new URLSearchParams(window.location.search || "");
+    if (searchParams.get("view") !== "order") return "";
+    return searchParams.get("orderId") || "";
+  } catch (e) {
+    return "";
+  }
+}
+
+function getPaymentStatusText(order) {
+  if (!order) return "未知";
+  if (order.paymentStatus === "paid" || order.paid === true) return "已付款";
+  if (order.paymentStatus === "cancelled" || order.status === "cancelled") return "已取消";
+  return "未付款 / 待櫃檯確認";
+}
+
+function getKitchenStatusText(order) {
+  if (!order) return "未知";
+  if (order.status === "cancelled" || order.kitchenStatus === "cancelled" || order.cancelled === true) return "訂單已取消";
+  if (order.status === "closed" || order.closed === true) return "訂單已結案";
+  if (order.kitchenStatus === "done" || order.status === "done") return "餐點已完成";
+  if (order.kitchenStatus === "cooking" || order.status === "cooking") return "製作中";
+  if (order.kitchenStatus === "confirmed" || order.status === "confirmed" || order.paymentStatus === "paid") return "已送廚房 / 等待製作";
+  return "等待櫃檯確認";
+}
+
+function buildDirectOrderViewHtml(order) {
+  var items = Array.isArray(order.items) ? order.items : [];
+  return '' +
+    '<div class="qr-direct-order-card">' +
+      '<div class="qr-direct-number"><span>訂單號</span><strong>' + escapeHtml(order.orderNumber || order.id || "-") + '</strong></div>' +
+      '<div class="qr-direct-status-grid">' +
+        '<div><span>付款狀態</span><strong>' + escapeHtml(getPaymentStatusText(order)) + '</strong></div>' +
+        '<div><span>製作狀態</span><strong>' + escapeHtml(getKitchenStatusText(order)) + '</strong></div>' +
+      '</div>' +
+      '<div class="qr-direct-meta">' +
+        '<p>' + escapeHtml(order.type || "訂單") + (order.table ? '｜' + escapeHtml(order.table) + '桌' : '') + '</p>' +
+        '<p>時間：' + escapeHtml(order.createdAt ? new Date(order.createdAt).toLocaleString("zh-TW", { hour12: false }) : "-") + '</p>' +
+      '</div>' +
+      '<h3>餐點摘要</h3>' +
+      '<div class="qr-direct-items">' +
+        (items.length ? items.map(function(item) {
+          var qty = Number(item.qty || item.quantity || 1);
+          return '<div class="qr-direct-item"><span>' + escapeHtml(item.name || "未命名餐點") + '</span><b>× ' + qty + '</b></div>';
+        }).join("") : '<div class="empty">此訂單沒有餐點資料</div>') +
+      '</div>' +
+      '<div class="qr-direct-total">總計：' + money(order.total || 0) + '</div>' +
+    '</div>';
+}
+
+function showDirectOrderShell() {
+  if (document.body && (" " + document.body.className + " ").indexOf(" qr-direct-order-mode ") < 0) {
+    document.body.className += " qr-direct-order-mode";
+  }
+  qrShowOrderMode();
+  if (orderPage) orderPage.style.display = "none";
+  if (successPage) successPage.style.display = "none";
+  if (floatingCartBtn) floatingCartBtn.style.display = "none";
+  if (topOrderPanel) {
+    topOrderPanel.className = String(topOrderPanel.className || "").replace(/\bhidden\b/g, "");
+    topOrderPanel.style.display = "block";
+  }
+}
+
+function renderDirectOrderMissing() {
+  showDirectOrderShell();
+  if (topOrderContent) {
+    topOrderContent.innerHTML = '<div class="qr-direct-order-card"><div class="empty">找不到此訂單或訂單已過期</div></div>';
+  }
+}
+
+function initDirectOrderView() {
+  var directOrderId = getDirectOrderIdFromUrl();
+  if (!directOrderId) return false;
+
+  showDirectOrderShell();
+  if (topOrderContent) topOrderContent.innerHTML = '<div class="qr-direct-order-card"><div class="empty">讀取訂單中...</div></div>';
+
+  try {
+    onValue(ref(db, "orders/" + directOrderId), function(snapshot) {
+      var order = snapshot && snapshot.val ? snapshot.val() : null;
+      if (!order) {
+        renderDirectOrderMissing();
+        return;
+      }
+      var fullOrder = Object.assign({ id: directOrderId }, order);
+      showDirectOrderShell();
+      if (topOrderContent) topOrderContent.innerHTML = buildDirectOrderViewHtml(fullOrder);
+      if (orderStatusBox) orderStatusBox.textContent = "狀態：" + getOrderStatusText(fullOrder);
+    });
+  } catch (error) {
+    renderDirectOrderMissing();
+  }
+
+  return true;
 }
 
 function renderTopOrderOnly(order) {
@@ -2313,12 +2431,15 @@ window.qrLegacyDirectSubmitOrder = function (event) {
   if (event) {
     if (event.preventDefault) event.preventDefault();
     if (event.stopPropagation) event.stopPropagation();
+    if (event.stopImmediatePropagation) event.stopImmediatePropagation();
   }
 
   var nowTime = new Date().getTime();
-  if (qrLegacySubmitting || nowTime - qrLegacySubmitLastAt < 1000) {
+  if (qrLegacySubmitting || nowTime - qrLegacySubmitLastAt < 1200) {
     return false;
   }
+  if (qrLastSubmitTapAt && nowTime - qrLastSubmitTapAt < 900) return false;
+  qrLastSubmitTapAt = nowTime;
   qrLegacySubmitLastAt = nowTime;
 
   try {
@@ -2415,7 +2536,7 @@ window.qrLegacyDirectSubmitOrder = function (event) {
         try { legacyRenderQrCart(); } catch (e) { try { renderCart(); } catch (err) {} }
       })
       .catch(function (error) {
-        console.error(error);
+        console.error("QR 送出失敗：", error);
         alert("送出失敗：" + (error && error.message ? error.message : "請稍後再試。"));
       })
       .then(function () {
@@ -2431,6 +2552,15 @@ window.qrLegacyDirectSubmitOrder = function (event) {
       });
   } catch (error) {
     qrLegacySubmitting = false;
+    if (submitOrderBtn) {
+      submitOrderBtn.disabled = false;
+      submitOrderBtn.textContent = "送出訂單";
+    }
+    if (confirmSubmitBtn) {
+      confirmSubmitBtn.disabled = false;
+      confirmSubmitBtn.textContent = "確認送出";
+    }
+    console.error("QR 送出失敗：", error);
     alert("送出失敗：" + (error && error.message ? error.message : error));
   }
 
@@ -2772,7 +2902,7 @@ window.openLastQrOrderFromTop = openLastQrOrderFromTop;
   if (orderLink) {
     orderLink.setAttribute("href", "./index.html");
   }
-  if (qrIsViewOrderMode()) {
+  if (String(window.location.search || "").indexOf("view=last") >= 0) {
     qrShowOrderMode();
     try {
       setTimeout(function(){
@@ -2907,7 +3037,7 @@ window.openLastQrOrderFromTop = openLastQrOrderFromTop;
     viewTab.onclick = showOrder;
     viewTab.ontouchend = showOrder;
   }
-  if (qrIsViewOrderMode && qrIsViewOrderMode()) showOrder(null);
+  if (String(window.location.search || "").indexOf("view=last") >= 0) showOrder(null);
   else showMenu(null);
 })();
 
@@ -3031,5 +3161,9 @@ window.openLastQrOrderFromTop = openLastQrOrderFromTop;
   var a=document.getElementById("qrOrderTabLink"), b=document.getElementById("qrViewOrderPlainLink");
   if(a){ a.href="javascript:void(0)"; a.onclick=showMenu; a.ontouchend=showMenu; }
   if(b){ b.href="javascript:void(0)"; b.onclick=showOrder; b.ontouchend=showOrder; }
-  setTimeout(function(){ if(String(window.location.search||"").indexOf("view=last")>=0) showOrder(null); else showMenu(null); }, 100);
+  setTimeout(function(){
+    if (typeof initDirectOrderView === "function" && initDirectOrderView()) return;
+    if(String(window.location.search||"").indexOf("view=last")>=0) showOrder(null);
+    else showMenu(null);
+  }, 100);
 })();

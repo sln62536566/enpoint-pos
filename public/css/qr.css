@@ -2225,6 +2225,116 @@ body.qr-page.qr-tab-order #topOrderPanel{
 .qr-status-cancelled{background:#fff0f0;border-color:#ffc4c4;}
 .qr-progress-box{margin:18px 0 22px;position:relative;}
 .qr-progress-line{height:8px;background:#f1e1cb;border-radius:999px;overflow:hidden;margin:0 28px 14px;}
+
+/* v63 direct order lookup from printed receipt QR */
+.qr-page.qr-direct-order-mode #orderPage,
+.qr-page.qr-direct-order-mode #successPage,
+.qr-page.qr-direct-order-mode #floatingCartBtn,
+.qr-page.qr-direct-order-mode #qrOrderTabLink{
+  display:none !important;
+}
+
+.qr-page.qr-direct-order-mode #topOrderPanel{
+  display:block !important;
+}
+
+.qr-page.qr-direct-order-mode .qr-top-order-card{
+  max-width:520px;
+  margin:0 auto;
+}
+
+.qr-direct-order-card{
+  display:grid;
+  gap:14px;
+}
+
+.qr-direct-number{
+  text-align:center;
+  padding:16px;
+  border:1px solid #ead7bd;
+  border-radius:16px;
+  background:#fffaf2;
+}
+
+.qr-direct-number span,
+.qr-direct-status-grid span{
+  display:block;
+  color:#8a6b45;
+  font-size:14px;
+  font-weight:700;
+}
+
+.qr-direct-number strong{
+  display:block;
+  margin-top:4px;
+  color:#2b2118;
+  font-size:38px;
+  line-height:1.1;
+}
+
+.qr-direct-status-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+}
+
+.qr-direct-status-grid div{
+  padding:14px;
+  border:1px solid #ead7bd;
+  border-radius:14px;
+  background:#fffaf2;
+}
+
+.qr-direct-status-grid strong{
+  display:block;
+  margin-top:6px;
+  color:#2b2118;
+  font-size:18px;
+}
+
+.qr-direct-meta{
+  color:#5f4b35;
+  font-weight:700;
+}
+
+.qr-direct-meta p{
+  margin:4px 0;
+}
+
+.qr-direct-order-card h3{
+  margin:4px 0 0;
+  color:#2b2118;
+}
+
+.qr-direct-items{
+  border-top:1px solid #ead7bd;
+}
+
+.qr-direct-item{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  padding:12px 0;
+  border-bottom:1px solid #ead7bd;
+  font-size:17px;
+}
+
+.qr-direct-total{
+  text-align:right;
+  color:#c26a00;
+  font-size:22px;
+  font-weight:900;
+}
+
+@media (max-width: 640px){
+  .qr-direct-status-grid{
+    grid-template-columns:1fr;
+  }
+
+  .qr-direct-number strong{
+    font-size:32px;
+  }
+}
 .qr-progress-line div{height:100%;background:#ff9800;border-radius:999px;transition:width .25s ease;}
 .qr-progress-steps{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center;}
 .qr-progress-step span{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:#f2e7d8;color:#7a6040;font-weight:900;}

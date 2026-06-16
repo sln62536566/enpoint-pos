@@ -197,6 +197,8 @@ window.toggleEditRemoveOption = function(name) {
 let businessDayCloseData = null;
 let lastFoodOpenAt = 0;
 let lastFoodOpenId = "";
+let lastPrintOrderAt = 0;
+let lastPrintOrderKey = "";
 
 const defaultSettings = {
   storeName: "",
@@ -305,7 +307,11 @@ function setSwitchState(button, enabled) {
 
 function applyShowTestOrdersSetting() {
   if (!submitTestOrderBtn) return;
-  submitTestOrderBtn.style.display = posSettings.showTestOrders ? "" : "none";
+  var enabled = posSettings.showTestOrders === true;
+  submitTestOrderBtn.style.display = enabled ? "" : "none";
+  submitTestOrderBtn.hidden = !enabled;
+  submitTestOrderBtn.disabled = !enabled;
+  submitTestOrderBtn.setAttribute("aria-hidden", enabled ? "false" : "true");
 }
 
 function renderSettings() {
@@ -351,11 +357,11 @@ function getOrderBusinessDate(order) {
 }
 
 function isTodayOrder(order) {
-  if (getOrderBusinessDate(order)) {
-    return getOrderBusinessDate(order) === getBusinessDate();
-  }
-
-  return isToday(order.createdAt);
+  var businessDate = getOrderBusinessDate(order);
+  if (businessDate === getBusinessDate()) return true;
+  if (isToday(order.createdAt)) return true;
+  if (!businessDate && isToday(order.updatedAt)) return true;
+  return false;
 }
 
 function formatTime(timestamp) {
@@ -766,6 +772,165 @@ function calculateTotal(items = cart) {
   return items.reduce((sum, item) => sum + itemSubtotal(item), 0);
 }
 
+function escapeHtml(value) {
+  return String(value === undefined || value === null ? "" : value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function getStoreDisplayName() {
+  return (posSettings && posSettings.storeName ? posSettings.storeName : "").trim() || "恩點 POS";
+}
+
+function getCustomerOrderUrl(order) {
+  var id = order && (order.id || order.orderId);
+  if (!id) return "";
+  var basePath = window.location.pathname.replace(/\/pos\.html$/i, "/index.html");
+  if (basePath === window.location.pathname) {
+    basePath = window.location.pathname.replace(/pos\.html$/i, "index.html");
+  }
+  if (basePath === window.location.pathname) {
+    basePath = "/index.html";
+  }
+  return window.location.origin + basePath + "?view=order&orderId=" + encodeURIComponent(id);
+}
+
+function getQrCodeUrl(order) {
+  var url = getCustomerOrderUrl(order);
+  return "https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=" + encodeURIComponent(url);
+}
+
+function buildPrintItemDetailHtml(item, includePrice) {
+  var extras = itemExtras(item);
+  var removes = itemRemoves(item);
+  var details = [];
+  if (item.size && item.size !== "一般") details.push("份量：" + item.size);
+  if (extras.length) details.push("加料：" + extras.map(function(extra) { return extra.name || extra.label || String(extra); }).join("、"));
+  if (removes.length) details.push("不要：" + removes.join("、"));
+  if (item.spicy) details.push("辣度：" + item.spicy);
+  if (item.satay) details.push("沙茶：" + item.satay);
+  if (item.requiredOption) details.push((item.requiredOption.title || "選項") + "：" + item.requiredOption.value);
+  if (item.note) details.push("備註：" + item.note);
+  if (includePrice) details.push("單價：" + money(itemUnitPrice(item)));
+
+  if (!details.length) return "";
+  return '<div class="ticket-item-detail">' + details.map(function(detail) {
+    return "<p>" + escapeHtml(detail) + "</p>";
+  }).join("") + "</div>";
+}
+
+function buildKitchenTicketHtml(order) {
+  var items = normalizeOrderItems(order.items);
+  return '<section class="ticket ticket-kitchen">' +
+    '<h1>廚房單</h1>' +
+    '<div class="ticket-meta"><strong>#' + escapeHtml(order.orderNumber || order.id || "") + '</strong></div>' +
+    '<div class="ticket-row"><span>類型</span><b>' + escapeHtml(order.type || "") + '</b></div>' +
+    '<div class="ticket-row"><span>桌號</span><b>' + escapeHtml(order.table || (order.type === "外帶" ? "外帶" : "-")) + '</b></div>' +
+    '<div class="ticket-row"><span>時間</span><b>' + escapeHtml(formatTime(order.createdAt || Date.now())) + '</b></div>' +
+    '<hr>' +
+    items.map(function(item) {
+      return '<div class="ticket-item">' +
+        '<div class="ticket-item-main"><strong>' + escapeHtml(item.name || "未命名餐點") + '</strong><b>× ' + itemQty(item) + '</b></div>' +
+        buildPrintItemDetailHtml(item, false) +
+      '</div>';
+    }).join("") +
+    (order.note ? '<div class="ticket-note"><b>整單備註</b><p>' + escapeHtml(order.note) + '</p></div>' : "") +
+    '</section>';
+}
+
+function buildCustomerTicketHtml(order) {
+  var items = normalizeOrderItems(order.items);
+  var qrUrl = getQrCodeUrl(order);
+  var orderUrl = getCustomerOrderUrl(order);
+  return '<section class="ticket ticket-customer">' +
+    '<h1>' + escapeHtml(getStoreDisplayName()) + '</h1>' +
+    '<div class="ticket-meta"><strong>#' + escapeHtml(order.orderNumber || order.id || "") + '</strong></div>' +
+    '<div class="ticket-row"><span>時間</span><b>' + escapeHtml(formatTime(order.createdAt || Date.now())) + '</b></div>' +
+    '<div class="ticket-row"><span>類型</span><b>' + escapeHtml(order.type || "") + (order.table ? "｜" + escapeHtml(order.table) + "桌" : "") + '</b></div>' +
+    '<hr>' +
+    items.map(function(item) {
+      return '<div class="ticket-item">' +
+        '<div class="ticket-item-main"><strong>' + escapeHtml(item.name || "未命名餐點") + ' × ' + itemQty(item) + '</strong><b>' + money(itemSubtotal(item)) + '</b></div>' +
+        buildPrintItemDetailHtml(item, true) +
+      '</div>';
+    }).join("") +
+    '<div class="ticket-total"><span>總計</span><strong>' + money(order.total || calculateTotal(items)) + '</strong></div>' +
+    '<div class="ticket-qr"><img src="' + qrUrl + '" alt="訂單查詢 QR Code"><p>掃描查詢訂單進度</p><small>' + escapeHtml(orderUrl) + '</small></div>' +
+    '</section>';
+}
+
+function buildPrintWindowHtml(title, bodyHtml) {
+  return '<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8">' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+    '<title>' + escapeHtml(title) + '</title>' +
+    '<style>' +
+    'body{font-family:Arial,"Noto Sans TC",sans-serif;margin:0;background:#f4f4f4;color:#111;}' +
+    '.ticket{width:280px;margin:0 auto;padding:16px;background:#fff;}' +
+    'h1{text-align:center;font-size:24px;margin:0 0 12px;}' +
+    '.ticket-meta{text-align:center;font-size:22px;margin-bottom:12px;}' +
+    '.ticket-row,.ticket-item-main,.ticket-total{display:flex;justify-content:space-between;gap:12px;margin:8px 0;}' +
+    '.ticket-row span{color:#555;}.ticket-row b{text-align:right;}' +
+    'hr{border:none;border-top:1px dashed #999;margin:12px 0;}' +
+    '.ticket-item{padding:10px 0;border-bottom:1px dashed #ccc;}' +
+    '.ticket-item-main strong{font-size:18px;}.ticket-item-main b{font-size:18px;white-space:nowrap;}' +
+    '.ticket-item-detail p{margin:4px 0;font-size:14px;line-height:1.35;}' +
+    '.ticket-note{margin-top:12px;padding:10px;border:1px solid #111;}.ticket-note p{margin:6px 0 0;}' +
+    '.ticket-total{font-size:22px;font-weight:800;margin-top:14px;}' +
+    '.ticket-qr{text-align:center;margin-top:14px;}.ticket-qr img{width:120px;height:120px;}.ticket-qr p{margin:6px 0;font-weight:700;}.ticket-qr small{display:block;word-break:break-all;font-size:10px;color:#555;}' +
+    '@media print{body{background:#fff}.ticket{margin:0;width:72mm;box-shadow:none}.no-print{display:none}}' +
+    '</style></head><body>' + bodyHtml +
+    '<script>window.onload=function(){setTimeout(function(){window.print();},120);};<\/script>' +
+    '</body></html>';
+}
+
+function openPrintPreview(title, html) {
+  var printWindow = window.open("", "_blank", "width=420,height=720");
+  if (!printWindow) {
+    alert("瀏覽器封鎖了列印預覽視窗，請允許彈出視窗後再試。");
+    return;
+  }
+  printWindow.document.open();
+  printWindow.document.write(buildPrintWindowHtml(title, html));
+  printWindow.document.close();
+}
+
+function printOrderTicket(type, orderId, event) {
+  if (event) {
+    if (event.preventDefault) event.preventDefault();
+    if (event.stopPropagation) event.stopPropagation();
+    if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+  }
+
+  var nowTime = Date.now ? Date.now() : new Date().getTime();
+  var printKey = String(type || "") + ":" + String(orderId || "");
+  if (lastPrintOrderKey === printKey && nowTime - lastPrintOrderAt < 1000) {
+    return false;
+  }
+  lastPrintOrderKey = printKey;
+  lastPrintOrderAt = nowTime;
+
+  var order = ordersData && ordersData[orderId] ? Object.assign({ id: orderId }, ordersData[orderId]) : null;
+  if (!order) {
+    alert("找不到此訂單，請稍後再試。");
+    return false;
+  }
+
+  if (type === "customer") {
+    openPrintPreview("客人單 #" + (order.orderNumber || order.id), buildCustomerTicketHtml(order));
+  } else {
+    openPrintPreview("廚房單 #" + (order.orderNumber || order.id), buildKitchenTicketHtml(order));
+  }
+  return false;
+}
+
+// v63: LAN/Wi-Fi 出單機串接預留。未來可在這裡改接 WebUSB、WebSocket 或本機列印代理。
+function sendOrderToPrinterDevice(type, order) {
+  return false;
+}
+
 function canEditOrder(order) {
   if (isBusinessDayClosed()) return false;
 
@@ -807,7 +972,7 @@ function getProcessingOrders() {
 
 function getDoneOrders() {
   return getTodayOrders().filter(order => {
-    return !isCancelled(order) && isDone(order) && !isClosed(order);
+    return !isCancelled(order) && (isDone(order) || isClosed(order));
   });
 }
 
@@ -1644,6 +1809,10 @@ function renderOrderCard(order) {
       <div class="order-total">總金額：${money(order.total)}</div>
 
       <div class="order-actions">
+        <button type="button" class="secondary-btn print-btn" onclick="return printOrderTicket('kitchen', '${order.id}', event)" ontouchend="return printOrderTicket('kitchen', '${order.id}', event)">列印廚房單</button>
+
+        <button type="button" class="secondary-btn print-btn" onclick="return printOrderTicket('customer', '${order.id}', event)" ontouchend="return printOrderTicket('customer', '${order.id}', event)">列印客人單</button>
+
         ${editable ? `<button class="secondary-btn" onclick="openEditOrderModal('${order.id}')">編輯 / 改單</button>` : ""}
 
         ${canConfirm ? `<button class="primary-btn" onclick="confirmPaidAndProcess('${order.id}')">${STORE_MODE === "pro" ? "確認結帳並開始製作" : "確認結帳並送廚房"}</button>` : ""}
@@ -2796,6 +2965,8 @@ window.selectTable = selectTable;
     }
 
     if (id === "submitTestOrderBtn" && typeof window.submitTestOrder === "function") {
+      if (posSettings && posSettings.showTestOrders !== true) return false;
+      if (button.hidden || button.style.display === "none") return false;
       if (button.disabled) return false;
       event.preventDefault && event.preventDefault();
       window.submitTestOrder();
@@ -2816,6 +2987,8 @@ window.selectTable = selectTable;
 window.submitOrder = submitOrder;
 window.submitTestOrder = submitTestOrder;
 window.clearCart = clearCart;
+window.printOrderTicket = printOrderTicket;
+window.sendOrderToPrinterDevice = sendOrderToPrinterDevice;
 window.openCustomModal = openCustomModal;
 window.selectPortion = selectPortion;
 window.selectSatay = selectSatay;
@@ -2889,6 +3062,8 @@ window.posOpenFoodById = function (itemId, event) {
 
 window.selectTable = selectTable;
 window.selectCategory = selectCategory;
+window.printOrderTicket = printOrderTicket;
+window.sendOrderToPrinterDevice = sendOrderToPrinterDevice;
 window.selectPortion = selectPortion;
 window.selectSatay = selectSatay;
 window.toggleExtra = toggleExtra;
