@@ -655,13 +655,20 @@ textarea.input {
 
 .admin-page-tabs {
   display: flex;
+  display: -webkit-box;
+  display: -webkit-flex;
   gap: 10px;
   padding: 16px 22px 0;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  flex-wrap: wrap;
+  -webkit-flex-wrap: wrap;
 }
 
 .admin-tab-btn {
   flex: 0 0 auto;
+  -webkit-box-flex: 0;
+  -webkit-flex: 0 0 auto;
   border: 1px solid #dfc8a8;
   background: #fffaf2;
   color: #3a2b20;
@@ -681,6 +688,7 @@ textarea.input {
 
 .admin-v62-layout {
   padding: 22px;
+  overflow-x: hidden;
 }
 
 .admin-tab-panel {
@@ -703,6 +711,18 @@ textarea.input {
   align-items: start;
 }
 
+@supports not (display: grid) {
+  .admin-v62-two-column,
+  .admin-option-grid {
+    display: block;
+  }
+
+  .admin-v62-two-column > *,
+  .admin-option-grid > * {
+    margin-bottom: 18px;
+  }
+}
+
 .admin-v62-single .admin-form-panel,
 .admin-shared-actions {
   position: static;
@@ -719,6 +739,62 @@ textarea.input {
   border: 1px solid #ead7bd;
   border-radius: 18px;
   padding: 16px;
+}
+
+.admin-template-apply-row {
+  grid-template-columns: 1fr 96px;
+}
+
+.option-template-list {
+  display: grid;
+  gap: 12px;
+}
+
+.option-template-card {
+  background: #fffdf9;
+  border: 1px solid #ead7bd;
+  border-radius: 18px;
+  padding: 16px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 14px;
+  align-items: center;
+  box-shadow: 0 5px 14px rgba(67, 40, 18, 0.08);
+}
+
+.option-template-card strong {
+  display: block;
+  color: #2b2118;
+  font-size: 18px;
+  margin-bottom: 5px;
+}
+
+.option-template-card p {
+  color: #5d4633;
+  line-height: 1.55;
+}
+
+.option-template-card small {
+  display: block;
+  margin-top: 6px;
+  color: #8a6b45;
+  font-weight: 800;
+}
+
+.option-template-actions {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  gap: 8px;
+}
+
+.option-template-actions button {
+  border: none;
+  background: #efe0c9;
+  color: #3a2b20;
+  padding: 10px 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 900;
 }
 
 .admin-shared-actions {
@@ -1069,6 +1145,14 @@ textarea.input {
     grid-template-columns: 1fr;
   }
 
+  .option-template-card {
+    grid-template-columns: 1fr;
+  }
+
+  .option-template-actions {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
   .admin-v57-layout {
     grid-template-columns: 1fr;
     padding: 14px;
@@ -1091,6 +1175,11 @@ textarea.input {
   .admin-tab-btn {
     padding: 10px 14px;
     font-size: 15px;
+  }
+
+  .admin-template-apply-row,
+  .option-template-actions {
+    grid-template-columns: 1fr;
   }
 
   .admin-card-grid {

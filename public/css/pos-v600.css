@@ -3615,6 +3615,16 @@ html body .pos-tabs .tab-btn.active,
   padding:18px !important;
 }
 
+@supports not (display: grid){
+  .settings-grid{
+    display:block !important;
+  }
+
+  .settings-card{
+    margin-bottom:16px !important;
+  }
+}
+
 .settings-card{
   min-height:132px !important;
   background:#fffdf9 !important;

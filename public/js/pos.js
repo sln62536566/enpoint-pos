@@ -2633,11 +2633,35 @@ clearCartBtn.addEventListener("click", clearCart);
 if (submitTestOrderBtn) submitTestOrderBtn.addEventListener("click", submitTestOrder);
 
 if (fullscreenBtn) {
-  fullscreenBtn.addEventListener("click", () => {
-    if (document.documentElement.requestFullscreen) {
-      document.documentElement.requestFullscreen();
+  let fullscreenLastTouchAt = 0;
+
+  function requestPosFullscreen(event) {
+    if (event && event.type === "touchend") {
+      fullscreenLastTouchAt = Date.now ? Date.now() : new Date().getTime();
     }
-  });
+
+    if (event && event.type === "click" && (Date.now ? Date.now() : new Date().getTime()) - fullscreenLastTouchAt < 500) {
+      return;
+    }
+
+    if (event && event.preventDefault) event.preventDefault();
+
+    const target = document.documentElement;
+    const requestFullscreen =
+      target.requestFullscreen ||
+      target.webkitRequestFullscreen ||
+      target.mozRequestFullScreen ||
+      target.msRequestFullscreen;
+
+    if (requestFullscreen) {
+      requestFullscreen.call(target);
+    } else {
+      alert("此裝置瀏覽器不支援全螢幕，請使用瀏覽器選單或加入主畫面模式。");
+    }
+  }
+
+  fullscreenBtn.addEventListener("click", requestPosFullscreen, false);
+  fullscreenBtn.addEventListener("touchend", requestPosFullscreen, false);
 }
 
 if (storeNameInput) {

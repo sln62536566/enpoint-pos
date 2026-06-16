@@ -52,13 +52,28 @@ const menuList = document.getElementById("menuList");
 const adminTabButtons = document.querySelectorAll(".admin-tab-btn");
 const adminTabPanels = document.querySelectorAll(".admin-tab-panel");
 const adminSharedActions = document.getElementById("adminSharedActions");
+const itemTemplateSelect = document.getElementById("itemTemplateSelect");
+const applyTemplateBtn = document.getElementById("applyTemplateBtn");
+const templateFormTitle = document.getElementById("templateFormTitle");
+const templateNameInput = document.getElementById("templateNameInput");
+const templateSizesInput = document.getElementById("templateSizesInput");
+const templateRequiredTitleInput = document.getElementById("templateRequiredTitleInput");
+const templateRequiredChoicesInput = document.getElementById("templateRequiredChoicesInput");
+const templateAddonsInput = document.getElementById("templateAddonsInput");
+const templateRemoveOptionsInput = document.getElementById("templateRemoveOptionsInput");
+const saveTemplateBtn = document.getElementById("saveTemplateBtn");
+const cancelTemplateEditBtn = document.getElementById("cancelTemplateEditBtn");
+const optionTemplateList = document.getElementById("optionTemplateList");
 
 const menuRef = ref(db, "menu");
 const categoriesRef = ref(db, "categories");
+const optionTemplatesRef = ref(db, "optionTemplates");
 
 let menuData = {};
 let categoriesData = {};
+let optionTemplatesData = {};
 let editingId = null;
+let editingTemplateId = null;
 let currentCategoryFilter = "全部";
 
 let draggedCategoryId = null;
@@ -80,17 +95,57 @@ function money(n) {
 function switchAdminTab(tabId) {
   if (!tabId) return;
 
-  adminTabButtons.forEach(button => {
-    button.classList.toggle("active", button.dataset.adminTab === tabId);
-  });
+  for (var i = 0; i < adminTabButtons.length; i += 1) {
+    var button = adminTabButtons[i];
+    var isActiveButton = button.getAttribute("data-admin-tab") === tabId;
+    if (button.classList) {
+      button.classList.toggle("active", isActiveButton);
+    } else {
+      button.className = isActiveButton ? "admin-tab-btn active" : "admin-tab-btn";
+    }
+  }
 
-  adminTabPanels.forEach(panel => {
-    panel.classList.toggle("active", panel.id === tabId);
-  });
+  for (var j = 0; j < adminTabPanels.length; j += 1) {
+    var panel = adminTabPanels[j];
+    var isActivePanel = panel.id === tabId;
+    if (panel.classList) {
+      panel.classList.toggle("active", isActivePanel);
+    } else {
+      panel.className = isActivePanel ? "admin-tab-panel active" : "admin-tab-panel";
+    }
+  }
 
   if (adminSharedActions) {
-    adminSharedActions.classList.toggle("hidden", tabId === "categoryAdminTab");
+    var shouldHideActions = tabId === "categoryAdminTab" || tabId === "templateAdminTab";
+    if (adminSharedActions.classList) {
+      adminSharedActions.classList.toggle("hidden", shouldHideActions);
+    } else {
+      adminSharedActions.style.display = shouldHideActions ? "none" : "";
+    }
   }
+}
+
+function addAdminTapListener(element, handler) {
+  if (!element || !handler) return;
+
+  var lastTouchAt = 0;
+
+  function handleTap(event) {
+    var now = Date.now ? Date.now() : new Date().getTime();
+
+    if (event && event.type === "touchend") {
+      lastTouchAt = now;
+    }
+
+    if (event && event.type === "click" && now - lastTouchAt < 500) {
+      return;
+    }
+
+    handler(event);
+  }
+
+  element.addEventListener("click", handleTap, false);
+  element.addEventListener("touchend", handleTap, false);
 }
 
 function escapeHtml(value) {
@@ -100,6 +155,236 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+function parseNamePriceText(text) {
+  const result = {};
+  String(text || "")
+    .split(/\n+/)
+    .map(line => line.trim())
+    .filter(Boolean)
+    .forEach(line => {
+      const parts = line.split(",");
+      const name = String(parts[0] || "").trim();
+      const price = Number(String(parts[1] || "0").trim() || 0);
+      if (!name || Number.isNaN(price)) return;
+      result[name] = price;
+    });
+  return result;
+}
+
+function formatNamePriceText(options) {
+  return Object.entries(options || {})
+    .map(([name, price]) => `${name},${Number(price || 0)}`)
+    .join("\n");
+}
+
+function parseListText(text) {
+  const seen = {};
+  return String(text || "")
+    .split(/[\n,]+/)
+    .map(item => item.trim())
+    .filter(Boolean)
+    .filter(name => {
+      if (seen[name]) return false;
+      seen[name] = true;
+      return true;
+    });
+}
+
+function formatListText(items) {
+  return Array.isArray(items) ? items.join("\n") : "";
+}
+
+function getTemplateRequiredOptionFromForm() {
+  if (!templateRequiredTitleInput || !templateRequiredChoicesInput) return null;
+
+  const title = templateRequiredTitleInput.value.trim();
+  const options = parseListText(templateRequiredChoicesInput.value);
+
+  if (!title || options.length === 0) return null;
+
+  return {
+    title,
+    options,
+    required: true
+  };
+}
+
+function getTemplateDataFromForm() {
+  return {
+    name: templateNameInput ? templateNameInput.value.trim() : "",
+    sizes: parseNamePriceText(templateSizesInput ? templateSizesInput.value : ""),
+    requiredOption: getTemplateRequiredOptionFromForm(),
+    options: parseNamePriceText(templateAddonsInput ? templateAddonsInput.value : ""),
+    removeOptions: parseListText(templateRemoveOptionsInput ? templateRemoveOptionsInput.value : "")
+  };
+}
+
+function getOptionTemplates() {
+  return Object.entries(optionTemplatesData || {})
+    .map(([id, template]) => ({ id, ...template }))
+    .sort((a, b) => {
+      const orderA = Number(a.updatedAt || a.createdAt || 0);
+      const orderB = Number(b.updatedAt || b.createdAt || 0);
+      return orderB - orderA;
+    });
+}
+
+function resetTemplateForm() {
+  editingTemplateId = null;
+  if (templateFormTitle) templateFormTitle.textContent = "新增選項範本";
+  if (templateNameInput) templateNameInput.value = "";
+  if (templateSizesInput) templateSizesInput.value = "";
+  if (templateRequiredTitleInput) templateRequiredTitleInput.value = "";
+  if (templateRequiredChoicesInput) templateRequiredChoicesInput.value = "";
+  if (templateAddonsInput) templateAddonsInput.value = "";
+  if (templateRemoveOptionsInput) templateRemoveOptionsInput.value = "";
+  if (saveTemplateBtn) saveTemplateBtn.textContent = "儲存範本";
+}
+
+function fillTemplateForm(template) {
+  if (!template) return;
+  if (templateFormTitle) templateFormTitle.textContent = `編輯範本｜${template.name || ""}`;
+  if (templateNameInput) templateNameInput.value = template.name || "";
+  if (templateSizesInput) templateSizesInput.value = formatNamePriceText(template.sizes || {});
+  if (templateRequiredTitleInput) templateRequiredTitleInput.value = template.requiredOption ? (template.requiredOption.title || "") : "";
+  if (templateRequiredChoicesInput) templateRequiredChoicesInput.value = template.requiredOption ? formatListText(template.requiredOption.options || []) : "";
+  if (templateAddonsInput) templateAddonsInput.value = formatNamePriceText(template.options || {});
+  if (templateRemoveOptionsInput) templateRemoveOptionsInput.value = formatListText(template.removeOptions || []);
+  if (saveTemplateBtn) saveTemplateBtn.textContent = "更新範本";
+}
+
+function renderTemplateSelect() {
+  if (!itemTemplateSelect) return;
+
+  const templates = getOptionTemplates();
+  itemTemplateSelect.innerHTML = [`<option value="">選擇範本</option>`].concat(
+    templates.map(template => `
+      <option value="${escapeHtml(template.id)}">${escapeHtml(template.name || "未命名範本")}</option>
+    `)
+  ).join("");
+}
+
+function applyOptionTemplate(templateId) {
+  const template = optionTemplatesData && optionTemplatesData[templateId];
+  if (!template) {
+    alert("請先選擇要套用的範本");
+    return;
+  }
+
+  setRequiredOptionToForm(template.requiredOption || null);
+  setSizeRowsFromSizes(template.sizes || {});
+  setAddonRowsFromOptions(template.options || {});
+  setRemoveOptionRows(template.removeOptions || []);
+  switchAdminTab("optionAdminTab");
+}
+
+async function saveOptionTemplate() {
+  const templateData = getTemplateDataFromForm();
+
+  if (!templateData.name) {
+    alert("請輸入範本名稱");
+    return;
+  }
+
+  const now = Date.now();
+
+  try {
+    if (saveTemplateBtn) saveTemplateBtn.disabled = true;
+
+    if (editingTemplateId) {
+      await update(ref(db, `optionTemplates/${editingTemplateId}`), {
+        ...templateData,
+        updatedAt: now
+      });
+    } else {
+      const newTemplateRef = push(optionTemplatesRef);
+      await set(newTemplateRef, {
+        ...templateData,
+        createdAt: now,
+        updatedAt: now
+      });
+    }
+
+    resetTemplateForm();
+  } catch (error) {
+    console.error("選項範本儲存失敗", error);
+    alert("選項範本儲存失敗，請稍後再試");
+  } finally {
+    if (saveTemplateBtn) saveTemplateBtn.disabled = false;
+  }
+}
+
+function editOptionTemplate(templateId) {
+  const template = optionTemplatesData && optionTemplatesData[templateId];
+  if (!template) return;
+  editingTemplateId = templateId;
+  fillTemplateForm(template);
+  switchAdminTab("templateAdminTab");
+}
+
+async function deleteOptionTemplate(templateId) {
+  const template = optionTemplatesData && optionTemplatesData[templateId];
+  if (!template) return;
+  if (!confirm(`確定刪除範本「${template.name || "未命名範本"}」？`)) return;
+
+  try {
+    await remove(ref(db, `optionTemplates/${templateId}`));
+    if (editingTemplateId === templateId) resetTemplateForm();
+  } catch (error) {
+    console.error("選項範本刪除失敗", error);
+    alert("選項範本刪除失敗，請稍後再試");
+  }
+}
+
+function renderOptionTemplates() {
+  renderTemplateSelect();
+
+  if (!optionTemplateList) return;
+
+  const templates = getOptionTemplates();
+
+  if (templates.length === 0) {
+    optionTemplateList.innerHTML = `<div class="empty">尚未建立選項範本</div>`;
+    return;
+  }
+
+  optionTemplateList.innerHTML = templates.map(template => {
+    const requiredText = template.requiredOption && template.requiredOption.title
+      ? `${template.requiredOption.title}：${(template.requiredOption.options || []).join("、")}`
+      : "無必選項目";
+    const sizeCount = Object.keys(template.sizes || {}).length;
+    const addonCount = Object.keys(template.options || {}).length;
+    const removeCount = Array.isArray(template.removeOptions) ? template.removeOptions.length : 0;
+
+    return `
+      <article class="option-template-card">
+        <div>
+          <strong>${escapeHtml(template.name || "未命名範本")}</strong>
+          <p>${escapeHtml(requiredText)}</p>
+          <small>份量 ${sizeCount}｜加料 ${addonCount}｜不要項目 ${removeCount}</small>
+        </div>
+        <div class="option-template-actions">
+          <button type="button" data-action="apply" data-id="${escapeHtml(template.id)}">套用</button>
+          <button type="button" data-action="edit" data-id="${escapeHtml(template.id)}">編輯</button>
+          <button type="button" class="danger-btn" data-action="delete" data-id="${escapeHtml(template.id)}">刪除</button>
+        </div>
+      </article>
+    `;
+  }).join("");
+
+  var templateButtons = optionTemplateList.querySelectorAll("button");
+  for (var i = 0; i < templateButtons.length; i += 1) {
+    addAdminTapListener(templateButtons[i], function(event) {
+      const button = event.currentTarget || event.srcElement;
+      const action = button.dataset.action;
+      const id = button.dataset.id;
+      if (action === "apply") applyOptionTemplate(id);
+      if (action === "edit") editOptionTemplate(id);
+      if (action === "delete") deleteOptionTemplate(id);
+    });
+  }
 }
 
 function getRequiredOptionFromForm() {
@@ -1316,7 +1601,6 @@ function renderMenuCard(item, category) {
         <div class="admin-card-title-row">
           <div>
             <strong>${escapeHtml(item.name || "未命名餐點")}</strong>
-            <p>${escapeHtml(category)}</p>
           </div>
           <span class="admin-status ${item.enabled === false ? "off" : "on"}">
             ${item.enabled === false ? "下架" : "上架"}
@@ -1424,6 +1708,11 @@ onValue(categoriesRef, snapshot => {
   renderMenu();
 });
 
+onValue(optionTemplatesRef, snapshot => {
+  optionTemplatesData = snapshot.exists() ? snapshot.val() : {};
+  renderOptionTemplates();
+});
+
 /* =========================
    Events
 ========================= */
@@ -1448,15 +1737,45 @@ if (addRemoveOptionRowBtn) {
   addRemoveOptionRowBtn.addEventListener("click", addRemoveOptionRow);
 }
 
+if (applyTemplateBtn) {
+  addAdminTapListener(applyTemplateBtn, function() {
+    applyOptionTemplate(itemTemplateSelect ? itemTemplateSelect.value : "");
+  });
+}
+
+if (saveTemplateBtn) {
+  addAdminTapListener(saveTemplateBtn, saveOptionTemplate);
+}
+
+if (cancelTemplateEditBtn) {
+  addAdminTapListener(cancelTemplateEditBtn, resetTemplateForm);
+}
+
 addItemBtn.addEventListener("click", saveItem);
 cancelEditBtn.addEventListener("click", resetForm);
 menuSearchInput.addEventListener("input", renderMenu);
 
-adminTabButtons.forEach(button => {
-  button.addEventListener("click", () => {
-    switchAdminTab(button.dataset.adminTab);
-  });
-});
+for (var adminTabIndex = 0; adminTabIndex < adminTabButtons.length; adminTabIndex += 1) {
+  (function(button) {
+    var lastTouchAt = 0;
+
+    function handleAdminTabEvent(event) {
+      if (event && event.type === "touchend") {
+        lastTouchAt = Date.now ? Date.now() : new Date().getTime();
+      }
+
+      if (event && event.type === "click" && (Date.now ? Date.now() : new Date().getTime()) - lastTouchAt < 500) {
+        return;
+      }
+
+      if (event && event.preventDefault) event.preventDefault();
+      switchAdminTab(button.getAttribute("data-admin-tab"));
+    }
+
+    button.addEventListener("click", handleAdminTabEvent, false);
+    button.addEventListener("touchend", handleAdminTabEvent, false);
+  })(adminTabButtons[adminTabIndex]);
+}
 
 if (itemImageFile) {
   itemImageFile.addEventListener("change", function() {

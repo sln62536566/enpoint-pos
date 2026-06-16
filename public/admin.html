@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>恩點系統｜菜單後台</title>
-  <link rel="stylesheet" href="./css/style.css?v=615" />
+  <link rel="stylesheet" href="./css/style.css?v=616" />
 </head>
 
 <body class="admin-page">
@@ -17,6 +17,7 @@
     <button class="admin-tab-btn active" type="button" data-admin-tab="categoryAdminTab">分類管理</button>
     <button class="admin-tab-btn" type="button" data-admin-tab="itemAdminTab">餐點管理</button>
     <button class="admin-tab-btn" type="button" data-admin-tab="optionAdminTab">選項管理</button>
+    <button class="admin-tab-btn" type="button" data-admin-tab="templateAdminTab">選項範本</button>
     <button class="admin-tab-btn" type="button" data-admin-tab="mediaAdminTab">圖片/其他設定</button>
   </nav>
 
@@ -64,6 +65,13 @@
 
           <label>價格</label>
           <input id="itemPrice" type="number" placeholder="例如：100" />
+
+          <label>套用選項範本</label>
+          <div class="admin-inline-form admin-template-apply-row">
+            <select id="itemTemplateSelect"></select>
+            <button id="applyTemplateBtn" class="secondary-btn" type="button">套用</button>
+          </div>
+          <p class="form-help">套用後會帶入必選、加料、不要項目與份量設定。</p>
         </section>
 
         <section class="admin-menu-panel">
@@ -132,6 +140,63 @@
       </div>
     </section>
 
+    <section id="templateAdminTab" class="admin-tab-panel">
+      <div class="admin-v62-two-column">
+        <section class="admin-form-panel">
+          <div class="panel-title-row">
+            <div>
+              <h2 id="templateFormTitle">新增選項範本</h2>
+              <p>建立常用選項組合，之後可套用到新增或編輯中的餐點。</p>
+            </div>
+          </div>
+
+          <label>範本名稱</label>
+          <input id="templateNameInput" type="text" placeholder="例如：鍋燒通用選項" />
+
+          <div class="admin-option-grid">
+            <div class="admin-option-card">
+              <label>份量選項</label>
+              <textarea id="templateSizesInput" placeholder="每行一筆：小份,80"></textarea>
+              <p class="form-help">格式：名稱,價格。例：大份,120</p>
+            </div>
+
+            <div class="admin-option-card">
+              <label>必選項目</label>
+              <input id="templateRequiredTitleInput" type="text" placeholder="例如：湯底" />
+              <textarea id="templateRequiredChoicesInput" placeholder="用逗號分隔，例如：牛肉,肉骨,肉燥"></textarea>
+            </div>
+
+            <div class="admin-option-card">
+              <label>加料選項</label>
+              <textarea id="templateAddonsInput" placeholder="每行一筆：加麵,20"></textarea>
+              <p class="form-help">格式：名稱,價格。例：加蛋,15</p>
+            </div>
+
+            <div class="admin-option-card">
+              <label>不要項目</label>
+              <textarea id="templateRemoveOptionsInput" placeholder="可用逗號或換行分隔，例如：不要蔥,不要香菜"></textarea>
+            </div>
+          </div>
+
+          <div class="admin-form-actions">
+            <button id="saveTemplateBtn" class="primary-btn" type="button">儲存範本</button>
+            <button id="cancelTemplateEditBtn" class="secondary-btn" type="button">取消編輯</button>
+          </div>
+        </section>
+
+        <section class="admin-menu-panel">
+          <div class="panel-title-row">
+            <div>
+              <h2>範本列表</h2>
+              <p>可編輯、刪除，或直接套用到目前餐點表單。</p>
+            </div>
+          </div>
+
+          <div id="optionTemplateList" class="option-template-list"></div>
+        </section>
+      </div>
+    </section>
+
     <section id="mediaAdminTab" class="admin-tab-panel">
       <div class="admin-v62-single">
         <section class="admin-form-panel">
@@ -164,6 +229,6 @@
     </section>
   </main>
 
-  <script type="module" src="./js/admin.js?v=615"></script>
+  <script type="module" src="./js/admin.js?v=616"></script>
 </body>
 </html>
