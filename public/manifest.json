@@ -1,0 +1,9 @@
+{
+  "name": "恩點系統",
+  "short_name": "恩點",
+  "display": "standalone",
+  "start_url": "./pos.html",
+  "scope": "./",
+  "theme_color": "#6f4e37",
+  "background_color": "#fffaf5"
+}
