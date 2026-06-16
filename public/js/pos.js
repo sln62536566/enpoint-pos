@@ -132,6 +132,13 @@ const editItemSubtotal = document.getElementById("editItemSubtotal");
 const cancelEditItemBtn = document.getElementById("cancelEditItemBtn");
 const saveEditItemBtn = document.getElementById("saveEditItemBtn");
 
+const fullscreenBtn = document.getElementById("fullscreenBtn");
+const storeNameInput = document.getElementById("storeNameInput");
+const tableCountInput = document.getElementById("tableCountInput");
+const prepTimeInput = document.getElementById("prepTimeInput");
+const showTestOrdersToggle = document.getElementById("showTestOrdersToggle");
+const enableSoundToggle = document.getElementById("enableSoundToggle");
+
 /* =========================
    Firebase
 ========================= */
@@ -191,7 +198,16 @@ let businessDayCloseData = null;
 let lastFoodOpenAt = 0;
 let lastFoodOpenId = "";
 
-const tables = ["1", "2", "3", "4", "5", "6", "7", "8"];
+const defaultSettings = {
+  storeName: "",
+  tableCount: 8,
+  prepTime: 15,
+  showTestOrders: true,
+  enableSound: true
+};
+
+let posSettings = loadSettings();
+let tables = buildTables(posSettings.tableCount);
 
 /* =========================
    Init
@@ -219,6 +235,7 @@ onValue(ordersRef, snapshot => {
 renderTableButtons();
 renderCart();
 renderStoreModeNotice();
+renderSettings();
 
 /* =========================
    Tabs
@@ -242,6 +259,78 @@ tabButtons.forEach(button => {
 
 function money(n) {
   return `$${Number(n || 0)}`;
+}
+
+function readBooleanSetting(key, fallback) {
+  const value = localStorage.getItem(key);
+  if (value === null) return fallback;
+  return value === "true";
+}
+
+function readNumberSetting(key, fallback, min, max) {
+  const value = Number(localStorage.getItem(key));
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(max, Math.max(min, Math.floor(value)));
+}
+
+function loadSettings() {
+  return {
+    storeName: localStorage.getItem("storeName") || defaultSettings.storeName,
+    tableCount: readNumberSetting("tableCount", defaultSettings.tableCount, 1, 99),
+    prepTime: readNumberSetting("prepTime", defaultSettings.prepTime, 1, 999),
+    showTestOrders: readBooleanSetting("showTestOrders", defaultSettings.showTestOrders),
+    enableSound: readBooleanSetting("enableSound", defaultSettings.enableSound)
+  };
+}
+
+function saveSetting(key, value) {
+  localStorage.setItem(key, String(value));
+}
+
+function buildTables(count) {
+  return Array.from({ length: count }, (_, index) => String(index + 1));
+}
+
+function applyStoreName() {
+  const headerTitle = document.querySelector(".pos-header h1");
+  if (!headerTitle) return;
+  headerTitle.textContent = posSettings.storeName.trim() || "恩點 POS";
+}
+
+function setSwitchState(button, enabled) {
+  if (!button) return;
+  button.classList.toggle("active", enabled);
+  button.setAttribute("aria-pressed", enabled ? "true" : "false");
+}
+
+function applyShowTestOrdersSetting() {
+  if (!submitTestOrderBtn) return;
+  submitTestOrderBtn.style.display = posSettings.showTestOrders ? "" : "none";
+}
+
+function renderSettings() {
+  if (storeNameInput) storeNameInput.value = posSettings.storeName;
+  if (tableCountInput) tableCountInput.value = posSettings.tableCount;
+  if (prepTimeInput) prepTimeInput.value = posSettings.prepTime;
+
+  applyStoreName();
+  applyShowTestOrdersSetting();
+  setSwitchState(showTestOrdersToggle, posSettings.showTestOrders);
+  setSwitchState(enableSoundToggle, posSettings.enableSound);
+}
+
+function updateTableCount(value) {
+  const tableCount = Math.min(99, Math.max(1, Math.floor(Number(value) || defaultSettings.tableCount)));
+  posSettings.tableCount = tableCount;
+  saveSetting("tableCount", tableCount);
+  tables = buildTables(tableCount);
+
+  if (!tables.includes(selectedTable)) {
+    selectedTable = tables[0] || "1";
+  }
+
+  if (tableCountInput) tableCountInput.value = tableCount;
+  renderTableButtons();
 }
 
 function isToday(timestamp) {
@@ -2542,6 +2631,54 @@ submitOrderBtn.addEventListener("click", function(event) {
 }, true);
 clearCartBtn.addEventListener("click", clearCart);
 if (submitTestOrderBtn) submitTestOrderBtn.addEventListener("click", submitTestOrder);
+
+if (fullscreenBtn) {
+  fullscreenBtn.addEventListener("click", () => {
+    if (document.documentElement.requestFullscreen) {
+      document.documentElement.requestFullscreen();
+    }
+  });
+}
+
+if (storeNameInput) {
+  storeNameInput.addEventListener("input", () => {
+    posSettings.storeName = storeNameInput.value;
+    saveSetting("storeName", posSettings.storeName);
+    applyStoreName();
+  });
+}
+
+if (tableCountInput) {
+  tableCountInput.addEventListener("change", () => {
+    updateTableCount(tableCountInput.value);
+  });
+}
+
+if (prepTimeInput) {
+  prepTimeInput.addEventListener("change", () => {
+    const prepTime = Math.min(999, Math.max(1, Math.floor(Number(prepTimeInput.value) || defaultSettings.prepTime)));
+    posSettings.prepTime = prepTime;
+    prepTimeInput.value = prepTime;
+    saveSetting("prepTime", prepTime);
+  });
+}
+
+if (showTestOrdersToggle) {
+  showTestOrdersToggle.addEventListener("click", () => {
+    posSettings.showTestOrders = !posSettings.showTestOrders;
+    saveSetting("showTestOrders", posSettings.showTestOrders);
+    setSwitchState(showTestOrdersToggle, posSettings.showTestOrders);
+    applyShowTestOrdersSetting();
+  });
+}
+
+if (enableSoundToggle) {
+  enableSoundToggle.addEventListener("click", () => {
+    posSettings.enableSound = !posSettings.enableSound;
+    saveSetting("enableSound", posSettings.enableSound);
+    setSwitchState(enableSoundToggle, posSettings.enableSound);
+  });
+}
 
 if (closeBusinessDayBtn) {
   closeBusinessDayBtn.addEventListener("click", () => {

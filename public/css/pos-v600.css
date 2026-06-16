@@ -3589,3 +3589,133 @@ html body .pos-tabs .tab-btn.active,
 .order-card:has(.order-flag.test){
   border:1px solid rgba(245,197,66,0.35);
 }
+
+/* =========================
+   v62-1 POS settings
+========================= */
+#settingsTab{
+  overflow:auto !important;
+  padding:18px !important;
+}
+
+.settings-layout{
+  min-height:100%;
+  background:var(--ep-card, #fffaf2) !important;
+  color:var(--ep-text, #2b2118) !important;
+  border:1px solid var(--ep-line, #e6d2b5) !important;
+  border-radius:24px !important;
+  overflow:hidden !important;
+  box-shadow:0 6px 18px rgba(67,40,18,.08) !important;
+}
+
+.settings-grid{
+  display:grid !important;
+  grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+  gap:16px !important;
+  padding:18px !important;
+}
+
+.settings-card{
+  min-height:132px !important;
+  background:#fffdf9 !important;
+  border:1px solid var(--ep-line, #e6d2b5) !important;
+  border-radius:18px !important;
+  padding:18px !important;
+  display:flex !important;
+  flex-direction:column !important;
+  justify-content:space-between !important;
+  gap:16px !important;
+  box-shadow:0 5px 14px rgba(67,40,18,.08) !important;
+}
+
+.settings-toggle-card{
+  flex-direction:row !important;
+  align-items:center !important;
+}
+
+.settings-card-title{
+  display:flex !important;
+  flex-direction:column !important;
+  gap:5px !important;
+  color:var(--ep-text, #2b2118) !important;
+  font-weight:900 !important;
+}
+
+.settings-card-title span{
+  font-size:20px !important;
+}
+
+.settings-card-title small{
+  color:var(--ep-muted, #8a7560) !important;
+  font-size:14px !important;
+  font-weight:700 !important;
+}
+
+.settings-input{
+  width:100% !important;
+  min-height:48px !important;
+  background:#fffaf2 !important;
+  color:var(--ep-text, #2b2118) !important;
+  border:1px solid #d9bd93 !important;
+  border-radius:14px !important;
+  padding:10px 14px !important;
+  font-size:18px !important;
+  font-weight:800 !important;
+  outline:none !important;
+}
+
+.settings-input:focus{
+  border-color:#c26a00 !important;
+  box-shadow:0 0 0 3px rgba(240,180,60,.22) !important;
+}
+
+.settings-action-btn{
+  width:fit-content !important;
+  min-width:142px !important;
+}
+
+.settings-switch{
+  width:68px !important;
+  height:38px !important;
+  flex:0 0 68px !important;
+  border:none !important;
+  border-radius:999px !important;
+  padding:4px !important;
+  background:#dfc8a8 !important;
+  cursor:pointer !important;
+  transition:background .18s ease !important;
+}
+
+.settings-switch span{
+  display:block !important;
+  width:30px !important;
+  height:30px !important;
+  border-radius:50% !important;
+  background:#fffaf2 !important;
+  box-shadow:0 2px 8px rgba(43,33,24,.18) !important;
+  transform:translateX(0) !important;
+  transition:transform .18s ease !important;
+}
+
+.settings-switch.active{
+  background:#2b2118 !important;
+}
+
+.settings-switch.active span{
+  transform:translateX(30px) !important;
+}
+
+@media (max-width: 760px){
+  #settingsTab{
+    padding:12px !important;
+  }
+
+  .settings-grid{
+    grid-template-columns:1fr !important;
+    padding:14px !important;
+  }
+
+  .settings-toggle-card{
+    gap:18px !important;
+  }
+}

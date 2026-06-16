@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>恩點系統｜店員 POS</title>
-  <link rel="stylesheet" href="./css/pos-v600.css?v=616" />
+  <link rel="stylesheet" href="./css/pos-v600.css?v=617" />
 </head>
 
 <body>
@@ -20,6 +20,7 @@
         <button class="tab-btn" data-tab="todayTab">今日訂單</button>
         <button class="tab-btn" data-tab="databaseTab">資料庫</button>
         <button class="tab-btn" data-tab="statsTab">統計</button>
+        <button class="tab-btn" data-tab="settingsTab">設定</button>
       </nav>
     </header>
 
@@ -214,6 +215,69 @@
           </section>
         </div>
       </section>
+
+      <section id="settingsTab" class="tab-panel">
+        <div class="settings-layout">
+          <div class="panel-title">
+            <h2>設定</h2>
+            <p>店家顯示、桌數、製作時間與系統偏好</p>
+          </div>
+
+          <div class="settings-grid">
+            <section class="settings-card">
+              <div class="settings-card-title">
+                <span>全螢幕模式</span>
+                <small>切換 POS 全螢幕操作</small>
+              </div>
+              <button type="button" id="fullscreenBtn" class="primary-btn settings-action-btn">進入全螢幕</button>
+            </section>
+
+            <section class="settings-card">
+              <label for="storeNameInput" class="settings-card-title">
+                <span>店家名稱</span>
+                <small>顯示在 POS 左上角</small>
+              </label>
+              <input id="storeNameInput" class="settings-input" type="text" placeholder="恩點 POS" />
+            </section>
+
+            <section class="settings-card">
+              <label for="tableCountInput" class="settings-card-title">
+                <span>桌數設定</span>
+                <small>更新點餐區桌號按鈕</small>
+              </label>
+              <input id="tableCountInput" class="settings-input" type="number" min="1" max="99" step="1" />
+            </section>
+
+            <section class="settings-card">
+              <label for="prepTimeInput" class="settings-card-title">
+                <span>預估製作時間</span>
+                <small>分鐘</small>
+              </label>
+              <input id="prepTimeInput" class="settings-input" type="number" min="1" max="999" step="1" />
+            </section>
+
+            <section class="settings-card settings-toggle-card">
+              <div class="settings-card-title">
+                <span>測試單顯示</span>
+                <small>顯示或隱藏點餐區測試訂單按鈕</small>
+              </div>
+              <button type="button" id="showTestOrdersToggle" class="settings-switch" aria-pressed="true">
+                <span></span>
+              </button>
+            </section>
+
+            <section class="settings-card settings-toggle-card">
+              <div class="settings-card-title">
+                <span>提示音設定</span>
+                <small>保留提示音偏好</small>
+              </div>
+              <button type="button" id="enableSoundToggle" class="settings-switch" aria-pressed="true">
+                <span></span>
+              </button>
+            </section>
+          </div>
+        </div>
+      </section>
     </main>
   </div>
 
@@ -343,6 +407,6 @@
     </div>
   </div>
 
-  <script type="module" src="./js/pos.js?v=616"></script>
+  <script type="module" src="./js/pos.js?v=617"></script>
 </body>
 </html>
