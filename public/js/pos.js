@@ -994,7 +994,6 @@ function renderPosFoodButton(item) {
 
       <div class="food-info">
         <strong>${displayName}</strong>
-        <small>${getItemCategory(item)}</small>
         <b>${money(getBasePrice(item))}</b>
       </div>
     </button>
