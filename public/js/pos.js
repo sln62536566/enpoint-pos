@@ -2635,7 +2635,23 @@ if (submitTestOrderBtn) submitTestOrderBtn.addEventListener("click", submitTestO
 if (fullscreenBtn) {
   let fullscreenLastTouchAt = 0;
 
-  function requestPosFullscreen(event) {
+  function isPosFullscreenActive() {
+    return !!(
+      document.fullscreenElement ||
+      document.webkitFullscreenElement ||
+      document.mozFullScreenElement ||
+      document.msFullscreenElement ||
+      document.webkitIsFullScreen
+    );
+  }
+
+  function updateFullscreenButtonText() {
+    fullscreenBtn.textContent = isPosFullscreenActive()
+      ? "❎ 關閉全螢幕模式"
+      : "🔳 進入全螢幕模式";
+  }
+
+  function togglePosFullscreen(event) {
     if (event && event.type === "touchend") {
       fullscreenLastTouchAt = Date.now ? Date.now() : new Date().getTime();
     }
@@ -2645,6 +2661,22 @@ if (fullscreenBtn) {
     }
 
     if (event && event.preventDefault) event.preventDefault();
+
+    if (isPosFullscreenActive()) {
+      const exitFullscreen =
+        document.exitFullscreen ||
+        document.webkitExitFullscreen ||
+        document.mozCancelFullScreen ||
+        document.msExitFullscreen;
+
+      if (exitFullscreen) {
+        exitFullscreen.call(document);
+      } else {
+        alert("此裝置瀏覽器不支援全螢幕，請使用瀏覽器選單或加入主畫面模式。");
+      }
+
+      return;
+    }
 
     const target = document.documentElement;
     const requestFullscreen =
@@ -2660,8 +2692,13 @@ if (fullscreenBtn) {
     }
   }
 
-  fullscreenBtn.addEventListener("click", requestPosFullscreen, false);
-  fullscreenBtn.addEventListener("touchend", requestPosFullscreen, false);
+  fullscreenBtn.addEventListener("click", togglePosFullscreen, false);
+  fullscreenBtn.addEventListener("touchend", togglePosFullscreen, false);
+  document.addEventListener("fullscreenchange", updateFullscreenButtonText, false);
+  document.addEventListener("webkitfullscreenchange", updateFullscreenButtonText, false);
+  document.addEventListener("mozfullscreenchange", updateFullscreenButtonText, false);
+  document.addEventListener("MSFullscreenChange", updateFullscreenButtonText, false);
+  updateFullscreenButtonText();
 }
 
 if (storeNameInput) {
