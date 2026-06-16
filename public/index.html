@@ -16,7 +16,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <title>恩點系統｜QR 點餐</title>
   <link rel="manifest" href="./manifest.json" />
-  <link rel="stylesheet" href="./css/qr.css?v=630" />
+  <link rel="stylesheet" href="./css/qr.css?v=635" />
 </head>
 
 <body class="qr-page">
@@ -34,6 +34,7 @@
       <h2>查看訂單</h2>
       <p class="qr-top-order-hint">送出訂單後，這裡會顯示剛剛的訂單內容。</p>
       <div id="topOrderContent"></div>
+      <button id="topNewOrderBtn" class="primary-btn qr-new-order-btn" type="button" onclick="return window.forceResetQrOrder(event)" ontouchend="return window.forceResetQrOrder(event)">重新點餐</button>
     </div>
   </section>
 
@@ -211,6 +212,6 @@
       }
     })();
   </script>
-  <script type="module" src="./js/app.js?v=630"></script>
+  <script type="module" src="./js/app.js?v=635"></script>
 </body>
 </html>

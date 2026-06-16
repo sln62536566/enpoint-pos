@@ -35,6 +35,9 @@ window.qrHardAddToCart = function(event){
 
 const STORE_ID = "defaultStore";
 const LAST_ORDER_KEY = "enpoint_last_qr_order_id";
+const LAST_ORDER_KEY_COMPAT = "lastQrOrderId";
+const DEFAULT_QR_STORE_NAME = "恩點點餐";
+const DEFAULT_ORDER_LOOKUP_MINUTES = 60;
 
 const params = new URLSearchParams(window.location.search);
 const table = params.get("table") || "";
@@ -44,18 +47,70 @@ const successPage = document.getElementById("successPage");
 const successContent = document.getElementById("successContent");
 const topOrderPanel = document.getElementById("topOrderPanel");
 const topOrderContent = document.getElementById("topOrderContent");
+const qrHeaderTitle = document.querySelector(".qr-header h1");
+let currentViewingOrderId = "";
+let qrStoreName = DEFAULT_QR_STORE_NAME;
+let orderLookupMinutes = DEFAULT_ORDER_LOOKUP_MINUTES;
+
+function addBodyClass(name) {
+  if (document.body && (" " + String(document.body.className || "") + " ").indexOf(" " + name + " ") < 0) {
+    document.body.className += (document.body.className ? " " : "") + name;
+  }
+}
+
+function removeBodyClass(name) {
+  if (document.body) {
+    document.body.className = String(document.body.className || "").replace(new RegExp("\\b" + name + "\\b", "g"), "").replace(/\s+/g, " ");
+  }
+}
+
+function setQrPageMode(mode) {
+  if (mode === "order") {
+    removeBodyClass("qr-tab-menu");
+    addBodyClass("qr-tab-order");
+    addBodyClass("qr-direct-order-mode");
+  } else {
+    removeBodyClass("qr-tab-order");
+    removeBodyClass("qr-direct-order-mode");
+    addBodyClass("qr-tab-menu");
+  }
+}
 
 function qrIsViewOrderMode() {
   try {
     var searchParams = new URLSearchParams(window.location.search || "");
     var view = searchParams.get("view");
-    return view === "last" || (view === "order" && !!searchParams.get("orderId"));
+    return view === "last" || view === "order";
   } catch (e) {
     return false;
   }
 }
 
+function saveCurrentViewingOrderId(orderId) {
+  currentViewingOrderId = orderId || "";
+  if (!currentViewingOrderId) return;
+  try { localStorage.setItem(LAST_ORDER_KEY, currentViewingOrderId); } catch (e) {}
+  try { localStorage.setItem(LAST_ORDER_KEY_COMPAT, currentViewingOrderId); } catch (e) {}
+}
+
+function getSavedViewingOrderId() {
+  if (currentViewingOrderId) return currentViewingOrderId;
+  try {
+    currentViewingOrderId = localStorage.getItem(LAST_ORDER_KEY) || localStorage.getItem(LAST_ORDER_KEY_COMPAT) || "";
+  } catch (e) {
+    currentViewingOrderId = "";
+  }
+  return currentViewingOrderId;
+}
+
+function applyQrStoreName(name) {
+  qrStoreName = (name || "").trim() || DEFAULT_QR_STORE_NAME;
+  if (qrHeaderTitle) qrHeaderTitle.textContent = qrStoreName;
+  document.title = qrStoreName + "｜QR 點餐";
+}
+
 function qrShowOrderMode() {
+  setQrPageMode("order");
   if (orderPage) {
     orderPage.className = (orderPage.className || "") + " hidden";
     orderPage.style.display = "none";
@@ -75,10 +130,20 @@ function qrShowOrderMode() {
 }
 
 function qrShowMenuMode() {
+  setQrPageMode("menu");
   if (topOrderPanel) {
     topOrderPanel.className = (topOrderPanel.className || "") + " hidden";
     topOrderPanel.style.display = "none";
   }
+  if (orderPage) {
+    orderPage.className = String(orderPage.className || "").replace(/\bhidden\b/g, "");
+    orderPage.style.display = "";
+  }
+  if (successPage) {
+    successPage.className = (successPage.className || "") + " hidden";
+    successPage.style.display = "none";
+  }
+  if (floatingCartBtn) floatingCartBtn.style.display = "block";
   var orderTab = document.getElementById("qrOrderTabLink");
   var viewTab = document.getElementById("qrViewOrderPlainLink");
   if (viewTab) viewTab.className = String(viewTab.className || "").replace(/\bactive\b/g, "");
@@ -86,6 +151,7 @@ function qrShowMenuMode() {
 }
 const orderStatusBox = document.getElementById("orderStatusBox");
 const newOrderBtn = document.getElementById("newOrderBtn");
+const topNewOrderBtn = document.getElementById("topNewOrderBtn");
 
 const tableInfo = document.getElementById("tableInfo");
 const categoryList = document.getElementById("categoryList");
@@ -127,6 +193,8 @@ const backToCartBtn = document.getElementById("backToCartBtn");
 
 const menuRef = ref(db, "menu");
 const categoriesRef = ref(db, "categories");
+const storeNameRef = ref(db, "settings/storeName");
+const orderLookupMinutesRef = ref(db, "settings/orderLookupMinutes");
 
 let menuData = [];
 let categoriesData = {};
@@ -856,6 +924,9 @@ function forceResetQrOrder(event) {
   try {
     localStorage.removeItem(LAST_ORDER_KEY);
   } catch (e) {}
+  if (window.history && window.history.replaceState) {
+    try { window.history.replaceState(null, "", window.location.pathname); } catch (e) {}
+  }
 
   cart = [];
   selectedItem = null;
@@ -877,6 +948,7 @@ function forceResetQrOrder(event) {
     itemModal.className = itemModal.className.replace(/\bshow-force\b/g, "");
     itemModal.style.display = "none";
   }
+  qrShowMenuMode();
   closeQrCartPanel();
   renderCart();
   renderCategories();
@@ -887,6 +959,10 @@ window.forceResetQrOrder = forceResetQrOrder;
 if (newOrderBtn) {
   newOrderBtn.onclick = forceResetQrOrder;
   newOrderBtn.ontouchend = forceResetQrOrder;
+}
+if (topNewOrderBtn) {
+  topNewOrderBtn.onclick = forceResetQrOrder;
+  topNewOrderBtn.ontouchend = forceResetQrOrder;
 }
 
 function getQrCartTotal() {
@@ -1114,10 +1190,10 @@ function submitConfirmedQrOrder(event) {
       });
     })
     .then(function (order) {
-      localStorage.setItem(LAST_ORDER_KEY, order.id);
+      saveCurrentViewingOrderId(order.id);
 
       confirmModal.classList.add("hidden");
-      showSuccessPage(order);
+      showSubmittedOrderView(order, true);
       listenOrderStatus(order.id);
 
       cart = [];
@@ -1205,7 +1281,9 @@ function getDirectOrderIdFromUrl() {
   try {
     var searchParams = new URLSearchParams(window.location.search || "");
     if (searchParams.get("view") !== "order") return "";
-    return searchParams.get("orderId") || "";
+    var id = searchParams.get("orderId") || "";
+    if (id) saveCurrentViewingOrderId(id);
+    return id;
   } catch (e) {
     return "";
   }
@@ -1228,10 +1306,75 @@ function getKitchenStatusText(order) {
   return "等待櫃檯確認";
 }
 
+function isOrderDoneForLookup(order) {
+  return !!order && (order.status === "done" || order.kitchenStatus === "done");
+}
+
+function getOrderCompletedTime(order) {
+  if (!order) return 0;
+  return Number(order.completedAt || order.doneAt || 0);
+}
+
+function isOrderLookupExpired(order) {
+  if (!isOrderDoneForLookup(order)) return false;
+  var completedAt = getOrderCompletedTime(order);
+  if (!completedAt) return false;
+  var minutes = Math.min(10080, Math.max(1, Math.floor(Number(orderLookupMinutes) || DEFAULT_ORDER_LOOKUP_MINUTES)));
+  var now = Date.now ? Date.now() : new Date().getTime();
+  return now - completedAt > minutes * 60 * 1000;
+}
+
+function getQrItemExtras(item) {
+  return (item && (item.addons || item.extras)) || [];
+}
+
+function getQrItemRemoves(item) {
+  return (item && (item.removes || item.removeOptionsSelected || item.noOptionsSelected)) || [];
+}
+
+function buildDirectItemDetailHtml(item) {
+  var details = [];
+  var extras = getQrItemExtras(item);
+  var removes = getQrItemRemoves(item);
+
+  if (item.size) details.push("份量：" + item.size);
+  if (item.requiredOption && item.requiredOption.title && item.requiredOption.value) {
+    details.push(item.requiredOption.title + "：" + item.requiredOption.value);
+  }
+  if (extras && extras.length) {
+    var extraNames = [];
+    for (var i = 0; i < extras.length; i++) {
+      var extra = extras[i];
+      if (typeof extra === "string") extraNames.push(extra);
+      else extraNames.push(extra.name || extra.label || "加料");
+    }
+    details.push("加料：" + extraNames.join("、"));
+  }
+  if (removes && removes.length) details.push("不要：" + removes.join("、"));
+  if (item.spicy) details.push("辣度：" + item.spicy);
+  if (item.satay) details.push("沙茶：" + item.satay);
+  if (item.note) details.push("備註：" + item.note);
+
+  if (!details.length) return "";
+  return '<div class="qr-direct-item-detail">' + details.map(function(detail) {
+    return '<p>' + escapeHtml(detail) + '</p>';
+  }).join("") + '</div>';
+}
+
 function buildDirectOrderViewHtml(order) {
+  if (isOrderLookupExpired(order)) {
+    return '' +
+      '<div class="qr-direct-order-card qr-direct-expired-card">' +
+        '<div class="qr-direct-store-name">' + escapeHtml(qrStoreName || DEFAULT_QR_STORE_NAME) + '</div>' +
+        '<div class="qr-direct-number"><span>訂單號</span><strong>' + escapeHtml(order.orderNumber || order.id || "-") + '</strong></div>' +
+        '<div class="qr-direct-expired-message">此訂單已完成，查詢已結束</div>' +
+      '</div>';
+  }
+
   var items = Array.isArray(order.items) ? order.items : [];
   return '' +
     '<div class="qr-direct-order-card">' +
+      '<div class="qr-direct-store-name">' + escapeHtml(qrStoreName || DEFAULT_QR_STORE_NAME) + '</div>' +
       '<div class="qr-direct-number"><span>訂單號</span><strong>' + escapeHtml(order.orderNumber || order.id || "-") + '</strong></div>' +
       '<div class="qr-direct-status-grid">' +
         '<div><span>付款狀態</span><strong>' + escapeHtml(getPaymentStatusText(order)) + '</strong></div>' +
@@ -1245,7 +1388,12 @@ function buildDirectOrderViewHtml(order) {
       '<div class="qr-direct-items">' +
         (items.length ? items.map(function(item) {
           var qty = Number(item.qty || item.quantity || 1);
-          return '<div class="qr-direct-item"><span>' + escapeHtml(item.name || "未命名餐點") + '</span><b>× ' + qty + '</b></div>';
+          var subtotal = Number(item.subtotal || (Number(item.price || item.unitPrice || 0) * qty));
+          return '<div class="qr-direct-item">' +
+            '<div class="qr-direct-item-main"><span>' + escapeHtml(item.name || "未命名餐點") + '</span><b>× ' + qty + '</b></div>' +
+            buildDirectItemDetailHtml(item) +
+            '<div class="qr-direct-item-subtotal">小計：' + money(subtotal) + '</div>' +
+          '</div>';
         }).join("") : '<div class="empty">此訂單沒有餐點資料</div>') +
       '</div>' +
       '<div class="qr-direct-total">總計：' + money(order.total || 0) + '</div>' +
@@ -1253,9 +1401,7 @@ function buildDirectOrderViewHtml(order) {
 }
 
 function showDirectOrderShell() {
-  if (document.body && (" " + document.body.className + " ").indexOf(" qr-direct-order-mode ") < 0) {
-    document.body.className += " qr-direct-order-mode";
-  }
+  setQrPageMode("order");
   qrShowOrderMode();
   if (orderPage) orderPage.style.display = "none";
   if (successPage) successPage.style.display = "none";
@@ -1264,6 +1410,50 @@ function showDirectOrderShell() {
     topOrderPanel.className = String(topOrderPanel.className || "").replace(/\bhidden\b/g, "");
     topOrderPanel.style.display = "block";
   }
+}
+
+function updateOrderUrl(orderId) {
+  if (!orderId || !window.history || !window.history.replaceState) return;
+  try {
+    var nextUrl = window.location.pathname + "?view=order&orderId=" + encodeURIComponent(orderId);
+    window.history.replaceState(null, "", nextUrl);
+  } catch (e) {}
+}
+
+function showSubmittedOrderView(order, updateUrl) {
+  if (!order) return;
+  if (order.id) saveCurrentViewingOrderId(order.id);
+  if (updateUrl !== false) updateOrderUrl(order.id);
+  showDirectOrderShell();
+  if (topOrderContent) topOrderContent.innerHTML = buildDirectOrderViewHtml(order);
+  if (orderStatusBox) orderStatusBox.textContent = "狀態：" + getOrderStatusText(order);
+  try { window.scrollTo(0, 0); } catch (e) {}
+}
+
+function loadViewingOrderById(orderId, updateUrl) {
+  var id = orderId || getSavedViewingOrderId();
+  if (!id) {
+    renderDirectOrderMissing();
+    return false;
+  }
+  saveCurrentViewingOrderId(id);
+  showDirectOrderShell();
+  if (topOrderContent) topOrderContent.innerHTML = '<div class="qr-direct-order-card"><div class="empty">讀取訂單中...</div></div>';
+  try {
+    onValue(ref(db, "orders/" + id), function(snapshot) {
+      var order = snapshot && snapshot.val ? snapshot.val() : null;
+      if (!order) {
+        renderDirectOrderMissing();
+        return;
+      }
+      var fullOrder = Object.assign({ id: id }, order);
+      showSubmittedOrderView(fullOrder, updateUrl);
+    }, { onlyOnce: true });
+  } catch (error) {
+    console.error("讀取 QR 訂單失敗：", error);
+    renderDirectOrderMissing();
+  }
+  return true;
 }
 
 function renderDirectOrderMissing() {
@@ -1275,28 +1465,18 @@ function renderDirectOrderMissing() {
 
 function initDirectOrderView() {
   var directOrderId = getDirectOrderIdFromUrl();
-  if (!directOrderId) return false;
-
-  showDirectOrderShell();
-  if (topOrderContent) topOrderContent.innerHTML = '<div class="qr-direct-order-card"><div class="empty">讀取訂單中...</div></div>';
-
-  try {
-    onValue(ref(db, "orders/" + directOrderId), function(snapshot) {
-      var order = snapshot && snapshot.val ? snapshot.val() : null;
-      if (!order) {
+  if (!directOrderId) {
+    try {
+      var searchParams = new URLSearchParams(window.location.search || "");
+      if (searchParams.get("view") === "order") {
         renderDirectOrderMissing();
-        return;
+        return true;
       }
-      var fullOrder = Object.assign({ id: directOrderId }, order);
-      showDirectOrderShell();
-      if (topOrderContent) topOrderContent.innerHTML = buildDirectOrderViewHtml(fullOrder);
-      if (orderStatusBox) orderStatusBox.textContent = "狀態：" + getOrderStatusText(fullOrder);
-    });
-  } catch (error) {
-    renderDirectOrderMissing();
+    } catch (e) {}
+    return false;
   }
 
-  return true;
+  return loadViewingOrderById(directOrderId, false);
 }
 
 function renderTopOrderOnly(order) {
@@ -1332,15 +1512,18 @@ function listenOrderStatus(orderId) {
   onValue(orderRef, snapshot => {
     const order = snapshot.val();
     if (!order) return;
+    var fullOrder = { id: orderId, ...order };
 
-    if (qrIsViewOrderMode()) {
-      renderTopOrderOnly({ id: orderId, ...order });
+    if (getDirectOrderIdFromUrl() || (document.body && (" " + document.body.className + " ").indexOf(" qr-direct-order-mode ") >= 0)) {
+      showSubmittedOrderView(fullOrder, false);
+    } else if (qrIsViewOrderMode()) {
+      renderTopOrderOnly(fullOrder);
     } else {
-      showSuccessPage({ id: orderId, ...order });
+      showSuccessPage(fullOrder);
     }
 
     if (orderStatusBox) {
-      orderStatusBox.textContent = `狀態：${getOrderStatusText(order)}`;
+      orderStatusBox.textContent = `狀態：${getOrderStatusText(fullOrder)}`;
     }
   });
 }
@@ -1389,7 +1572,44 @@ function loadMenu() {
   });
 }
 
+function loadQrStoreName() {
+  try {
+    applyQrStoreName(localStorage.getItem("storeName") || DEFAULT_QR_STORE_NAME);
+  } catch (e) {
+    applyQrStoreName(DEFAULT_QR_STORE_NAME);
+  }
+
+  onValue(storeNameRef, function(snapshot) {
+    var name = snapshot && snapshot.exists && snapshot.exists() ? snapshot.val() : "";
+    applyQrStoreName(name || DEFAULT_QR_STORE_NAME);
+    try {
+      if (name) localStorage.setItem("storeName", name);
+    } catch (e) {}
+  });
+}
+
+function applyOrderLookupMinutes(value) {
+  var minutes = Math.floor(Number(value) || DEFAULT_ORDER_LOOKUP_MINUTES);
+  orderLookupMinutes = Math.min(10080, Math.max(1, minutes));
+  try { localStorage.setItem("orderLookupMinutes", String(orderLookupMinutes)); } catch (e) {}
+}
+
+function loadOrderLookupMinutes() {
+  try {
+    applyOrderLookupMinutes(localStorage.getItem("orderLookupMinutes") || DEFAULT_ORDER_LOOKUP_MINUTES);
+  } catch (e) {
+    applyOrderLookupMinutes(DEFAULT_ORDER_LOOKUP_MINUTES);
+  }
+
+  onValue(orderLookupMinutesRef, function(snapshot) {
+    var value = snapshot && snapshot.exists && snapshot.exists() ? snapshot.val() : DEFAULT_ORDER_LOOKUP_MINUTES;
+    applyOrderLookupMinutes(value);
+  });
+}
+
 initOrderTypeUI();
+loadQrStoreName();
+loadOrderLookupMinutes();
 loadMenu();
 
 var qrMenuTouchStartX = 0;
@@ -2512,7 +2732,7 @@ window.qrLegacyDirectSubmitOrder = function (event) {
         });
       })
       .then(function (order) {
-        try { localStorage.setItem(LAST_ORDER_KEY, order.id); } catch (e) {}
+        saveCurrentViewingOrderId(order.id);
 
         if (confirmModal) {
           confirmModal.className = (confirmModal.className || "") + " hidden";
@@ -2524,7 +2744,7 @@ window.qrLegacyDirectSubmitOrder = function (event) {
         }
         try { closeQrCartPanel(); } catch (e) {}
 
-        showSuccessPage(order);
+        showSubmittedOrderView(order, true);
         listenOrderStatus(order.id);
 
         cart = [];
@@ -2956,6 +3176,7 @@ window.openLastQrOrderFromTop = openLastQrOrderFromTop;
   }
   function showMenu(e){
     prevent(e);
+    removeBodyClass("qr-direct-order-mode");
     setBodyMode("menu");
     setActive("menu");
     if (topOrderPanel) {
@@ -3128,6 +3349,7 @@ window.openLastQrOrderFromTop = openLastQrOrderFromTop;
   function addClass(el,name){ if(el && (" "+String(el.className||"")+" ").indexOf(" "+name+" ")<0) el.className += (el.className?" ":"")+name; }
   function showMenu(e){
     if(e){ e.preventDefault&&e.preventDefault(); e.stopPropagation&&e.stopPropagation(); }
+    removeClass(document.body,"qr-direct-order-mode");
     removeClass(document.body,"qr-tab-order"); addClass(document.body,"qr-tab-menu");
     var orderPage=document.getElementById("orderPage"), successPage=document.getElementById("successPage"), topOrderPanel=document.getElementById("topOrderPanel"), floatingCartBtn=document.getElementById("floatingCartBtn");
     removeClass(orderPage,"hidden"); if(orderPage) orderPage.style.display="block";
@@ -3166,4 +3388,46 @@ window.openLastQrOrderFromTop = openLastQrOrderFromTop;
     if(String(window.location.search||"").indexOf("view=last")>=0) showOrder(null);
     else showMenu(null);
   }, 100);
+})();
+
+/* =========================
+   v63 final tab binding: every View Order tab open reloads Firebase by orderId.
+========================= */
+(function(){
+  function stop(event){
+    if (event) {
+      if (event.preventDefault) event.preventDefault();
+      if (event.stopPropagation) event.stopPropagation();
+      if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+    }
+  }
+
+  function openMenu(event){
+    stop(event);
+    qrShowMenuMode();
+    try { renderCategories(); renderMenu(); } catch (error) { console.error("QR 點餐頁重繪失敗：", error); }
+    return false;
+  }
+
+  function openOrder(event){
+    stop(event);
+    loadViewingOrderById(getSavedViewingOrderId(), true);
+    return false;
+  }
+
+  window.qrShowMenuTab = openMenu;
+  window.qrShowOrderTab = openOrder;
+
+  var orderTab = document.getElementById("qrOrderTabLink");
+  var viewTab = document.getElementById("qrViewOrderPlainLink");
+  if (orderTab) {
+    orderTab.href = "javascript:void(0)";
+    orderTab.onclick = openMenu;
+    orderTab.ontouchend = openMenu;
+  }
+  if (viewTab) {
+    viewTab.href = "javascript:void(0)";
+    viewTab.onclick = openOrder;
+    viewTab.ontouchend = openOrder;
+  }
 })();

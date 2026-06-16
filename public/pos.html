@@ -9,7 +9,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <title>恩點系統｜店員 POS</title>
   <link rel="manifest" href="./manifest.json" />
-  <link rel="stylesheet" href="./css/pos-v600.css?v=630" />
+  <link rel="stylesheet" href="./css/pos-v600.css?v=635" />
 </head>
 
 <body>
@@ -261,6 +261,14 @@
               <input id="prepTimeInput" class="settings-input" type="number" min="1" max="999" step="1" />
             </section>
 
+            <section class="settings-card">
+              <label for="orderLookupMinutesInput" class="settings-card-title">
+                <span>訂單查詢保留時間</span>
+                <small>分鐘，完成後超過此時間不顯示明細</small>
+              </label>
+              <input id="orderLookupMinutesInput" class="settings-input" type="number" min="1" max="10080" step="1" />
+            </section>
+
             <section class="settings-card settings-toggle-card">
               <div class="settings-card-title">
                 <span>測試單顯示</span>
@@ -412,6 +420,6 @@
     </div>
   </div>
 
-  <script type="module" src="./js/pos.js?v=630"></script>
+  <script type="module" src="./js/pos.js?v=635"></script>
 </body>
 </html>

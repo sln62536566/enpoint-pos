@@ -2229,8 +2229,7 @@ body.qr-page.qr-tab-order #topOrderPanel{
 /* v63 direct order lookup from printed receipt QR */
 .qr-page.qr-direct-order-mode #orderPage,
 .qr-page.qr-direct-order-mode #successPage,
-.qr-page.qr-direct-order-mode #floatingCartBtn,
-.qr-page.qr-direct-order-mode #qrOrderTabLink{
+.qr-page.qr-direct-order-mode #floatingCartBtn{
   display:none !important;
 }
 
@@ -2246,6 +2245,13 @@ body.qr-page.qr-tab-order #topOrderPanel{
 .qr-direct-order-card{
   display:grid;
   gap:14px;
+}
+
+.qr-direct-store-name{
+  text-align:center;
+  color:#2b2118;
+  font-size:22px;
+  font-weight:900;
 }
 
 .qr-direct-number{
@@ -2311,18 +2317,56 @@ body.qr-page.qr-tab-order #topOrderPanel{
 }
 
 .qr-direct-item{
-  display:flex;
-  justify-content:space-between;
-  gap:12px;
+  display:block;
   padding:12px 0;
   border-bottom:1px solid #ead7bd;
   font-size:17px;
+}
+
+.qr-direct-item-main{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  font-weight:900;
+}
+
+.qr-direct-item-main b{
+  white-space:nowrap;
+}
+
+.qr-direct-item-detail{
+  margin-top:6px;
+  color:#6f5840;
+  font-size:14px;
+  line-height:1.45;
+}
+
+.qr-direct-item-detail p{
+  margin:3px 0;
+}
+
+.qr-direct-item-subtotal{
+  margin-top:6px;
+  text-align:right;
+  color:#8a6b45;
+  font-weight:800;
 }
 
 .qr-direct-total{
   text-align:right;
   color:#c26a00;
   font-size:22px;
+  font-weight:900;
+}
+
+.qr-direct-expired-message{
+  padding:18px;
+  border:1px solid #ead7bd;
+  border-radius:14px;
+  background:#fffaf2;
+  color:#6f5840;
+  text-align:center;
+  font-size:18px;
   font-weight:900;
 }
 
@@ -2394,4 +2438,31 @@ body.qr-page.qr-tab-order #topOrderPanel{
     border-radius: 16px;
     margin-bottom: 12px;
   }
+}
+
+/* v63: true order lookup page mode. Keep this at the end to beat legacy tablet rules. */
+body.qr-page.qr-direct-order-mode #categoryList,
+body.qr-page.qr-direct-order-mode #menuList,
+body.qr-page.qr-direct-order-mode #qrCartPanel,
+body.qr-page.qr-direct-order-mode #floatingCartBtn,
+body.qr-page.qr-direct-order-mode #successPage,
+body.qr-page.qr-direct-order-mode #orderPage{
+  display:none !important;
+  visibility:hidden !important;
+}
+
+body.qr-page.qr-direct-order-mode #topOrderPanel{
+  display:block !important;
+  visibility:visible !important;
+  padding:14px !important;
+  background:#fff7ed !important;
+}
+
+body.qr-page.qr-direct-order-mode #topOrderPanel.hidden{
+  display:block !important;
+}
+
+.qr-new-order-btn{
+  width:100%;
+  margin-top:16px;
 }

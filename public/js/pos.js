@@ -136,6 +136,7 @@ const fullscreenBtn = document.getElementById("fullscreenBtn");
 const storeNameInput = document.getElementById("storeNameInput");
 const tableCountInput = document.getElementById("tableCountInput");
 const prepTimeInput = document.getElementById("prepTimeInput");
+const orderLookupMinutesInput = document.getElementById("orderLookupMinutesInput");
 const showTestOrdersToggle = document.getElementById("showTestOrdersToggle");
 const enableSoundToggle = document.getElementById("enableSoundToggle");
 
@@ -146,6 +147,8 @@ const enableSoundToggle = document.getElementById("enableSoundToggle");
 const menuRef = ref(db, "menu");
 const categoriesRef = ref(db, "categories");
 const ordersRef = ref(db, "orders");
+const storeNameRef = ref(db, "settings/storeName");
+const orderLookupMinutesRef = ref(db, "settings/orderLookupMinutes");
 
 /* =========================
    State
@@ -199,11 +202,13 @@ let lastFoodOpenAt = 0;
 let lastFoodOpenId = "";
 let lastPrintOrderAt = 0;
 let lastPrintOrderKey = "";
+let storeNameSyncTimer = null;
 
 const defaultSettings = {
   storeName: "",
   tableCount: 8,
   prepTime: 15,
+  orderLookupMinutes: 60,
   showTestOrders: true,
   enableSound: true
 };
@@ -280,6 +285,7 @@ function loadSettings() {
     storeName: localStorage.getItem("storeName") || defaultSettings.storeName,
     tableCount: readNumberSetting("tableCount", defaultSettings.tableCount, 1, 99),
     prepTime: readNumberSetting("prepTime", defaultSettings.prepTime, 1, 999),
+    orderLookupMinutes: readNumberSetting("orderLookupMinutes", defaultSettings.orderLookupMinutes, 1, 10080),
     showTestOrders: readBooleanSetting("showTestOrders", defaultSettings.showTestOrders),
     enableSound: readBooleanSetting("enableSound", defaultSettings.enableSound)
   };
@@ -287,6 +293,23 @@ function loadSettings() {
 
 function saveSetting(key, value) {
   localStorage.setItem(key, String(value));
+}
+
+function syncStoreNameToFirebase(value) {
+  const name = String(value || "").trim();
+  if (storeNameSyncTimer) clearTimeout(storeNameSyncTimer);
+  storeNameSyncTimer = setTimeout(() => {
+    set(storeNameRef, name).catch(error => {
+      console.error("同步店家名稱失敗：", error);
+    });
+  }, 350);
+}
+
+function syncOrderLookupMinutesToFirebase(value) {
+  const minutes = Math.min(10080, Math.max(1, Math.floor(Number(value) || defaultSettings.orderLookupMinutes)));
+  set(orderLookupMinutesRef, minutes).catch(error => {
+    console.error("同步訂單查詢保留時間失敗：", error);
+  });
 }
 
 function buildTables(count) {
@@ -318,6 +341,7 @@ function renderSettings() {
   if (storeNameInput) storeNameInput.value = posSettings.storeName;
   if (tableCountInput) tableCountInput.value = posSettings.tableCount;
   if (prepTimeInput) prepTimeInput.value = posSettings.prepTime;
+  if (orderLookupMinutesInput) orderLookupMinutesInput.value = posSettings.orderLookupMinutes;
 
   applyStoreName();
   applyShowTestOrdersSetting();
@@ -928,6 +952,13 @@ function printOrderTicket(type, orderId, event) {
 
 // v63: LAN/Wi-Fi 出單機串接預留。未來可在這裡改接 WebUSB、WebSocket 或本機列印代理。
 function sendOrderToPrinterDevice(type, order) {
+  return false;
+}
+
+// v63-2 預留，不啟用：
+// POS 確認付款送廚房後，未來可在該流程呼叫此函式，
+// 依序同步廚房頁面並自動列印廚房單 / 客人單。目前手動補印按鈕維持唯一列印入口。
+function queueAutoPrintAfterKitchenConfirm(order) {
   return false;
 }
 
@@ -2406,12 +2437,14 @@ async function markOrderDoneByPOS(orderId) {
   if (!ok) return;
 
   try {
+    const now = Date.now();
     await update(ref(db, `orders/${orderId}`), {
       status: "done",
       statusText: "餐點已完成，等待 POS 結案",
       kitchenStatus: "not_required",
-      doneAt: Date.now(),
-      updatedAt: Date.now()
+      completedAt: now,
+      doneAt: now,
+      updatedAt: now
     });
   } catch (error) {
     console.error("標記完成失敗：", error);
@@ -2874,6 +2907,7 @@ if (storeNameInput) {
     posSettings.storeName = storeNameInput.value;
     saveSetting("storeName", posSettings.storeName);
     applyStoreName();
+    syncStoreNameToFirebase(posSettings.storeName);
   });
 }
 
@@ -2889,6 +2923,16 @@ if (prepTimeInput) {
     posSettings.prepTime = prepTime;
     prepTimeInput.value = prepTime;
     saveSetting("prepTime", prepTime);
+  });
+}
+
+if (orderLookupMinutesInput) {
+  orderLookupMinutesInput.addEventListener("change", () => {
+    const minutes = Math.min(10080, Math.max(1, Math.floor(Number(orderLookupMinutesInput.value) || defaultSettings.orderLookupMinutes)));
+    posSettings.orderLookupMinutes = minutes;
+    orderLookupMinutesInput.value = minutes;
+    saveSetting("orderLookupMinutes", minutes);
+    syncOrderLookupMinutesToFirebase(minutes);
   });
 }
 
@@ -2989,6 +3033,7 @@ window.submitTestOrder = submitTestOrder;
 window.clearCart = clearCart;
 window.printOrderTicket = printOrderTicket;
 window.sendOrderToPrinterDevice = sendOrderToPrinterDevice;
+window.queueAutoPrintAfterKitchenConfirm = queueAutoPrintAfterKitchenConfirm;
 window.openCustomModal = openCustomModal;
 window.selectPortion = selectPortion;
 window.selectSatay = selectSatay;
@@ -3064,6 +3109,7 @@ window.selectTable = selectTable;
 window.selectCategory = selectCategory;
 window.printOrderTicket = printOrderTicket;
 window.sendOrderToPrinterDevice = sendOrderToPrinterDevice;
+window.queueAutoPrintAfterKitchenConfirm = queueAutoPrintAfterKitchenConfirm;
 window.selectPortion = selectPortion;
 window.selectSatay = selectSatay;
 window.toggleExtra = toggleExtra;
