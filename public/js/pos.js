@@ -254,23 +254,70 @@ watchSharedSettings();
    Tabs
 ========================= */
 
-tabButtons.forEach(button => {
-  button.addEventListener("click", () => {
-    const target = button.dataset.tab;
+function setLegacyClassActive(element, className, active) {
+  if (!element) return;
+  if (element.classList) {
+    if (active) {
+      element.classList.add(className);
+    } else {
+      element.classList.remove(className);
+    }
+    return;
+  }
 
-    tabButtons.forEach(btn => btn.classList.remove("active"));
-    tabPanels.forEach(panel => panel.classList.remove("active"));
+  var current = " " + (element.className || "") + " ";
+  var hasClass = current.indexOf(" " + className + " ") !== -1;
+  if (active && !hasClass) {
+    element.className = (element.className ? element.className + " " : "") + className;
+  }
+  if (!active && hasClass) {
+    element.className = current.replace(" " + className + " ", " ").replace(/^\s+|\s+$/g, "");
+  }
+}
 
-    button.classList.add("active");
-    document.getElementById(target).classList.add("active");
-  });
-});
+function addLegacyTapListener(element, handler) {
+  if (!element || !handler) return;
+  var lastTouchAt = 0;
 
-orderSubtabButtons.forEach(button => {
-  button.addEventListener("click", () => {
-    switchOrderSubtab(button.dataset.orderSubtab);
-  });
-});
+  function handleTap(event) {
+    var now = Date.now ? Date.now() : new Date().getTime();
+    if (event && event.type === "touchend") {
+      lastTouchAt = now;
+    }
+    if (event && event.type === "click" && now - lastTouchAt < 500) {
+      return;
+    }
+    handler(event);
+  }
+
+  element.addEventListener("click", handleTap, false);
+  element.addEventListener("touchend", handleTap, false);
+}
+
+for (var posTabIndex = 0; posTabIndex < tabButtons.length; posTabIndex += 1) {
+  (function(button) {
+    addLegacyTapListener(button, function(event) {
+      if (event && event.preventDefault) event.preventDefault();
+      var target = button.getAttribute("data-tab");
+
+      for (var i = 0; i < tabButtons.length; i += 1) {
+        setLegacyClassActive(tabButtons[i], "active", tabButtons[i] === button);
+      }
+      for (var j = 0; j < tabPanels.length; j += 1) {
+        setLegacyClassActive(tabPanels[j], "active", tabPanels[j].id === target);
+      }
+    });
+  })(tabButtons[posTabIndex]);
+}
+
+for (var orderSubtabIndex = 0; orderSubtabIndex < orderSubtabButtons.length; orderSubtabIndex += 1) {
+  (function(button) {
+    addLegacyTapListener(button, function(event) {
+      if (event && event.preventDefault) event.preventDefault();
+      switchOrderSubtab(button.getAttribute("data-order-subtab"));
+    });
+  })(orderSubtabButtons[orderSubtabIndex]);
+}
 
 switchOrderSubtab("menu");
 
@@ -368,7 +415,7 @@ function applyStoreName() {
 
 function setSwitchState(button, enabled) {
   if (!button) return;
-  button.classList.toggle("active", enabled);
+  setLegacyClassActive(button, "active", enabled);
   button.setAttribute("aria-pressed", enabled ? "true" : "false");
 }
 
@@ -382,18 +429,20 @@ function applyShowTestOrdersSetting() {
 }
 
 function switchOrderSubtab(target) {
-  const next = target === "cart" ? "cart" : "menu";
+  var next = target === "cart" ? "cart" : "menu";
 
-  orderSubtabButtons.forEach(button => {
-    const active = button.dataset.orderSubtab === next;
-    button.classList.toggle("active", active);
+  for (var i = 0; i < orderSubtabButtons.length; i += 1) {
+    var button = orderSubtabButtons[i];
+    var active = button.getAttribute("data-order-subtab") === next;
+    setLegacyClassActive(button, "active", active);
     button.setAttribute("aria-selected", active ? "true" : "false");
-  });
+  }
 
-  orderSubtabPanels.forEach(panel => {
-    const active = panel.dataset.orderSubtabPanel === next;
-    panel.classList.toggle("order-subtab-active", active);
-  });
+  for (var j = 0; j < orderSubtabPanels.length; j += 1) {
+    var panel = orderSubtabPanels[j];
+    var panelActive = panel.getAttribute("data-order-subtab-panel") === next;
+    setLegacyClassActive(panel, "order-subtab-active", panelActive);
+  }
 }
 
 function renderSettings() {

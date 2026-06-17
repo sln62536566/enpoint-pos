@@ -3896,8 +3896,13 @@ html body .pos-tabs .tab-btn.active,
 }
 
 #orderTab [data-order-subtab-panel].order-subtab-active{
+  display:block !important;
+  display:-webkit-box !important;
+  display:-webkit-flex !important;
   display:flex !important;
   flex-direction:column !important;
+  -webkit-box-orient:vertical !important;
+  -webkit-flex-direction:column !important;
 }
 
 #orderTab .cart-panel.order-subtab-active{
@@ -4007,6 +4012,9 @@ body{
 }
 
 #orderTab .order-subtabs{
+  display:block !important;
+  display:-webkit-box !important;
+  display:-webkit-flex !important;
   display:flex !important;
   position:sticky !important;
   top:0 !important;
@@ -4014,9 +4022,15 @@ body{
   background:#f6efe5 !important;
   border-bottom:1px solid #ead7bd !important;
   padding:12px 18px !important;
+  overflow-x:auto !important;
+  white-space:nowrap !important;
+  -webkit-overflow-scrolling:touch !important;
 }
 
 #orderTab .order-subtab-btn{
+  display:inline-block !important;
+  display:-webkit-inline-box !important;
+  display:-webkit-inline-flex !important;
   display:inline-flex !important;
   align-items:center !important;
   justify-content:center !important;
@@ -4026,15 +4040,27 @@ body{
 #orderTab .order-layout,
 #orderTab .menu-panel,
 #orderTab .cart-panel{
-  overflow:visible !important;
+  overflow-y:auto !important;
+  overflow-x:hidden !important;
+  -webkit-overflow-scrolling:touch !important;
 }
 
 #orderTab .pos-menu-list{
+  display:block !important;
+  display:-webkit-box !important;
+  display:-webkit-flex !important;
   display:flex !important;
   flex-direction:column !important;
+  -webkit-box-orient:vertical !important;
+  -webkit-flex-direction:column !important;
   max-height:none !important;
   height:auto !important;
-  overflow-y:visible !important;
+  overflow-y:auto !important;
+  -webkit-overflow-scrolling:touch !important;
+}
+
+#orderTab .cart-panel.order-subtab-active{
+  overflow-y:auto !important;
   -webkit-overflow-scrolling:touch !important;
 }
 

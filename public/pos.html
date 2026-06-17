@@ -9,7 +9,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <title>恩點系統｜店員 POS</title>
   <link rel="manifest" href="./manifest.json" />
-  <link rel="stylesheet" href="./css/pos-v600.css?v=638" />
+  <link rel="stylesheet" href="./css/pos-v600.css?v=641" />
 </head>
 
 <body>
@@ -36,7 +36,7 @@
           <button type="button" class="order-subtab-btn" data-order-subtab="cart">目前訂單</button>
         </div>
         <div class="order-layout">
-          <section class="menu-panel" data-order-subtab-panel="menu">
+          <section class="menu-panel order-subtab-active" data-order-subtab-panel="menu">
             <div class="panel-title">
               <h2>點餐區</h2>
               <p>選擇分類與餐點</p>
@@ -439,6 +439,72 @@
     </div>
   </div>
 
-  <script type="module" src="./js/pos.js?v=638"></script>
+  <script>
+    (function() {
+      function hasClass(el, name) {
+        return (" " + (el.className || "") + " ").indexOf(" " + name + " ") !== -1;
+      }
+      function setClass(el, name, active) {
+        if (!el) return;
+        if (el.classList) {
+          if (active) el.classList.add(name);
+          else el.classList.remove(name);
+          return;
+        }
+        var current = " " + (el.className || "") + " ";
+        if (active && current.indexOf(" " + name + " ") === -1) {
+          el.className = (el.className ? el.className + " " : "") + name;
+        }
+        if (!active && current.indexOf(" " + name + " ") !== -1) {
+          el.className = current.replace(" " + name + " ", " ").replace(/^\s+|\s+$/g, "");
+        }
+      }
+      function bindTap(el, fn) {
+        if (!el) return;
+        var lastTouchAt = 0;
+        function run(e) {
+          var now = Date.now ? Date.now() : new Date().getTime();
+          if (e && e.type === "touchend") lastTouchAt = now;
+          if (e && e.type === "click" && now - lastTouchAt < 500) return;
+          if (e && e.preventDefault) e.preventDefault();
+          fn(e);
+        }
+        el.addEventListener("click", run, false);
+        el.addEventListener("touchend", run, false);
+      }
+      function switchSubtab(target) {
+        var next = target === "cart" ? "cart" : "menu";
+        var buttons = document.querySelectorAll(".order-subtab-btn");
+        var panels = document.querySelectorAll("[data-order-subtab-panel]");
+        for (var i = 0; i < buttons.length; i += 1) {
+          setClass(buttons[i], "active", buttons[i].getAttribute("data-order-subtab") === next);
+        }
+        for (var j = 0; j < panels.length; j += 1) {
+          setClass(panels[j], "order-subtab-active", panels[j].getAttribute("data-order-subtab-panel") === next);
+        }
+      }
+      function init() {
+        var buttons = document.querySelectorAll(".order-subtab-btn");
+        for (var i = 0; i < buttons.length; i += 1) {
+          bindTap(buttons[i], function(e) {
+            var target = (e.currentTarget || e.srcElement).getAttribute("data-order-subtab");
+            switchSubtab(target);
+          });
+        }
+        var hasActive = false;
+        var panels = document.querySelectorAll("[data-order-subtab-panel]");
+        for (var j = 0; j < panels.length; j += 1) {
+          if (hasClass(panels[j], "order-subtab-active")) hasActive = true;
+        }
+        if (!hasActive) switchSubtab("menu");
+      }
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", init, false);
+      } else {
+        init();
+      }
+    })();
+  </script>
+  <script type="module" src="./js/pos.js?v=641"></script>
 </body>
 </html>

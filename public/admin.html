@@ -9,7 +9,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <title>恩點系統｜菜單後台</title>
   <link rel="manifest" href="./manifest.json" />
-  <link rel="stylesheet" href="./css/style.css?v=640" />
+  <link rel="stylesheet" href="./css/style.css?v=641" />
 </head>
 
 <body class="admin-page">
@@ -234,6 +234,74 @@
     </section>
   </main>
 
-  <script type="module" src="./js/admin.js?v=640"></script>
+  <script>
+    (function() {
+      function setClass(el, name, active) {
+        if (!el) return;
+        if (el.classList) {
+          if (active) el.classList.add(name);
+          else el.classList.remove(name);
+          return;
+        }
+        var current = " " + (el.className || "") + " ";
+        if (active && current.indexOf(" " + name + " ") === -1) {
+          el.className = (el.className ? el.className + " " : "") + name;
+        }
+        if (!active && current.indexOf(" " + name + " ") !== -1) {
+          el.className = current.replace(" " + name + " ", " ").replace(/^\s+|\s+$/g, "");
+        }
+      }
+      function bindTap(el, fn) {
+        if (!el) return;
+        var lastTouchAt = 0;
+        function run(e) {
+          var now = Date.now ? Date.now() : new Date().getTime();
+          if (e && e.type === "touchend") lastTouchAt = now;
+          if (e && e.type === "click" && now - lastTouchAt < 500) return;
+          if (e && e.preventDefault) e.preventDefault();
+          fn(e);
+        }
+        el.addEventListener("click", run, false);
+        el.addEventListener("touchend", run, false);
+      }
+      function switchAdminTab(tabId) {
+        if (!tabId) return;
+        var buttons = document.querySelectorAll(".admin-tab-btn");
+        var panels = document.querySelectorAll(".admin-tab-panel");
+        var found = false;
+        for (var i = 0; i < panels.length; i += 1) {
+          if (panels[i].id === tabId) found = true;
+        }
+        if (!found && panels[0]) tabId = panels[0].id;
+        for (var j = 0; j < buttons.length; j += 1) {
+          setClass(buttons[j], "active", buttons[j].getAttribute("data-admin-tab") === tabId);
+        }
+        for (var k = 0; k < panels.length; k += 1) {
+          setClass(panels[k], "active", panels[k].id === tabId);
+        }
+        var actions = document.getElementById("adminSharedActions");
+        if (actions) {
+          setClass(actions, "hidden", tabId === "categoryAdminTab" || tabId === "templateAdminTab");
+        }
+      }
+      function init() {
+        var buttons = document.querySelectorAll(".admin-tab-btn");
+        for (var i = 0; i < buttons.length; i += 1) {
+          bindTap(buttons[i], function(e) {
+            var button = e.currentTarget || e.srcElement;
+            switchAdminTab(button.getAttribute("data-admin-tab"));
+          });
+        }
+        var active = document.querySelector(".admin-tab-panel.active");
+        switchAdminTab(active ? active.id : "categoryAdminTab");
+      }
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", init, false);
+      } else {
+        init();
+      }
+    })();
+  </script>
+  <script type="module" src="./js/admin.js?v=641"></script>
 </body>
 </html>

@@ -699,6 +699,16 @@ textarea.input {
   display: block;
 }
 
+.admin-v62-layout,
+.admin-tab-panel.active {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.admin-page-tabs {
+  white-space: nowrap;
+}
+
 .admin-v62-single {
   max-width: 1180px;
   margin: 0 auto;

@@ -118,7 +118,11 @@ function switchAdminTab(tabId) {
     var button = adminTabButtons[i];
     var isActiveButton = button.getAttribute("data-admin-tab") === tabId;
     if (button.classList) {
-      button.classList.toggle("active", isActiveButton);
+      if (isActiveButton) {
+        button.classList.add("active");
+      } else {
+        button.classList.remove("active");
+      }
     } else {
       button.className = isActiveButton ? "admin-tab-btn active" : "admin-tab-btn";
     }
@@ -128,7 +132,11 @@ function switchAdminTab(tabId) {
     var panel = adminTabPanels[j];
     var isActivePanel = panel.id === tabId;
     if (panel.classList) {
-      panel.classList.toggle("active", isActivePanel);
+      if (isActivePanel) {
+        panel.classList.add("active");
+      } else {
+        panel.classList.remove("active");
+      }
     } else {
       panel.className = isActivePanel ? "admin-tab-panel active" : "admin-tab-panel";
     }
@@ -137,11 +145,34 @@ function switchAdminTab(tabId) {
   if (adminSharedActions) {
     var shouldHideActions = tabId === "categoryAdminTab" || tabId === "templateAdminTab";
     if (adminSharedActions.classList) {
-      adminSharedActions.classList.toggle("hidden", shouldHideActions);
+      if (shouldHideActions) {
+        adminSharedActions.classList.add("hidden");
+      } else {
+        adminSharedActions.classList.remove("hidden");
+      }
     } else {
       adminSharedActions.style.display = shouldHideActions ? "none" : "";
     }
   }
+}
+
+function getDataValue(element, name) {
+  if (!element) return "";
+  if (element.dataset && element.dataset[name]) return element.dataset[name];
+  return element.getAttribute("data-" + name.replace(/[A-Z]/g, function(match) {
+    return "-" + match.toLowerCase();
+  }));
+}
+
+function findClosestByClass(element, className) {
+  var node = element;
+  while (node && node !== document) {
+    if ((" " + (node.className || "") + " ").indexOf(" " + className + " ") !== -1) {
+      return node;
+    }
+    node = node.parentNode;
+  }
+  return null;
 }
 
 function addAdminTapListener(element, handler) {
@@ -433,20 +464,46 @@ function setupTemplateSubtabs() {
   const panels = tab.querySelectorAll(".admin-v62-two-column > section");
   if (panels[0]) panels[0].setAttribute("data-template-subtab-panel", "form");
   if (panels[1]) panels[1].setAttribute("data-template-subtab-panel", "list");
-  subtabs.querySelectorAll("button").forEach(button => {
-    button.addEventListener("click", () => switchTemplateSubtab(button.dataset.templateSubtab));
-  });
+  var subtabButtons = subtabs.querySelectorAll("button");
+  for (var i = 0; i < subtabButtons.length; i += 1) {
+    (function(button) {
+      addAdminTapListener(button, function(event) {
+        if (event && event.preventDefault) event.preventDefault();
+        switchTemplateSubtab(getDataValue(button, "templateSubtab"));
+      });
+    })(subtabButtons[i]);
+  }
   switchTemplateSubtab("form");
 }
 
 function switchTemplateSubtab(target) {
-  const next = target === "list" ? "list" : "form";
-  document.querySelectorAll(".admin-subtab-btn").forEach(button => {
-    button.classList.toggle("active", button.dataset.templateSubtab === next);
-  });
-  document.querySelectorAll("[data-template-subtab-panel]").forEach(panel => {
-    panel.classList.toggle("active", panel.dataset.templateSubtabPanel === next);
-  });
+  var next = target === "list" ? "list" : "form";
+  var buttons = document.querySelectorAll(".admin-subtab-btn");
+  var panels = document.querySelectorAll("[data-template-subtab-panel]");
+
+  for (var i = 0; i < buttons.length; i += 1) {
+    var button = buttons[i];
+    var activeButton = getDataValue(button, "templateSubtab") === next;
+    if (button.classList) {
+      if (activeButton) {
+        button.classList.add("active");
+      } else {
+        button.classList.remove("active");
+      }
+    }
+  }
+
+  for (var j = 0; j < panels.length; j += 1) {
+    var panel = panels[j];
+    var activePanel = getDataValue(panel, "templateSubtabPanel") === next;
+    if (panel.classList) {
+      if (activePanel) {
+        panel.classList.add("active");
+      } else {
+        panel.classList.remove("active");
+      }
+    }
+  }
 }
 
 function setupTemplateRowEditor(textarea, container, addButton) {
@@ -460,8 +517,10 @@ function setupTemplateRowEditor(textarea, container, addButton) {
 
   function syncTextarea() {
     const rows = Array.from(container.querySelectorAll(".template-row")).map(row => {
-      const name = row.querySelector('[data-field="name"]')?.value.trim() || "";
-      const price = Number(row.querySelector('[data-field="price"]')?.value || 0);
+      const nameInput = row.querySelector('[data-field="name"]');
+      const priceInput = row.querySelector('[data-field="price"]');
+      const name = nameInput ? nameInput.value.trim() : "";
+      const price = Number(priceInput ? priceInput.value : 0);
       return name ? `${name},${Number.isFinite(price) ? price : 0}` : "";
     }).filter(Boolean);
     textarea.value = rows.join("\n");
@@ -475,19 +534,29 @@ function setupTemplateRowEditor(textarea, container, addButton) {
         <button class="danger-btn" type="button" data-action="remove">刪除</button>
       </div>
     `).join("");
-    container.querySelectorAll("input").forEach(input => input.addEventListener("input", syncTextarea));
-    container.querySelectorAll('[data-action="remove"]').forEach(button => {
-      button.addEventListener("click", () => {
-        const row = button.closest(".template-row");
-        if (row) row.remove();
-        syncTextarea();
-      });
-    });
+    var inputs = container.querySelectorAll("input");
+    for (var i = 0; i < inputs.length; i += 1) {
+      inputs[i].addEventListener("input", syncTextarea, false);
+    }
+    var removeButtons = container.querySelectorAll('[data-action="remove"]');
+    for (var j = 0; j < removeButtons.length; j += 1) {
+      (function(button) {
+        addAdminTapListener(button, function(event) {
+          if (event && event.preventDefault) event.preventDefault();
+          const row = findClosestByClass(button, "template-row");
+          if (row) row.remove();
+          syncTextarea();
+        });
+      })(removeButtons[j]);
+    }
     syncTextarea();
   }
 
-  addButton.addEventListener("click", () => render(readRows().concat({ name: "", price: 0 })));
-  textarea.addEventListener("change", () => render(readRows()));
+  addAdminTapListener(addButton, function(event) {
+    if (event && event.preventDefault) event.preventDefault();
+    render(readRows().concat({ name: "", price: 0 }));
+  });
+  textarea.addEventListener("change", function() { render(readRows()); });
   const initialRows = readRows();
   render(initialRows.length ? initialRows : [{ name: "", price: 0 }]);
 }
@@ -502,7 +571,8 @@ function setupTemplateNameListEditor(textarea, container, addButton, placeholder
 
   function syncTextarea() {
     const rows = Array.from(container.querySelectorAll(".template-row")).map(row => {
-      return row.querySelector('[data-field="name"]')?.value.trim() || "";
+      const nameInput = row.querySelector('[data-field="name"]');
+      return nameInput ? nameInput.value.trim() : "";
     }).filter(Boolean);
     textarea.value = rows.join("\n");
   }
@@ -514,19 +584,29 @@ function setupTemplateNameListEditor(textarea, container, addButton, placeholder
         <button class="danger-btn" type="button" data-action="remove">刪除</button>
       </div>
     `).join("");
-    container.querySelectorAll("input").forEach(input => input.addEventListener("input", syncTextarea));
-    container.querySelectorAll('[data-action="remove"]').forEach(button => {
-      button.addEventListener("click", () => {
-        const row = button.closest(".template-row");
-        if (row) row.remove();
-        syncTextarea();
-      });
-    });
+    var inputs = container.querySelectorAll("input");
+    for (var i = 0; i < inputs.length; i += 1) {
+      inputs[i].addEventListener("input", syncTextarea, false);
+    }
+    var removeButtons = container.querySelectorAll('[data-action="remove"]');
+    for (var j = 0; j < removeButtons.length; j += 1) {
+      (function(button) {
+        addAdminTapListener(button, function(event) {
+          if (event && event.preventDefault) event.preventDefault();
+          const row = findClosestByClass(button, "template-row");
+          if (row) row.remove();
+          syncTextarea();
+        });
+      })(removeButtons[j]);
+    }
     syncTextarea();
   }
 
-  addButton.addEventListener("click", () => render(readRows().concat({ name: "" })));
-  textarea.addEventListener("change", () => render(readRows()));
+  addAdminTapListener(addButton, function(event) {
+    if (event && event.preventDefault) event.preventDefault();
+    render(readRows().concat({ name: "" }));
+  });
+  textarea.addEventListener("change", function() { render(readRows()); });
   const initialRows = readRows();
   render(initialRows.length ? initialRows : [{ name: "" }]);
 }
@@ -605,41 +685,47 @@ function renderTemplateRequiredGroupEditor() {
     </div>
   `).join("");
 
-  editor.querySelectorAll("input").forEach(input => {
-    input.addEventListener("input", function() {
-      const groupCard = input.closest(".required-group-card");
+  var inputs = editor.querySelectorAll("input");
+  for (var i = 0; i < inputs.length; i += 1) {
+    (function(input) {
+      input.addEventListener("input", function() {
+      const groupCard = findClosestByClass(input, "required-group-card");
       const groupIndex = Number(groupCard && groupCard.dataset.groupIndex);
       if (!templateRequiredGroupRows[groupIndex]) return;
       if (input.dataset.field === "title") {
         templateRequiredGroupRows[groupIndex].title = input.value;
       } else {
-        const optionRow = input.closest(".required-group-option");
+        const optionRow = findClosestByClass(input, "required-group-option");
         const optionIndex = Number(optionRow && optionRow.dataset.optionIndex);
         templateRequiredGroupRows[groupIndex].options[optionIndex] = input.value;
       }
       syncTemplateLegacyRequiredInputs();
-    });
-  });
+      });
+    })(inputs[i]);
+  }
 
-  editor.querySelectorAll("button").forEach(button => {
-    button.addEventListener("click", function(event) {
+  var buttons = editor.querySelectorAll("button");
+  for (var j = 0; j < buttons.length; j += 1) {
+    (function(button) {
+      addAdminTapListener(button, function(event) {
       if (event && event.preventDefault) event.preventDefault();
-      const groupCard = button.closest(".required-group-card");
+      const groupCard = findClosestByClass(button, "required-group-card");
       const groupIndex = Number(groupCard && groupCard.dataset.groupIndex);
       if (!templateRequiredGroupRows[groupIndex]) return;
       const action = button.dataset.action;
       if (action === "removeGroup") templateRequiredGroupRows.splice(groupIndex, 1);
       if (action === "addOption") templateRequiredGroupRows[groupIndex].options.push("");
       if (action === "removeOption") {
-        const optionRow = button.closest(".required-group-option");
+        const optionRow = findClosestByClass(button, "required-group-option");
         const optionIndex = Number(optionRow && optionRow.dataset.optionIndex);
         templateRequiredGroupRows[groupIndex].options.splice(optionIndex, 1);
         if (!templateRequiredGroupRows[groupIndex].options.length) templateRequiredGroupRows[groupIndex].options.push("");
       }
       syncTemplateLegacyRequiredInputs();
       renderTemplateRequiredGroupEditor();
-    });
-  });
+      });
+    })(buttons[j]);
+  }
 
   syncTemplateLegacyRequiredInputs();
 }
@@ -1023,41 +1109,47 @@ function renderRequiredGroupEditor() {
     </div>
   `).join("");
 
-  editor.querySelectorAll("input").forEach(input => {
-    input.addEventListener("input", function() {
-      const groupCard = input.closest(".required-group-card");
+  var inputs = editor.querySelectorAll("input");
+  for (var i = 0; i < inputs.length; i += 1) {
+    (function(input) {
+      input.addEventListener("input", function() {
+      const groupCard = findClosestByClass(input, "required-group-card");
       const groupIndex = Number(groupCard && groupCard.dataset.groupIndex);
       if (!requiredGroupRows[groupIndex]) return;
       if (input.dataset.field === "title") {
         requiredGroupRows[groupIndex].title = input.value;
       } else {
-        const optionRow = input.closest(".required-group-option");
+        const optionRow = findClosestByClass(input, "required-group-option");
         const optionIndex = Number(optionRow && optionRow.dataset.optionIndex);
         requiredGroupRows[groupIndex].options[optionIndex] = input.value;
       }
       syncLegacyRequiredInputs();
-    });
-  });
+      });
+    })(inputs[i]);
+  }
 
-  editor.querySelectorAll("button").forEach(button => {
-    button.addEventListener("click", function(event) {
+  var buttons = editor.querySelectorAll("button");
+  for (var j = 0; j < buttons.length; j += 1) {
+    (function(button) {
+      addAdminTapListener(button, function(event) {
       if (event && event.preventDefault) event.preventDefault();
-      const groupCard = button.closest(".required-group-card");
+      const groupCard = findClosestByClass(button, "required-group-card");
       const groupIndex = Number(groupCard && groupCard.dataset.groupIndex);
       if (!requiredGroupRows[groupIndex]) return;
       const action = button.dataset.action;
       if (action === "removeGroup") requiredGroupRows.splice(groupIndex, 1);
       if (action === "addOption") requiredGroupRows[groupIndex].options.push("");
       if (action === "removeOption") {
-        const optionRow = button.closest(".required-group-option");
+        const optionRow = findClosestByClass(button, "required-group-option");
         const optionIndex = Number(optionRow && optionRow.dataset.optionIndex);
         requiredGroupRows[groupIndex].options.splice(optionIndex, 1);
         if (!requiredGroupRows[groupIndex].options.length) requiredGroupRows[groupIndex].options.push("");
       }
       syncLegacyRequiredInputs();
       renderRequiredGroupEditor();
-    });
-  });
+      });
+    })(buttons[j]);
+  }
 }
 
 
