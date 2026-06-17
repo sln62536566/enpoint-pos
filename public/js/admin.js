@@ -64,6 +64,23 @@ const templateRemoveOptionsInput = document.getElementById("templateRemoveOption
 const saveTemplateBtn = document.getElementById("saveTemplateBtn");
 const cancelTemplateEditBtn = document.getElementById("cancelTemplateEditBtn");
 const optionTemplateList = document.getElementById("optionTemplateList");
+let openNewItemModalBtn = document.getElementById("openNewItemModalBtn");
+const itemEditorModal = document.getElementById("itemEditorModal") || document.querySelector("#itemAdminTab .admin-form-panel");
+let templateSizesRows = document.getElementById("templateSizesRows");
+let templateAddonsRows = document.getElementById("templateAddonsRows");
+let addTemplateSizeRowBtn = document.getElementById("addTemplateSizeRowBtn");
+let addTemplateAddonRowBtn = document.getElementById("addTemplateAddonRowBtn");
+let templateRemoveRows = document.getElementById("templateRemoveRows");
+let templateRequiredRows = document.getElementById("templateRequiredRows");
+let addTemplateRemoveRowBtn = document.getElementById("addTemplateRemoveRowBtn");
+let addTemplateRequiredRowBtn = document.getElementById("addTemplateRequiredRowBtn");
+let adminOptionGridHome = null;
+let adminOptionGridHomeNext = null;
+let adminOptionGrid = null;
+let adminModalOptionHeading = null;
+let itemEditorHome = null;
+let itemEditorHomeNext = null;
+let itemEditorMode = "hidden";
 
 const menuRef = ref(db, "menu");
 const categoriesRef = ref(db, "categories");
@@ -83,6 +100,8 @@ let draggedItemCategory = null;
 let sizeRows = [];
 let addonRows = [];
 let removeOptionRows = [];
+let requiredGroupRows = [];
+let templateRequiredGroupRows = [];
 
 /* =========================
    Helpers
@@ -148,6 +167,483 @@ function addAdminTapListener(element, handler) {
   element.addEventListener("touchend", handleTap, false);
 }
 
+function initAdminV63Ux() {
+  const itemTabButton = document.querySelector('[data-admin-tab="itemAdminTab"]');
+  const optionTabButton = document.querySelector('[data-admin-tab="optionAdminTab"]');
+  const templateTabButton = document.querySelector('[data-admin-tab="templateAdminTab"]');
+  const mediaTabButton = document.querySelector('[data-admin-tab="mediaAdminTab"]');
+
+  if (itemTabButton) itemTabButton.textContent = "餐點列表";
+  if (optionTabButton) optionTabButton.textContent = "選項管理";
+  if (templateTabButton) templateTabButton.textContent = "選項範本";
+  if (mediaTabButton) mediaTabButton.style.display = "none";
+
+  const mediaPanel = document.getElementById("mediaAdminTab");
+  const optionPanel = document.querySelector("#optionAdminTab .admin-option-panel");
+  const mediaForm = mediaPanel ? mediaPanel.querySelector(".admin-form-panel") : null;
+  if (itemEditorModal && !itemEditorHome) {
+    itemEditorHome = itemEditorModal.parentNode;
+    itemEditorHomeNext = itemEditorModal.nextSibling;
+  }
+  const oldOptionNewItemBtn = document.getElementById("openNewItemFromOptionsBtn");
+  if (oldOptionNewItemBtn && oldOptionNewItemBtn.parentNode) {
+    oldOptionNewItemBtn.parentNode.removeChild(oldOptionNewItemBtn);
+  }
+  if (optionPanel && !document.getElementById("openInlineNewItemBtn")) {
+    const optionNewItemBtn = document.createElement("button");
+    optionNewItemBtn.id = "openInlineNewItemBtn";
+    optionNewItemBtn.className = "secondary-btn inline-new-item-btn";
+    optionNewItemBtn.type = "button";
+    optionNewItemBtn.textContent = "新增餐點";
+    const optionTitleRow = optionPanel.querySelector(".panel-title-row");
+    if (optionTitleRow) optionTitleRow.appendChild(optionNewItemBtn);
+    addAdminTapListener(optionNewItemBtn, openInlineItemCreate);
+  }
+  if (optionPanel && mediaForm && !document.getElementById("adminMediaInlineBox")) {
+    const box = document.createElement("div");
+    box.id = "adminMediaInlineBox";
+    box.className = "admin-option-card admin-media-inline-box";
+    box.innerHTML = "<label>圖片管理</label>";
+    ["itemImage", "itemImageFile", "imagePreviewBox", "itemDescription"].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const label = el.previousElementSibling && el.previousElementSibling.tagName === "LABEL" ? el.previousElementSibling : null;
+      if (label) box.appendChild(label);
+      box.appendChild(el);
+    });
+    const grid = optionPanel.querySelector(".admin-option-grid");
+    if (grid) grid.appendChild(box);
+  }
+  if (mediaPanel) mediaPanel.style.display = "none";
+
+  adminOptionGrid = optionPanel ? optionPanel.querySelector(".admin-option-grid") : null;
+  if (adminOptionGrid && !adminOptionGridHome) {
+    adminOptionGridHome = adminOptionGrid.parentNode;
+    adminOptionGridHomeNext = adminOptionGrid.nextSibling;
+  }
+
+  const itemPanel = document.querySelector("#itemAdminTab .admin-menu-panel");
+  if (false && itemPanel && !openNewItemModalBtn) {
+    openNewItemModalBtn = document.createElement("button");
+    openNewItemModalBtn.id = "openNewItemModalBtn";
+    openNewItemModalBtn.className = "primary-btn";
+    openNewItemModalBtn.type = "button";
+    openNewItemModalBtn.textContent = "新增餐點";
+    const titleRow = itemPanel.querySelector(".panel-title-row");
+    if (titleRow) titleRow.appendChild(openNewItemModalBtn);
+  }
+  if (openNewItemModalBtn && openNewItemModalBtn.parentNode) {
+    openNewItemModalBtn.parentNode.removeChild(openNewItemModalBtn);
+    openNewItemModalBtn = null;
+  }
+
+  if (itemEditorModal) {
+    itemEditorModal.classList.add("item-editor-modal", "hidden");
+    itemEditorModal.setAttribute("aria-modal", "true");
+    ensureItemModalCloseButton();
+    if (requiredOptionTitle) requiredOptionTitle.classList.add("legacy-required-input");
+    if (requiredOptionChoices) requiredOptionChoices.classList.add("legacy-required-input");
+    ensureRequiredGroupEditor();
+    if (adminSharedActions && !itemEditorModal.contains(adminSharedActions)) itemEditorModal.appendChild(adminSharedActions);
+  }
+
+  setupTemplateSubtabs();
+  ensureTemplateRowEditorNodes();
+  setupTemplateRowEditor(templateSizesInput, templateSizesRows, addTemplateSizeRowBtn);
+  setupTemplateRowEditor(templateAddonsInput, templateAddonsRows, addTemplateAddonRowBtn);
+  setupTemplateNameListEditor(templateRemoveOptionsInput, templateRemoveRows, addTemplateRemoveRowBtn, "名稱");
+  setupTemplateRequiredGroupEditor();
+}
+
+function ensureTemplateRowEditorNodes() {
+  function ensure(textarea, rowsId, buttonId) {
+    if (!textarea) return { rows: null, button: null };
+    let rows = document.getElementById(rowsId);
+    let button = document.getElementById(buttonId);
+    if (!rows) {
+      rows = document.createElement("div");
+      rows.id = rowsId;
+      rows.className = "template-row-editor";
+      textarea.insertAdjacentElement("afterend", rows);
+    }
+    if (!button) {
+      button = document.createElement("button");
+      button.id = buttonId;
+      button.className = "secondary-btn";
+      button.type = "button";
+      button.textContent = "新增";
+      rows.insertAdjacentElement("afterend", button);
+    }
+    return { rows, button };
+  }
+
+  const sizeNodes = ensure(templateSizesInput, "templateSizesRows", "addTemplateSizeRowBtn");
+  const addonNodes = ensure(templateAddonsInput, "templateAddonsRows", "addTemplateAddonRowBtn");
+  const removeNodes = ensure(templateRemoveOptionsInput, "templateRemoveRows", "addTemplateRemoveRowBtn");
+  const requiredNodes = ensure(templateRequiredChoicesInput, "templateRequiredRows", "addTemplateRequiredRowBtn");
+  templateSizesRows = sizeNodes.rows;
+  addTemplateSizeRowBtn = sizeNodes.button;
+  templateAddonsRows = addonNodes.rows;
+  addTemplateAddonRowBtn = addonNodes.button;
+  templateRemoveRows = removeNodes.rows;
+  addTemplateRemoveRowBtn = removeNodes.button;
+  templateRequiredRows = requiredNodes.rows;
+  addTemplateRequiredRowBtn = requiredNodes.button;
+  if (addTemplateSizeRowBtn) addTemplateSizeRowBtn.textContent = "新增份量";
+  if (addTemplateAddonRowBtn) addTemplateAddonRowBtn.textContent = "新增加料";
+  if (addTemplateRemoveRowBtn) addTemplateRemoveRowBtn.textContent = "新增不要項目";
+  if (addTemplateRequiredRowBtn) addTemplateRequiredRowBtn.textContent = "新增選項";
+}
+
+function openItemEditorModal() {
+  if (!itemEditorModal) return;
+  restoreItemEditorToHome();
+  itemEditorMode = "modal";
+  itemEditorModal.classList.remove("item-editor-inline");
+  itemEditorModal.classList.add("item-editor-modal");
+  moveOptionGridToItemModal();
+  itemEditorModal.classList.remove("hidden");
+  if (adminSharedActions) adminSharedActions.classList.remove("hidden");
+  updateItemEditorActionLabels();
+}
+
+function restoreItemEditorToHome() {
+  if (!itemEditorModal || !itemEditorHome) return;
+  if (itemEditorHomeNext && itemEditorHomeNext.parentNode === itemEditorHome) {
+    itemEditorHome.insertBefore(itemEditorModal, itemEditorHomeNext);
+  } else {
+    itemEditorHome.appendChild(itemEditorModal);
+  }
+}
+
+function closeItemEditorModal() {
+  if (!itemEditorModal) return;
+  restoreOptionGridToOptionTab();
+  itemEditorMode = "hidden";
+  itemEditorModal.classList.remove("item-editor-inline");
+  itemEditorModal.classList.add("item-editor-modal");
+  itemEditorModal.classList.add("hidden");
+}
+
+function openInlineItemCreate(event) {
+  if (event && event.preventDefault) event.preventDefault();
+  resetForm();
+  editingId = null;
+  itemEditorMode = "inline";
+  restoreOptionGridToOptionTab();
+  const optionPanel = document.querySelector("#optionAdminTab .admin-option-panel");
+  if (optionPanel && itemEditorModal && itemEditorModal.parentNode !== optionPanel) {
+    const grid = optionPanel.querySelector(".admin-option-grid");
+    optionPanel.insertBefore(itemEditorModal, grid || null);
+  }
+  if (itemEditorModal) {
+    itemEditorModal.classList.remove("hidden", "item-editor-modal");
+    itemEditorModal.classList.add("item-editor-inline");
+  }
+  if (adminSharedActions && itemEditorModal && !itemEditorModal.contains(adminSharedActions)) {
+    itemEditorModal.appendChild(adminSharedActions);
+  }
+  if (adminSharedActions) adminSharedActions.classList.remove("hidden");
+  updateItemEditorActionLabels();
+  if (itemName) itemName.focus();
+  return false;
+}
+
+function hasDirtyItemForm() {
+  if (editingId) return true;
+  return !!(
+    (itemName && itemName.value.trim()) ||
+    (itemPrice && itemPrice.value.trim()) ||
+    (itemImage && itemImage.value.trim()) ||
+    (itemDescription && itemDescription.value.trim()) ||
+    (requiredOptionTitle && requiredOptionTitle.value.trim()) ||
+    (requiredOptionChoices && requiredOptionChoices.value.trim()) ||
+    sizeRows.length ||
+    addonRows.length ||
+    removeOptionRows.length
+  );
+}
+
+function cancelItemEditorWithConfirm(event) {
+  if (event && event.preventDefault) event.preventDefault();
+  if (hasDirtyItemForm() && !confirm("放棄這次新增/編輯？")) return false;
+  resetForm();
+  closeItemEditorModal();
+  return false;
+}
+
+function ensureItemModalCloseButton() {
+  if (!itemEditorModal || document.getElementById("closeItemEditorModalBtn")) return;
+  const button = document.createElement("button");
+  button.id = "closeItemEditorModalBtn";
+  button.className = "item-editor-close-btn";
+  button.type = "button";
+  button.setAttribute("aria-label", "關閉");
+  button.textContent = "×";
+  itemEditorModal.insertBefore(button, itemEditorModal.firstChild);
+  addAdminTapListener(button, cancelItemEditorWithConfirm);
+}
+
+function moveOptionGridToItemModal() {
+  if (!itemEditorModal || !adminOptionGrid) return;
+  if (!adminModalOptionHeading) {
+    adminModalOptionHeading = document.createElement("div");
+    adminModalOptionHeading.className = "admin-modal-section-title";
+    adminModalOptionHeading.innerHTML = "<h3>選項與圖片</h3>";
+  }
+  if (!itemEditorModal.contains(adminModalOptionHeading)) itemEditorModal.appendChild(adminModalOptionHeading);
+  if (!itemEditorModal.contains(adminOptionGrid)) itemEditorModal.appendChild(adminOptionGrid);
+  if (adminSharedActions && !itemEditorModal.contains(adminSharedActions)) itemEditorModal.appendChild(adminSharedActions);
+  if (adminSharedActions) itemEditorModal.appendChild(adminSharedActions);
+}
+
+function restoreOptionGridToOptionTab() {
+  if (!adminOptionGrid || !adminOptionGridHome) return;
+  if (adminModalOptionHeading && adminModalOptionHeading.parentNode) {
+    adminModalOptionHeading.parentNode.removeChild(adminModalOptionHeading);
+  }
+  if (adminOptionGridHomeNext && adminOptionGridHomeNext.parentNode === adminOptionGridHome) {
+    adminOptionGridHome.insertBefore(adminOptionGrid, adminOptionGridHomeNext);
+  } else {
+    adminOptionGridHome.appendChild(adminOptionGrid);
+  }
+}
+
+function openItemEditorForCreate(event) {
+  if (event && event.preventDefault) event.preventDefault();
+  resetForm();
+  switchAdminTab("itemAdminTab");
+  openItemEditorModal();
+  if (itemName) itemName.focus();
+  return false;
+}
+
+function updateItemEditorActionLabels() {
+  if (cancelEditBtn) cancelEditBtn.textContent = "取消";
+  if (addItemBtn) addItemBtn.textContent = editingId ? "確認修改" : "確認新增";
+}
+
+function setupTemplateSubtabs() {
+  const tab = document.getElementById("templateAdminTab");
+  if (!tab || tab.querySelector(".admin-subtabs")) return;
+  const subtabs = document.createElement("div");
+  subtabs.className = "admin-subtabs";
+  subtabs.innerHTML = '<button class="admin-subtab-btn active" type="button" data-template-subtab="form">新增範本</button><button class="admin-subtab-btn" type="button" data-template-subtab="list">範本列表</button>';
+  tab.insertBefore(subtabs, tab.firstElementChild);
+  const panels = tab.querySelectorAll(".admin-v62-two-column > section");
+  if (panels[0]) panels[0].setAttribute("data-template-subtab-panel", "form");
+  if (panels[1]) panels[1].setAttribute("data-template-subtab-panel", "list");
+  subtabs.querySelectorAll("button").forEach(button => {
+    button.addEventListener("click", () => switchTemplateSubtab(button.dataset.templateSubtab));
+  });
+  switchTemplateSubtab("form");
+}
+
+function switchTemplateSubtab(target) {
+  const next = target === "list" ? "list" : "form";
+  document.querySelectorAll(".admin-subtab-btn").forEach(button => {
+    button.classList.toggle("active", button.dataset.templateSubtab === next);
+  });
+  document.querySelectorAll("[data-template-subtab-panel]").forEach(panel => {
+    panel.classList.toggle("active", panel.dataset.templateSubtabPanel === next);
+  });
+}
+
+function setupTemplateRowEditor(textarea, container, addButton) {
+  if (!textarea || !container || !addButton) return;
+  textarea.classList.add("legacy-template-textarea");
+
+  function readRows() {
+    const parsed = parseNamePriceText(textarea.value || "");
+    return Object.entries(parsed).map(([name, price]) => ({ name, price }));
+  }
+
+  function syncTextarea() {
+    const rows = Array.from(container.querySelectorAll(".template-row")).map(row => {
+      const name = row.querySelector('[data-field="name"]')?.value.trim() || "";
+      const price = Number(row.querySelector('[data-field="price"]')?.value || 0);
+      return name ? `${name},${Number.isFinite(price) ? price : 0}` : "";
+    }).filter(Boolean);
+    textarea.value = rows.join("\n");
+  }
+
+  function render(rows) {
+    container.innerHTML = rows.map(row => `
+      <div class="template-row">
+        <input data-field="name" type="text" placeholder="名稱" value="${escapeHtml(row.name || "")}" />
+        <input data-field="price" type="number" placeholder="價格" value="${Number(row.price || 0)}" />
+        <button class="danger-btn" type="button" data-action="remove">刪除</button>
+      </div>
+    `).join("");
+    container.querySelectorAll("input").forEach(input => input.addEventListener("input", syncTextarea));
+    container.querySelectorAll('[data-action="remove"]').forEach(button => {
+      button.addEventListener("click", () => {
+        const row = button.closest(".template-row");
+        if (row) row.remove();
+        syncTextarea();
+      });
+    });
+    syncTextarea();
+  }
+
+  addButton.addEventListener("click", () => render(readRows().concat({ name: "", price: 0 })));
+  textarea.addEventListener("change", () => render(readRows()));
+  const initialRows = readRows();
+  render(initialRows.length ? initialRows : [{ name: "", price: 0 }]);
+}
+
+function setupTemplateNameListEditor(textarea, container, addButton, placeholder) {
+  if (!textarea || !container || !addButton) return;
+  textarea.classList.add("legacy-template-textarea");
+
+  function readRows() {
+    return parseListText(textarea.value || "").map(name => ({ name }));
+  }
+
+  function syncTextarea() {
+    const rows = Array.from(container.querySelectorAll(".template-row")).map(row => {
+      return row.querySelector('[data-field="name"]')?.value.trim() || "";
+    }).filter(Boolean);
+    textarea.value = rows.join("\n");
+  }
+
+  function render(rows) {
+    container.innerHTML = rows.map(row => `
+      <div class="template-row template-row-single">
+        <input data-field="name" type="text" placeholder="${escapeHtml(placeholder || "名稱")}" value="${escapeHtml(row.name || "")}" />
+        <button class="danger-btn" type="button" data-action="remove">刪除</button>
+      </div>
+    `).join("");
+    container.querySelectorAll("input").forEach(input => input.addEventListener("input", syncTextarea));
+    container.querySelectorAll('[data-action="remove"]').forEach(button => {
+      button.addEventListener("click", () => {
+        const row = button.closest(".template-row");
+        if (row) row.remove();
+        syncTextarea();
+      });
+    });
+    syncTextarea();
+  }
+
+  addButton.addEventListener("click", () => render(readRows().concat({ name: "" })));
+  textarea.addEventListener("change", () => render(readRows()));
+  const initialRows = readRows();
+  render(initialRows.length ? initialRows : [{ name: "" }]);
+}
+
+function setupTemplateRequiredGroupEditor() {
+  if (!templateRequiredChoicesInput) return;
+  templateRequiredChoicesInput.classList.add("legacy-template-textarea");
+  if (templateRequiredTitleInput) templateRequiredTitleInput.classList.add("legacy-template-textarea");
+  if (templateRequiredRows) templateRequiredRows.style.display = "none";
+  if (addTemplateRequiredRowBtn) addTemplateRequiredRowBtn.style.display = "none";
+
+  let editor = document.getElementById("templateRequiredGroupEditor");
+  if (!editor) {
+    editor = document.createElement("div");
+    editor.id = "templateRequiredGroupEditor";
+    editor.className = "required-group-editor template-required-group-editor";
+    templateRequiredChoicesInput.insertAdjacentElement("afterend", editor);
+  }
+
+  let addButton = document.getElementById("addTemplateRequiredGroupBtn");
+  if (!addButton) {
+    addButton = document.createElement("button");
+    addButton.id = "addTemplateRequiredGroupBtn";
+    addButton.className = "secondary-btn";
+    addButton.type = "button";
+    addButton.textContent = "新增必選群組";
+    editor.insertAdjacentElement("afterend", addButton);
+  }
+
+  addButton.onclick = function(event) {
+    if (event && event.preventDefault) event.preventDefault();
+    templateRequiredGroupRows.push({ title: "", options: [""] });
+    renderTemplateRequiredGroupEditor();
+    return false;
+  };
+
+  templateRequiredGroupRows = normalizeRequiredGroups({
+    requiredOption: getTemplateRequiredOptionFromLegacyInputs()
+  });
+  renderTemplateRequiredGroupEditor();
+}
+
+function getTemplateRequiredOptionFromLegacyInputs() {
+  if (!templateRequiredTitleInput || !templateRequiredChoicesInput) return null;
+  const title = templateRequiredTitleInput.value.trim();
+  const options = parseListText(templateRequiredChoicesInput.value);
+  if (!title && !options.length) return null;
+  return { title, options, required: true };
+}
+
+function syncTemplateLegacyRequiredInputs() {
+  const first = firstRequiredOptionFromGroups(templateRequiredGroupRows);
+  if (templateRequiredTitleInput) templateRequiredTitleInput.value = first ? first.title : "";
+  if (templateRequiredChoicesInput) templateRequiredChoicesInput.value = first ? first.options.join("\n") : "";
+}
+
+function renderTemplateRequiredGroupEditor() {
+  const editor = document.getElementById("templateRequiredGroupEditor");
+  if (!editor) return;
+
+  editor.innerHTML = templateRequiredGroupRows.map((group, groupIndex) => `
+    <div class="required-group-card" data-group-index="${groupIndex}">
+      <div class="required-group-head">
+        <input data-field="title" type="text" placeholder="群組名稱，例如：湯底" value="${escapeHtml(group.title || "")}" />
+        <button class="danger-btn" type="button" data-action="removeGroup">刪除群組</button>
+      </div>
+      <div class="required-group-options">
+        ${(group.options && group.options.length ? group.options : [""]).map((option, optionIndex) => `
+          <div class="required-group-option" data-option-index="${optionIndex}">
+            <input data-field="option" type="text" placeholder="選項內容，例如：原味" value="${escapeHtml(option || "")}" />
+            <button class="danger-btn" type="button" data-action="removeOption">刪除</button>
+          </div>
+        `).join("")}
+      </div>
+      <button class="secondary-btn" type="button" data-action="addOption">新增選項</button>
+    </div>
+  `).join("");
+
+  editor.querySelectorAll("input").forEach(input => {
+    input.addEventListener("input", function() {
+      const groupCard = input.closest(".required-group-card");
+      const groupIndex = Number(groupCard && groupCard.dataset.groupIndex);
+      if (!templateRequiredGroupRows[groupIndex]) return;
+      if (input.dataset.field === "title") {
+        templateRequiredGroupRows[groupIndex].title = input.value;
+      } else {
+        const optionRow = input.closest(".required-group-option");
+        const optionIndex = Number(optionRow && optionRow.dataset.optionIndex);
+        templateRequiredGroupRows[groupIndex].options[optionIndex] = input.value;
+      }
+      syncTemplateLegacyRequiredInputs();
+    });
+  });
+
+  editor.querySelectorAll("button").forEach(button => {
+    button.addEventListener("click", function(event) {
+      if (event && event.preventDefault) event.preventDefault();
+      const groupCard = button.closest(".required-group-card");
+      const groupIndex = Number(groupCard && groupCard.dataset.groupIndex);
+      if (!templateRequiredGroupRows[groupIndex]) return;
+      const action = button.dataset.action;
+      if (action === "removeGroup") templateRequiredGroupRows.splice(groupIndex, 1);
+      if (action === "addOption") templateRequiredGroupRows[groupIndex].options.push("");
+      if (action === "removeOption") {
+        const optionRow = button.closest(".required-group-option");
+        const optionIndex = Number(optionRow && optionRow.dataset.optionIndex);
+        templateRequiredGroupRows[groupIndex].options.splice(optionIndex, 1);
+        if (!templateRequiredGroupRows[groupIndex].options.length) templateRequiredGroupRows[groupIndex].options.push("");
+      }
+      syncTemplateLegacyRequiredInputs();
+      renderTemplateRequiredGroupEditor();
+    });
+  });
+
+  syncTemplateLegacyRequiredInputs();
+}
+
 function escapeHtml(value) {
   return String(value || "")
     .replace(/&/g, "&amp;")
@@ -196,26 +692,68 @@ function formatListText(items) {
   return Array.isArray(items) ? items.join("\n") : "";
 }
 
-function getTemplateRequiredOptionFromForm() {
-  if (!templateRequiredTitleInput || !templateRequiredChoicesInput) return null;
+function normalizeRequiredGroups(source) {
+  const rawGroups =
+    (source && Array.isArray(source.requiredGroups) && source.requiredGroups) ||
+    (source && Array.isArray(source.requiredOptions) && source.requiredOptions) ||
+    (Array.isArray(source) && source) ||
+    [];
 
-  const title = templateRequiredTitleInput.value.trim();
-  const options = parseListText(templateRequiredChoicesInput.value);
+  const groups = rawGroups.map(group => ({
+    title: String((group && (group.title || group.name || group.groupName)) || "").trim(),
+    options: Array.isArray(group && group.options)
+      ? group.options.map(option => String(option || "").trim()).filter(Boolean)
+      : parseListText(group && (group.choices || group.values || ""))
+  })).filter(group => group.title || group.options.length);
 
-  if (!title || options.length === 0) return null;
+  const legacy = source && source.requiredOption ? source.requiredOption : null;
+  if (legacy && (legacy.title || (Array.isArray(legacy.options) && legacy.options.length))) {
+    const legacyGroup = {
+      title: String(legacy.title || "").trim(),
+      options: Array.isArray(legacy.options)
+        ? legacy.options.map(option => String(option || "").trim()).filter(Boolean)
+        : parseListText(legacy.options || "")
+    };
+    const exists = groups.some(group => group.title === legacyGroup.title && group.options.join("|") === legacyGroup.options.join("|"));
+    if (!exists && (legacyGroup.title || legacyGroup.options.length)) groups.unshift(legacyGroup);
+  }
 
+  return groups;
+}
+
+function firstRequiredOptionFromGroups(groups) {
+  const first = (groups || []).find(group => group.title && Array.isArray(group.options) && group.options.length);
+  if (!first) return null;
   return {
-    title,
-    options,
+    title: first.title,
+    options: first.options.slice(),
     required: true
   };
 }
 
+function cloneRequiredGroups(groups) {
+  return (groups || []).map(group => ({
+    title: String(group.title || "").trim(),
+    options: (group.options || []).map(option => String(option || "").trim()).filter(Boolean)
+  })).filter(group => group.title || group.options.length);
+}
+
+function getTemplateRequiredOptionFromForm() {
+  return firstRequiredOptionFromGroups(getTemplateRequiredGroupsFromForm());
+}
+
+function getTemplateRequiredGroupsFromForm() {
+  return cloneRequiredGroups(templateRequiredGroupRows);
+}
+
 function getTemplateDataFromForm() {
+  const requiredGroups = getTemplateRequiredGroupsFromForm();
   return {
     name: templateNameInput ? templateNameInput.value.trim() : "",
     sizes: parseNamePriceText(templateSizesInput ? templateSizesInput.value : ""),
     requiredOption: getTemplateRequiredOptionFromForm(),
+    requiredOptions: requiredGroups,
+    requiredGroups,
     options: parseNamePriceText(templateAddonsInput ? templateAddonsInput.value : ""),
     removeOptions: parseListText(templateRemoveOptionsInput ? templateRemoveOptionsInput.value : "")
   };
@@ -238,9 +776,11 @@ function resetTemplateForm() {
   if (templateSizesInput) templateSizesInput.value = "";
   if (templateRequiredTitleInput) templateRequiredTitleInput.value = "";
   if (templateRequiredChoicesInput) templateRequiredChoicesInput.value = "";
+  templateRequiredGroupRows = [];
   if (templateAddonsInput) templateAddonsInput.value = "";
   if (templateRemoveOptionsInput) templateRemoveOptionsInput.value = "";
   if (saveTemplateBtn) saveTemplateBtn.textContent = "儲存範本";
+  refreshTemplateRowEditors();
 }
 
 function fillTemplateForm(template) {
@@ -248,11 +788,20 @@ function fillTemplateForm(template) {
   if (templateFormTitle) templateFormTitle.textContent = `編輯範本｜${template.name || ""}`;
   if (templateNameInput) templateNameInput.value = template.name || "";
   if (templateSizesInput) templateSizesInput.value = formatNamePriceText(template.sizes || {});
-  if (templateRequiredTitleInput) templateRequiredTitleInput.value = template.requiredOption ? (template.requiredOption.title || "") : "";
-  if (templateRequiredChoicesInput) templateRequiredChoicesInput.value = template.requiredOption ? formatListText(template.requiredOption.options || []) : "";
+  templateRequiredGroupRows = normalizeRequiredGroups(template);
+  syncTemplateLegacyRequiredInputs();
   if (templateAddonsInput) templateAddonsInput.value = formatNamePriceText(template.options || {});
   if (templateRemoveOptionsInput) templateRemoveOptionsInput.value = formatListText(template.removeOptions || []);
   if (saveTemplateBtn) saveTemplateBtn.textContent = "更新範本";
+  refreshTemplateRowEditors();
+}
+
+function refreshTemplateRowEditors() {
+  [templateSizesInput, templateAddonsInput, templateRemoveOptionsInput].forEach(input => {
+    if (!input) return;
+    try { input.dispatchEvent(new Event("change")); } catch (e) {}
+  });
+  renderTemplateRequiredGroupEditor();
 }
 
 function renderTemplateSelect() {
@@ -273,7 +822,7 @@ function applyOptionTemplate(templateId) {
     return;
   }
 
-  setRequiredOptionToForm(template.requiredOption || null);
+  setRequiredGroupsToForm(template);
   setSizeRowsFromSizes(template.sizes || {});
   setAddonRowsFromOptions(template.options || {});
   setRemoveOptionRows(template.removeOptions || []);
@@ -351,8 +900,9 @@ function renderOptionTemplates() {
   }
 
   optionTemplateList.innerHTML = templates.map(template => {
-    const requiredText = template.requiredOption && template.requiredOption.title
-      ? `${template.requiredOption.title}：${(template.requiredOption.options || []).join("、")}`
+    const requiredGroups = normalizeRequiredGroups(template);
+    const requiredText = requiredGroups.length
+      ? requiredGroups.map(group => `${group.title}：${(group.options || []).join("、")}`).join(" / ")
       : "無必選項目";
     const sizeCount = Object.keys(template.sizes || {}).length;
     const addonCount = Object.keys(template.options || {}).length;
@@ -388,23 +938,7 @@ function renderOptionTemplates() {
 }
 
 function getRequiredOptionFromForm() {
-  if (!requiredOptionTitle || !requiredOptionChoices) return null;
-
-  const title = requiredOptionTitle.value.trim();
-  const choices = requiredOptionChoices.value
-    .split(",")
-    .map(item => item.trim())
-    .filter(Boolean);
-
-  if (!title || choices.length === 0) {
-    return null;
-  }
-
-  return {
-    title,
-    options: choices,
-    required: true
-  };
+  return firstRequiredOptionFromGroups(getRequiredGroupsFromForm());
 }
 
 function setRequiredOptionToForm(requiredOption) {
@@ -413,13 +947,117 @@ function setRequiredOptionToForm(requiredOption) {
   if (!requiredOption) {
     requiredOptionTitle.value = "";
     requiredOptionChoices.value = "";
+    requiredGroupRows = [];
+    renderRequiredGroupEditor();
     return;
   }
 
-  requiredOptionTitle.value = requiredOption.title || "";
-  requiredOptionChoices.value = Array.isArray(requiredOption.options)
-    ? requiredOption.options.join(",")
-    : "";
+  const groups = normalizeRequiredGroups({ requiredOption });
+  requiredGroupRows = groups;
+  syncLegacyRequiredInputs();
+  renderRequiredGroupEditor();
+}
+
+function setRequiredGroupsToForm(source) {
+  requiredGroupRows = normalizeRequiredGroups(source);
+  syncLegacyRequiredInputs();
+  renderRequiredGroupEditor();
+}
+
+function syncLegacyRequiredInputs() {
+  if (!requiredOptionTitle || !requiredOptionChoices) return;
+  const first = firstRequiredOptionFromGroups(requiredGroupRows);
+  requiredOptionTitle.value = first ? first.title : "";
+  requiredOptionChoices.value = first ? first.options.join(",") : "";
+}
+
+function getRequiredGroupsFromForm() {
+  return cloneRequiredGroups(requiredGroupRows);
+}
+
+function ensureRequiredGroupEditor() {
+  if (!requiredOptionChoices || document.getElementById("requiredGroupEditor")) return;
+  const editor = document.createElement("div");
+  editor.id = "requiredGroupEditor";
+  editor.className = "required-group-editor";
+  requiredOptionChoices.insertAdjacentElement("afterend", editor);
+
+  const addButton = document.createElement("button");
+  addButton.id = "addRequiredGroupBtn";
+  addButton.className = "secondary-btn";
+  addButton.type = "button";
+  addButton.textContent = "新增必選群組";
+  editor.insertAdjacentElement("afterend", addButton);
+
+  addButton.addEventListener("click", function(event) {
+    if (event && event.preventDefault) event.preventDefault();
+    requiredGroupRows.push({ title: "", options: [""] });
+    renderRequiredGroupEditor();
+  });
+}
+
+function renderRequiredGroupEditor() {
+  ensureRequiredGroupEditor();
+  const editor = document.getElementById("requiredGroupEditor");
+  if (!editor) return;
+
+  if (!requiredGroupRows.length) {
+    requiredGroupRows = [];
+  }
+
+  editor.innerHTML = requiredGroupRows.map((group, groupIndex) => `
+    <div class="required-group-card" data-group-index="${groupIndex}">
+      <div class="required-group-head">
+        <input data-field="title" type="text" placeholder="群組名稱，例如：湯底" value="${escapeHtml(group.title || "")}" />
+        <button class="danger-btn" type="button" data-action="removeGroup">刪除群組</button>
+      </div>
+      <div class="required-group-options">
+        ${(group.options && group.options.length ? group.options : [""]).map((option, optionIndex) => `
+          <div class="required-group-option" data-option-index="${optionIndex}">
+            <input data-field="option" type="text" placeholder="選項內容，例如：原味" value="${escapeHtml(option || "")}" />
+            <button class="danger-btn" type="button" data-action="removeOption">刪除</button>
+          </div>
+        `).join("")}
+      </div>
+      <button class="secondary-btn" type="button" data-action="addOption">新增選項</button>
+    </div>
+  `).join("");
+
+  editor.querySelectorAll("input").forEach(input => {
+    input.addEventListener("input", function() {
+      const groupCard = input.closest(".required-group-card");
+      const groupIndex = Number(groupCard && groupCard.dataset.groupIndex);
+      if (!requiredGroupRows[groupIndex]) return;
+      if (input.dataset.field === "title") {
+        requiredGroupRows[groupIndex].title = input.value;
+      } else {
+        const optionRow = input.closest(".required-group-option");
+        const optionIndex = Number(optionRow && optionRow.dataset.optionIndex);
+        requiredGroupRows[groupIndex].options[optionIndex] = input.value;
+      }
+      syncLegacyRequiredInputs();
+    });
+  });
+
+  editor.querySelectorAll("button").forEach(button => {
+    button.addEventListener("click", function(event) {
+      if (event && event.preventDefault) event.preventDefault();
+      const groupCard = button.closest(".required-group-card");
+      const groupIndex = Number(groupCard && groupCard.dataset.groupIndex);
+      if (!requiredGroupRows[groupIndex]) return;
+      const action = button.dataset.action;
+      if (action === "removeGroup") requiredGroupRows.splice(groupIndex, 1);
+      if (action === "addOption") requiredGroupRows[groupIndex].options.push("");
+      if (action === "removeOption") {
+        const optionRow = button.closest(".required-group-option");
+        const optionIndex = Number(optionRow && optionRow.dataset.optionIndex);
+        requiredGroupRows[groupIndex].options.splice(optionIndex, 1);
+        if (!requiredGroupRows[groupIndex].options.length) requiredGroupRows[groupIndex].options.push("");
+      }
+      syncLegacyRequiredInputs();
+      renderRequiredGroupEditor();
+    });
+  });
 }
 
 
@@ -1222,6 +1860,7 @@ async function saveItem() {
   const sizes = getSizesFromRows();
   const removeOptions = getRemoveOptionsFromRows();
   const requiredOption = getRequiredOptionFromForm();
+  const requiredGroups = getRequiredGroupsFromForm();
 
   if (!name) {
     alert("請輸入餐點名稱");
@@ -1260,6 +1899,8 @@ async function saveItem() {
       options,
       removeOptions,
       requiredOption,
+      requiredOptions: requiredGroups,
+      requiredGroups,
       enabled: oldItem ? oldItem.enabled !== false : true,
       categoryOrder: getCategoryOrderByName(category),
       sortOrder: oldItem ? Number(oldItem.sortOrder !== undefined ? oldItem.sortOrder : now) : now,
@@ -1301,6 +1942,7 @@ async function saveItem() {
     }
 
     resetForm();
+    closeItemEditorModal();
   } catch (err) {
     console.error("儲存餐點失敗：", err);
     alert("儲存失敗，請看 Console");
@@ -1330,7 +1972,7 @@ function editItem(id) {
     itemDescription.value = item.description || "";
   }
 
-  setRequiredOptionToForm(item.requiredOption || null);
+  setRequiredGroupsToForm(item);
   setSizeRowsFromSizes(item.sizes || {});
   setAddonRowsFromOptions(item.options || {});
   setRemoveOptionRows(item.removeOptions || []);
@@ -1340,10 +1982,8 @@ function editItem(id) {
   cancelEditBtn.style.display = "block";
   switchAdminTab("itemAdminTab");
 
-  window.scrollTo({
-    top: 0,
-    behavior: "smooth"
-  });
+  openItemEditorModal();
+  if (itemName) itemName.focus();
 }
 
 /* =========================
@@ -1609,6 +2249,8 @@ function renderMenuCard(item, category) {
 
         <div class="admin-price">${money(item.price)}</div>
 
+        <div class="admin-list-category">${escapeHtml(category)}</div>
+
         <div class="admin-description">
           ${escapeHtml(descriptionText)}
         </div>
@@ -1752,7 +2394,9 @@ if (cancelTemplateEditBtn) {
 }
 
 addItemBtn.addEventListener("click", saveItem);
-cancelEditBtn.addEventListener("click", resetForm);
+cancelEditBtn.addEventListener("click", function() {
+  cancelItemEditorWithConfirm();
+});
 menuSearchInput.addEventListener("input", renderMenu);
 
 for (var adminTabIndex = 0; adminTabIndex < adminTabButtons.length; adminTabIndex += 1) {
@@ -1785,6 +2429,7 @@ if (itemImageFile) {
   });
 }
 
+initAdminV63Ux();
 resetForm();
 switchAdminTab("categoryAdminTab");
 

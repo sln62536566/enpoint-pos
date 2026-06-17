@@ -16,12 +16,12 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <title>恩點系統｜QR 點餐</title>
   <link rel="manifest" href="./manifest.json" />
-  <link rel="stylesheet" href="./css/qr.css?v=635" />
+  <link rel="stylesheet" href="./css/qr.css?v=638" />
 </head>
 
 <body class="qr-page">
   <header class="qr-header">
-    <h1>恩點點餐</h1>
+    <h1 id="qrStoreNameTitle">恩點點餐</h1>
     <p id="tableInfo">掃碼點餐</p>
     <nav class="qr-top-tabs" aria-label="QR 點餐分頁">
       <a id="qrOrderTabLink" class="qr-top-tab active" href="javascript:void(0)" onclick="return window.qrShowMenuTab(event)" ontouchend="return window.qrShowMenuTab(event)">點餐</a>
@@ -212,6 +212,6 @@
       }
     })();
   </script>
-  <script type="module" src="./js/app.js?v=635"></script>
+  <script type="module" src="./js/app.js?v=638"></script>
 </body>
 </html>

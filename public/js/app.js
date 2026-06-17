@@ -47,10 +47,11 @@ const successPage = document.getElementById("successPage");
 const successContent = document.getElementById("successContent");
 const topOrderPanel = document.getElementById("topOrderPanel");
 const topOrderContent = document.getElementById("topOrderContent");
-const qrHeaderTitle = document.querySelector(".qr-header h1");
+const qrHeaderTitle = document.getElementById("qrStoreNameTitle") || document.querySelector(".qr-header h1");
 let currentViewingOrderId = "";
 let qrStoreName = DEFAULT_QR_STORE_NAME;
 let orderLookupMinutes = DEFAULT_ORDER_LOOKUP_MINUTES;
+let qrHasStoreNameFromFirebase = false;
 
 function addBodyClass(name) {
   if (document.body && (" " + String(document.body.className || "") + " ").indexOf(" " + name + " ") < 0) {
@@ -91,6 +92,7 @@ function saveCurrentViewingOrderId(orderId) {
   if (!currentViewingOrderId) return;
   try { localStorage.setItem(LAST_ORDER_KEY, currentViewingOrderId); } catch (e) {}
   try { localStorage.setItem(LAST_ORDER_KEY_COMPAT, currentViewingOrderId); } catch (e) {}
+  try { localStorage.setItem("enpoint_last_qr_order_saved_at", String(Date.now ? Date.now() : new Date().getTime())); } catch (e) {}
 }
 
 function getSavedViewingOrderId() {
@@ -109,7 +111,18 @@ function applyQrStoreName(name) {
   document.title = qrStoreName + "｜QR 點餐";
 }
 
+function keepQrStoreNameVisible() {
+  if (!qrHeaderTitle) return;
+  if (qrStoreName && qrHeaderTitle.textContent !== qrStoreName) {
+    qrHeaderTitle.textContent = qrStoreName;
+  }
+  if (qrStoreName && document.title !== qrStoreName + "｜QR 點餐") {
+    document.title = qrStoreName + "｜QR 點餐";
+  }
+}
+
 function qrShowOrderMode() {
+  keepQrStoreNameVisible();
   setQrPageMode("order");
   if (orderPage) {
     orderPage.className = (orderPage.className || "") + " hidden";
@@ -130,6 +143,7 @@ function qrShowOrderMode() {
 }
 
 function qrShowMenuMode() {
+  keepQrStoreNameVisible();
   setQrPageMode("menu");
   if (topOrderPanel) {
     topOrderPanel.className = (topOrderPanel.className || "") + " hidden";
@@ -949,6 +963,7 @@ function forceResetQrOrder(event) {
     itemModal.style.display = "none";
   }
   qrShowMenuMode();
+  keepQrStoreNameVisible();
   closeQrCartPanel();
   renderCart();
   renderCategories();
@@ -1580,8 +1595,15 @@ function loadQrStoreName() {
   }
 
   onValue(storeNameRef, function(snapshot) {
-    var name = snapshot && snapshot.exists && snapshot.exists() ? snapshot.val() : "";
-    applyQrStoreName(name || DEFAULT_QR_STORE_NAME);
+    var name = snapshot && snapshot.exists && snapshot.exists() ? String(snapshot.val() || "").trim() : "";
+    if (name) {
+      qrHasStoreNameFromFirebase = true;
+      applyQrStoreName(name);
+    } else if (!qrHasStoreNameFromFirebase && (!qrStoreName || qrStoreName === DEFAULT_QR_STORE_NAME)) {
+      applyQrStoreName(DEFAULT_QR_STORE_NAME);
+    } else {
+      keepQrStoreNameVisible();
+    }
     try {
       if (name) localStorage.setItem("storeName", name);
     } catch (e) {}
@@ -3268,15 +3290,19 @@ window.openLastQrOrderFromTop = openLastQrOrderFromTop;
 (function(){
   var LAST_ORDER_KEY_V614 = "enpoint_last_qr_order_id";
   var LAST_ORDER_TIME_KEY_V614 = "enpoint_last_qr_order_saved_at";
-  var TTL_V614 = 60 * 60 * 1000;
 
   function now(){ return Date.now ? Date.now() : new Date().getTime(); }
+  function getLookupTtl(){
+    var minutes = Math.floor(Number(orderLookupMinutes) || DEFAULT_ORDER_LOOKUP_MINUTES);
+    minutes = Math.min(10080, Math.max(1, minutes));
+    return minutes * 60 * 1000;
+  }
   function getValidLastOrderId(){
     try{
       var id = localStorage.getItem(LAST_ORDER_KEY_V614) || "";
       var savedAt = Number(localStorage.getItem(LAST_ORDER_TIME_KEY_V614) || 0);
       if(!id) return "";
-      if(!savedAt || now() - savedAt > TTL_V614){
+      if(!savedAt || now() - savedAt > getLookupTtl()){
         localStorage.removeItem(LAST_ORDER_KEY_V614);
         localStorage.removeItem(LAST_ORDER_TIME_KEY_V614);
         return "";
@@ -3368,7 +3394,7 @@ window.openLastQrOrderFromTop = openLastQrOrderFromTop;
     if(floatingCartBtn) floatingCartBtn.style.display="none";
     removeClass(topOrderPanel,"hidden"); if(topOrderPanel) topOrderPanel.style.display="block";
     var id = getValidLastOrderId();
-    if(!id){ if(topOrderContent) topOrderContent.innerHTML='<div class="empty">目前沒有可查詢的訂單，或上一筆訂單已超過 60 分鐘，請重新點餐。</div>'; return false; }
+    if(!id){ if(topOrderContent) topOrderContent.innerHTML='<div class="empty">目前沒有可查詢的訂單，或上一筆訂單已超過店家設定時間，請重新點餐。</div>'; return false; }
     try{
       onValue(ref(db,"orders/"+id),function(snapshot){
         var order=snapshot.val();

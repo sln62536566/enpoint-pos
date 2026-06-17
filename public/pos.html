@@ -9,7 +9,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <title>恩點系統｜店員 POS</title>
   <link rel="manifest" href="./manifest.json" />
-  <link rel="stylesheet" href="./css/pos-v600.css?v=635" />
+  <link rel="stylesheet" href="./css/pos-v600.css?v=638" />
 </head>
 
 <body>
@@ -31,8 +31,12 @@
 
     <main class="pos-main">
       <section id="orderTab" class="tab-panel active">
+        <div class="order-subtabs" role="tablist" aria-label="點餐">
+          <button type="button" class="order-subtab-btn active" data-order-subtab="menu">餐點</button>
+          <button type="button" class="order-subtab-btn" data-order-subtab="cart">目前訂單</button>
+        </div>
         <div class="order-layout">
-          <section class="menu-panel">
+          <section class="menu-panel" data-order-subtab-panel="menu">
             <div class="panel-title">
               <h2>點餐區</h2>
               <p>選擇分類與餐點</p>
@@ -42,7 +46,7 @@
             <div id="posMenuList" class="pos-menu-list"></div>
           </section>
 
-          <aside class="cart-panel">
+          <aside class="cart-panel" data-order-subtab-panel="cart">
             <div class="panel-title">
               <h2>目前訂單</h2>
               <p>內用 / 外帶・桌號・結帳</p>
@@ -63,6 +67,11 @@
             </div>
 
             <div id="cartList" class="cart-list"></div>
+
+            <div class="whole-order-note-box">
+              <label for="posOrderNoteInput">整單備註</label>
+              <textarea id="posOrderNoteInput" class="note-input" placeholder="例如：一起出餐、少油、餐具需求"></textarea>
+            </div>
 
             <div class="cart-total">
               總計：<strong id="totalAmount">$0</strong>
@@ -288,6 +297,16 @@
                 <span></span>
               </button>
             </section>
+
+            <section class="settings-card settings-toggle-card">
+              <div class="settings-card-title">
+                <span>加入餐點後自動切換訂單</span>
+                <small>加入餐點後自動跳到目前訂單，預設關閉</small>
+              </div>
+              <button type="button" id="autoSwitchCartToggle" class="settings-switch" aria-pressed="false">
+                <span></span>
+              </button>
+            </section>
           </div>
         </div>
       </section>
@@ -329,7 +348,7 @@
         </div>
       </div>
 
-      <div class="option-section">
+      <div class="option-section item-note-section">
         <h3>備註</h3>
         <textarea id="noteInput" class="note-input" placeholder="例如：不要蔥、湯多一點"></textarea>
       </div>
@@ -420,6 +439,6 @@
     </div>
   </div>
 
-  <script type="module" src="./js/pos.js?v=635"></script>
+  <script type="module" src="./js/pos.js?v=638"></script>
 </body>
 </html>

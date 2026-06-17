@@ -67,11 +67,14 @@ const STORE_ID = "defaultStore";
 
 const tabButtons = document.querySelectorAll(".tab-btn");
 const tabPanels = document.querySelectorAll(".tab-panel");
+const orderSubtabButtons = document.querySelectorAll(".order-subtab-btn");
+const orderSubtabPanels = document.querySelectorAll("[data-order-subtab-panel]");
 
 const categoryList = document.getElementById("categoryList");
 const posMenuList = document.getElementById("posMenuList");
 const cartList = document.getElementById("cartList");
 const totalAmount = document.getElementById("totalAmount");
+const posOrderNoteInput = document.getElementById("posOrderNoteInput");
 
 const dineInBtn = document.getElementById("dineInBtn");
 const takeOutBtn = document.getElementById("takeOutBtn");
@@ -139,6 +142,7 @@ const prepTimeInput = document.getElementById("prepTimeInput");
 const orderLookupMinutesInput = document.getElementById("orderLookupMinutesInput");
 const showTestOrdersToggle = document.getElementById("showTestOrdersToggle");
 const enableSoundToggle = document.getElementById("enableSoundToggle");
+const autoSwitchCartToggle = document.getElementById("autoSwitchCartToggle");
 
 /* =========================
    Firebase
@@ -210,7 +214,8 @@ const defaultSettings = {
   prepTime: 15,
   orderLookupMinutes: 60,
   showTestOrders: true,
-  enableSound: true
+  enableSound: true,
+  autoSwitchCartAfterAdd: false
 };
 
 let posSettings = loadSettings();
@@ -243,6 +248,7 @@ renderTableButtons();
 renderCart();
 renderStoreModeNotice();
 renderSettings();
+watchSharedSettings();
 
 /* =========================
    Tabs
@@ -259,6 +265,14 @@ tabButtons.forEach(button => {
     document.getElementById(target).classList.add("active");
   });
 });
+
+orderSubtabButtons.forEach(button => {
+  button.addEventListener("click", () => {
+    switchOrderSubtab(button.dataset.orderSubtab);
+  });
+});
+
+switchOrderSubtab("menu");
 
 /* =========================
    Helpers
@@ -287,7 +301,8 @@ function loadSettings() {
     prepTime: readNumberSetting("prepTime", defaultSettings.prepTime, 1, 999),
     orderLookupMinutes: readNumberSetting("orderLookupMinutes", defaultSettings.orderLookupMinutes, 1, 10080),
     showTestOrders: readBooleanSetting("showTestOrders", defaultSettings.showTestOrders),
-    enableSound: readBooleanSetting("enableSound", defaultSettings.enableSound)
+    enableSound: readBooleanSetting("enableSound", defaultSettings.enableSound),
+    autoSwitchCartAfterAdd: readBooleanSetting("autoSwitchCartAfterAdd", defaultSettings.autoSwitchCartAfterAdd)
   };
 }
 
@@ -305,10 +320,39 @@ function syncStoreNameToFirebase(value) {
   }, 350);
 }
 
+function syncStoreNameToFirebaseNow(value) {
+  const name = String(value || "").trim();
+  if (storeNameSyncTimer) clearTimeout(storeNameSyncTimer);
+  set(storeNameRef, name).catch(error => {
+    console.error("同步店家名稱失敗：", error);
+  });
+}
+
 function syncOrderLookupMinutesToFirebase(value) {
   const minutes = Math.min(10080, Math.max(1, Math.floor(Number(value) || defaultSettings.orderLookupMinutes)));
   set(orderLookupMinutesRef, minutes).catch(error => {
     console.error("同步訂單查詢保留時間失敗：", error);
+  });
+}
+
+function watchSharedSettings() {
+  onValue(storeNameRef, snapshot => {
+    const name = snapshot && snapshot.exists && snapshot.exists() ? String(snapshot.val() || "") : "";
+    if (!name || name === posSettings.storeName) return;
+    posSettings.storeName = name;
+    saveSetting("storeName", name);
+    if (storeNameInput && document.activeElement !== storeNameInput) storeNameInput.value = name;
+    applyStoreName();
+  });
+
+  onValue(orderLookupMinutesRef, snapshot => {
+    const value = snapshot && snapshot.exists && snapshot.exists() ? snapshot.val() : null;
+    if (value === null || value === undefined) return;
+    const minutes = Math.min(10080, Math.max(1, Math.floor(Number(value) || defaultSettings.orderLookupMinutes)));
+    if (minutes === posSettings.orderLookupMinutes) return;
+    posSettings.orderLookupMinutes = minutes;
+    saveSetting("orderLookupMinutes", minutes);
+    if (orderLookupMinutesInput && document.activeElement !== orderLookupMinutesInput) orderLookupMinutesInput.value = minutes;
   });
 }
 
@@ -337,6 +381,21 @@ function applyShowTestOrdersSetting() {
   submitTestOrderBtn.setAttribute("aria-hidden", enabled ? "false" : "true");
 }
 
+function switchOrderSubtab(target) {
+  const next = target === "cart" ? "cart" : "menu";
+
+  orderSubtabButtons.forEach(button => {
+    const active = button.dataset.orderSubtab === next;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", active ? "true" : "false");
+  });
+
+  orderSubtabPanels.forEach(panel => {
+    const active = panel.dataset.orderSubtabPanel === next;
+    panel.classList.toggle("order-subtab-active", active);
+  });
+}
+
 function renderSettings() {
   if (storeNameInput) storeNameInput.value = posSettings.storeName;
   if (tableCountInput) tableCountInput.value = posSettings.tableCount;
@@ -347,6 +406,7 @@ function renderSettings() {
   applyShowTestOrdersSetting();
   setSwitchState(showTestOrdersToggle, posSettings.showTestOrders);
   setSwitchState(enableSoundToggle, posSettings.enableSound);
+  setSwitchState(autoSwitchCartToggle, posSettings.autoSwitchCartAfterAdd);
 }
 
 function updateTableCount(value) {
@@ -1570,7 +1630,7 @@ confirmCustomBtn.addEventListener("click", () => {
     addons: selectedExtras,
     removes: selectedRemoves,
     removeOptionsSelected: selectedRemoves,
-    note: noteInput.value.trim(),
+    note: "",
     subtotal
   };
 
@@ -1586,6 +1646,9 @@ confirmCustomBtn.addEventListener("click", () => {
 
   renderCart();
   closeCustomModal();
+  if (posSettings.autoSwitchCartAfterAdd) {
+    switchOrderSubtab("cart");
+  }
 });
 
 /* =========================
@@ -1629,11 +1692,69 @@ function renderCart() {
   }).join("");
 
   totalAmount.textContent = money(calculateTotal(cart));
+  bindCartCardActions();
 }
 
 function removeFromCart(cartId) {
+  const item = cart.find(item => String(item.cartId) === String(cartId));
+  if (item && !confirm(`確定刪除「${item.name || "餐點"}」？`)) return;
   cart = cart.filter(item => item.cartId !== cartId);
   renderCart();
+}
+
+function bindCartCardActions() {
+  if (!cartList) return;
+
+  const cards = cartList.querySelectorAll(".cart-item");
+  cards.forEach((card, index) => {
+    if (card.dataset.boundCartUx === "true") return;
+    card.dataset.boundCartUx = "true";
+    card.setAttribute("role", "button");
+    card.setAttribute("tabindex", "0");
+
+    let startX = 0;
+    let startY = 0;
+    let moved = false;
+
+    card.addEventListener("click", event => {
+      if (event.target && event.target.closest && event.target.closest("button")) return;
+      openCartItemEditModal(index);
+    });
+
+    card.addEventListener("keydown", event => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        openCartItemEditModal(index);
+      }
+    });
+
+    card.addEventListener("touchstart", event => {
+      const touch = event.touches && event.touches[0];
+      if (!touch) return;
+      startX = touch.clientX || 0;
+      startY = touch.clientY || 0;
+      moved = false;
+      card.classList.remove("swipe-delete-ready");
+    }, { passive: true });
+
+    card.addEventListener("touchmove", event => {
+      const touch = event.touches && event.touches[0];
+      if (!touch) return;
+      const dx = (touch.clientX || 0) - startX;
+      const dy = Math.abs((touch.clientY || 0) - startY);
+      if (dx < -48 && dy < 36) {
+        moved = true;
+        card.classList.add("swipe-delete-ready");
+      }
+    }, { passive: true });
+
+    card.addEventListener("touchend", event => {
+      if (!moved) return;
+      event.preventDefault();
+      const item = cart[index];
+      if (item) removeFromCart(item.cartId);
+    });
+  });
 }
 
 function openCartItemEditModal(index) {
@@ -1677,6 +1798,7 @@ function openCartItemEditModal(index) {
 
 function clearCart() {
   cart = [];
+  if (posOrderNoteInput) posOrderNoteInput.value = "";
   renderCart();
 }
 
@@ -1706,6 +1828,7 @@ async function submitOrderCore(isTestMode) {
   }
 
   const total = calculateTotal(cart);
+  const orderNote = posOrderNoteInput ? posOrderNoteInput.value.trim() : "";
   const orderNumberPreview = "系統送出後產生";
   const itemsText = cart.map((item, index) => {
     const extras = itemExtras(item);
@@ -1758,6 +1881,7 @@ async function submitOrderCore(isTestMode) {
       isTestOrder: isTestMode,
       revenueExcluded: isTestMode,
       testOrderNote: isTestMode ? "POS 建立的測試訂單，不計入營收 / 收班 / 報表" : "",
+      note: orderNote,
       items: cart,
       total,
       status: STORE_MODE === "pro" ? "cooking" : "confirmed",
@@ -1779,6 +1903,7 @@ async function submitOrderCore(isTestMode) {
     alert(`${isTestMode ? "測試訂單已送出" : "結帳完成，已送出"}：${order.customerLabel}\n單號：${orderNumber}`);
 
     cart = [];
+    if (posOrderNoteInput) posOrderNoteInput.value = "";
     renderCart();
   } catch (error) {
     console.error("結帳送出失敗：", error);
@@ -1840,9 +1965,11 @@ function renderOrderCard(order) {
       <div class="order-total">總金額：${money(order.total)}</div>
 
       <div class="order-actions">
-        <button type="button" class="secondary-btn print-btn" onclick="return printOrderTicket('kitchen', '${order.id}', event)" ontouchend="return printOrderTicket('kitchen', '${order.id}', event)">列印廚房單</button>
-
-        <button type="button" class="secondary-btn print-btn" onclick="return printOrderTicket('customer', '${order.id}', event)" ontouchend="return printOrderTicket('customer', '${order.id}', event)">列印客人單</button>
+        <div class="reprint-actions">
+          <span>補印：</span>
+          <button type="button" class="secondary-btn print-btn" onclick="return printOrderTicket('kitchen', '${order.id}', event)" ontouchend="return printOrderTicket('kitchen', '${order.id}', event)">廚房單</button>
+          <button type="button" class="secondary-btn print-btn" onclick="return printOrderTicket('customer', '${order.id}', event)" ontouchend="return printOrderTicket('customer', '${order.id}', event)">客人單</button>
+        </div>
 
         ${editable ? `<button class="secondary-btn" onclick="openEditOrderModal('${order.id}')">編輯 / 改單</button>` : ""}
 
@@ -2909,6 +3036,12 @@ if (storeNameInput) {
     applyStoreName();
     syncStoreNameToFirebase(posSettings.storeName);
   });
+  storeNameInput.addEventListener("change", () => {
+    syncStoreNameToFirebaseNow(storeNameInput.value);
+  });
+  storeNameInput.addEventListener("blur", () => {
+    syncStoreNameToFirebaseNow(storeNameInput.value);
+  });
 }
 
 if (tableCountInput) {
@@ -2950,6 +3083,14 @@ if (enableSoundToggle) {
     posSettings.enableSound = !posSettings.enableSound;
     saveSetting("enableSound", posSettings.enableSound);
     setSwitchState(enableSoundToggle, posSettings.enableSound);
+  });
+}
+
+if (autoSwitchCartToggle) {
+  autoSwitchCartToggle.addEventListener("click", () => {
+    posSettings.autoSwitchCartAfterAdd = !posSettings.autoSwitchCartAfterAdd;
+    saveSetting("autoSwitchCartAfterAdd", posSettings.autoSwitchCartAfterAdd);
+    setSwitchState(autoSwitchCartToggle, posSettings.autoSwitchCartAfterAdd);
   });
 }
 

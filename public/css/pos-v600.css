@@ -3754,11 +3754,292 @@ html body .pos-tabs .tab-btn.active,
   display:inline-flex !important;
   align-items:center !important;
   justify-content:center !important;
-  min-height:42px !important;
-  flex:1 1 130px !important;
+  min-height:34px !important;
+  flex:0 1 auto !important;
+  padding:7px 10px !important;
+  border-radius:10px !important;
+  font-size:13px !important;
   background:#fff7e6 !important;
   color:#2b2118 !important;
   border:1px solid #d9bd93 !important;
   pointer-events:auto !important;
   visibility:visible !important;
+}
+
+.reprint-actions{
+  display:inline-flex !important;
+  align-items:center !important;
+  gap:6px !important;
+  flex:0 0 auto !important;
+  padding:4px 6px !important;
+  border-radius:10px !important;
+  background:#fffaf2 !important;
+  border:1px dashed #d9bd93 !important;
+}
+
+.reprint-actions span{
+  color:#8a6b45 !important;
+  font-size:13px !important;
+  font-weight:900 !important;
+}
+
+.reprint-actions .print-btn{
+  min-height:30px !important;
+  padding:5px 9px !important;
+  font-size:12px !important;
+}
+
+/* v63 POS order subtabs and cart UX */
+.order-subtabs{
+  display:flex;
+  gap:10px;
+  padding:12px 18px 0;
+}
+
+.order-subtab-btn{
+  border:1px solid #d9c7ae;
+  background:#f4eadc;
+  color:#3a2b20;
+  border-radius:12px;
+  min-height:42px;
+  padding:9px 16px;
+  font-size:16px;
+  font-weight:900;
+  cursor:pointer;
+}
+
+.order-subtab-btn.active{
+  background:#e9b52f;
+  border-color:#e9b52f;
+  color:#2b2118;
+}
+
+.whole-order-note-box{
+  padding:0 16px 14px;
+}
+
+.whole-order-note-box label{
+  display:block;
+  margin-bottom:8px;
+  color:#5c3b1f;
+  font-weight:900;
+}
+
+.whole-order-note-box .note-input{
+  min-height:78px;
+}
+
+.item-note-section{
+  display:none !important;
+}
+
+.cart-item{
+  transition:transform .16s ease, box-shadow .16s ease;
+}
+
+.cart-item[role="button"]{
+  cursor:pointer;
+}
+
+.cart-item.swipe-delete-ready{
+  transform:translateX(-18px);
+  box-shadow:inset -5px 0 0 #a33131, 0 6px 18px rgba(67,40,18,.10) !important;
+}
+
+#orderTab .order-layout{
+  grid-template-columns:1fr !important;
+}
+
+#orderTab [data-order-subtab-panel]{
+  display:none !important;
+}
+
+#orderTab [data-order-subtab-panel].order-subtab-active{
+  display:flex !important;
+}
+
+@media (max-width: 699px){
+  #orderTab .order-layout{
+    display:block !important;
+  }
+}
+
+/* v63-2 final POS subtabs: override legacy right-side cart rules */
+#orderTab .order-layout{
+  display:block !important;
+  height:auto !important;
+  min-height:0 !important;
+  overflow:visible !important;
+  padding:14px 18px 18px !important;
+}
+
+#orderTab .menu-panel,
+#orderTab .cart-panel{
+  position:static !important;
+  inset:auto !important;
+  top:auto !important;
+  right:auto !important;
+  bottom:auto !important;
+  left:auto !important;
+  width:100% !important;
+  max-width:none !important;
+  height:auto !important;
+  max-height:none !important;
+  min-height:0 !important;
+  margin:0 !important;
+  transform:none !important;
+  -webkit-transform:none !important;
+}
+
+#orderTab [data-order-subtab-panel]{
+  display:none !important;
+}
+
+#orderTab [data-order-subtab-panel].order-subtab-active{
+  display:flex !important;
+  flex-direction:column !important;
+}
+
+#orderTab .cart-panel.order-subtab-active{
+  gap:0 !important;
+}
+
+#orderTab .cart-list{
+  gap:18px !important;
+  padding:18px !important;
+}
+
+#orderTab .cart-item{
+  padding:20px !important;
+  border-radius:18px !important;
+  align-items:flex-start !important;
+  gap:18px !important;
+}
+
+#orderTab .cart-item strong{
+  font-size:22px !important;
+  line-height:1.25 !important;
+}
+
+#orderTab .cart-detail p{
+  font-size:16px !important;
+  line-height:1.65 !important;
+}
+
+#orderTab .cart-item-actions{
+  min-width:96px !important;
+  gap:12px !important;
+}
+
+#orderTab .cart-item-actions .secondary-btn,
+#orderTab .cart-item-actions .danger-btn{
+  min-height:40px !important;
+  border-radius:12px !important;
+  font-size:15px !important;
+}
+
+#orderTab .whole-order-note-box{
+  padding:4px 18px 16px !important;
+}
+
+#orderTab .cart-total{
+  font-size:26px !important;
+}
+
+#orderTab .cart-actions-main{
+  display:flex !important;
+  gap:12px !important;
+  transform:none !important;
+  -webkit-transform:none !important;
+  margin:0 !important;
+  padding:16px 18px 22px !important;
+}
+
+#orderTab .cart-actions-main button{
+  flex:1 1 0 !important;
+  width:auto !important;
+  min-height:48px !important;
+  margin:0 !important;
+}
+
+@media (max-width: 640px){
+  #orderTab .cart-item{
+    flex-direction:column !important;
+  }
+
+  #orderTab .cart-item-actions{
+    width:100% !important;
+    flex-direction:row !important;
+  }
+
+  #orderTab .cart-actions-main{
+    flex-direction:column !important;
+  }
+}
+
+/* v63-3 fix order tab scrolling without changing other POS tabs */
+html,
+body{
+  height:auto !important;
+  min-height:100% !important;
+  overflow-x:hidden !important;
+  overflow-y:auto !important;
+  position:static !important;
+}
+
+.pos-app{
+  min-height:100vh !important;
+  height:auto !important;
+  overflow:visible !important;
+}
+
+.pos-main{
+  overflow:visible !important;
+  height:auto !important;
+  min-height:0 !important;
+}
+
+#orderTab.active{
+  display:block !important;
+  height:auto !important;
+  min-height:calc(100vh - 96px) !important;
+  overflow:visible !important;
+}
+
+#orderTab .order-subtabs{
+  display:flex !important;
+  position:sticky !important;
+  top:0 !important;
+  z-index:30 !important;
+  background:#f6efe5 !important;
+  border-bottom:1px solid #ead7bd !important;
+  padding:12px 18px !important;
+}
+
+#orderTab .order-subtab-btn{
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  min-width:120px !important;
+}
+
+#orderTab .order-layout,
+#orderTab .menu-panel,
+#orderTab .cart-panel{
+  overflow:visible !important;
+}
+
+#orderTab .pos-menu-list{
+  display:flex !important;
+  flex-direction:column !important;
+  max-height:none !important;
+  height:auto !important;
+  overflow-y:visible !important;
+  -webkit-overflow-scrolling:touch !important;
+}
+
+@media (min-width:700px){
+  #orderTab .pos-menu-list{
+    padding-bottom:40px !important;
+  }
 }
