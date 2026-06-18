@@ -2239,6 +2239,33 @@ textarea.input {
   white-space:nowrap !important;
 }
 
+/* v63-4 admin add-item modal close/cancel compatibility */
+.item-editor-modal #cancelEditBtn,
+.item-editor-inline #cancelEditBtn{
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+}
+
+.item-editor-modal #addItemBtn,
+.item-editor-inline #addItemBtn{
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+}
+
+.item-editor-close-btn{
+  touch-action:manipulation;
+}
+
+.template-row-editor,
+.required-group-editor,
+#sizeEditor,
+#addonEditor,
+#removeOptionEditor{
+  overflow:visible !important;
+}
+
 @media (max-width: 900px){
   #itemAdminTab .admin-menu-card-v57{
     grid-template-columns:52px minmax(0,1fr) !important;

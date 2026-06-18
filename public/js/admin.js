@@ -508,6 +508,8 @@ function switchTemplateSubtab(target) {
 
 function setupTemplateRowEditor(textarea, container, addButton) {
   if (!textarea || !container || !addButton) return;
+  if (addButton.dataset && addButton.dataset.v63TemplateBound === "true") return;
+  if (addButton.dataset) addButton.dataset.v63TemplateBound = "true";
   textarea.classList.add("legacy-template-textarea");
 
   function readRows() {
@@ -563,6 +565,8 @@ function setupTemplateRowEditor(textarea, container, addButton) {
 
 function setupTemplateNameListEditor(textarea, container, addButton, placeholder) {
   if (!textarea || !container || !addButton) return;
+  if (addButton.dataset && addButton.dataset.v63TemplateBound === "true") return;
+  if (addButton.dataset) addButton.dataset.v63TemplateBound = "true";
   textarea.classList.add("legacy-template-textarea");
 
   function readRows() {
@@ -2460,15 +2464,24 @@ newCategoryName.addEventListener("keydown", event => {
 });
 
 if (addSizeRowBtn) {
-  addSizeRowBtn.addEventListener("click", addSizeRow);
+  addAdminTapListener(addSizeRowBtn, function(event) {
+    if (event && event.preventDefault) event.preventDefault();
+    addSizeRow();
+  });
 }
 
 if (addAddonRowBtn) {
-  addAddonRowBtn.addEventListener("click", addAddonRow);
+  addAdminTapListener(addAddonRowBtn, function(event) {
+    if (event && event.preventDefault) event.preventDefault();
+    addAddonRow();
+  });
 }
 
 if (addRemoveOptionRowBtn) {
-  addRemoveOptionRowBtn.addEventListener("click", addRemoveOptionRow);
+  addAdminTapListener(addRemoveOptionRowBtn, function(event) {
+    if (event && event.preventDefault) event.preventDefault();
+    addRemoveOptionRow();
+  });
 }
 
 if (applyTemplateBtn) {

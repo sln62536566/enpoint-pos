@@ -108,6 +108,7 @@ const noteInput = document.getElementById("noteInput");
 const modalMinusBtn = document.getElementById("modalMinusBtn");
 const modalPlusBtn = document.getElementById("modalPlusBtn");
 const modalQuantity = document.getElementById("modalQuantity");
+const closeCustomModalBtn = document.getElementById("closeCustomModalBtn");
 const cancelCustomBtn = document.getElementById("cancelCustomBtn");
 const confirmCustomBtn = document.getElementById("confirmCustomBtn");
 
@@ -220,6 +221,10 @@ const defaultSettings = {
 
 let posSettings = loadSettings();
 let tables = buildTables(posSettings.tableCount);
+let orderSoundKnownIds = {};
+let orderSoundReady = false;
+let posAudioContext = null;
+let posSoundUnlocked = false;
 
 /* =========================
    Init
@@ -238,7 +243,9 @@ onValue(categoriesRef, snapshot => {
 });
 
 onValue(ordersRef, snapshot => {
-  ordersData = snapshot.exists() ? snapshot.val() : {};
+  const nextOrdersData = snapshot.exists() ? snapshot.val() : {};
+  processNewQrOrderSound(nextOrdersData);
+  ordersData = nextOrdersData;
   renderAllOrders();
   renderStats();
   renderRealtimeBadges();
@@ -248,6 +255,7 @@ renderTableButtons();
 renderCart();
 renderStoreModeNotice();
 renderSettings();
+initPosOrderSoundUnlock();
 watchSharedSettings();
 
 /* =========================
@@ -428,6 +436,108 @@ function applyShowTestOrdersSetting() {
   submitTestOrderBtn.setAttribute("aria-hidden", enabled ? "false" : "true");
 }
 
+function getPosAudioContext() {
+  if (posAudioContext) return posAudioContext;
+  var AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextCtor) return null;
+  try {
+    posAudioContext = new AudioContextCtor();
+  } catch (error) {
+    posAudioContext = null;
+  }
+  return posAudioContext;
+}
+
+function unlockPosOrderSound() {
+  var audioContext = getPosAudioContext();
+  if (!audioContext) return;
+  if (audioContext.state === "suspended" && audioContext.resume) {
+    audioContext.resume().catch(function() {});
+  }
+  posSoundUnlocked = true;
+}
+
+function initPosOrderSoundUnlock() {
+  var unlockOnce = function() {
+    unlockPosOrderSound();
+    document.removeEventListener("click", unlockOnce, false);
+    document.removeEventListener("touchend", unlockOnce, false);
+  };
+  document.addEventListener("click", unlockOnce, false);
+  document.addEventListener("touchend", unlockOnce, false);
+}
+
+function playNewQrOrderBeep() {
+  if (!posSettings || posSettings.enableSound !== true) return;
+  var audioContext = getPosAudioContext();
+  if (!audioContext) return;
+
+  if (!posSoundUnlocked) {
+    unlockPosOrderSound();
+  }
+
+  if (audioContext.state === "suspended") {
+    if (audioContext.resume) audioContext.resume().catch(function() {});
+    return;
+  }
+
+  try {
+    var now = audioContext.currentTime || 0;
+    var gain = audioContext.createGain();
+    var oscillator = audioContext.createOscillator();
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(880, now);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.22, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+    oscillator.connect(gain);
+    gain.connect(audioContext.destination);
+    oscillator.start(now);
+    oscillator.stop(now + 0.24);
+
+    var oscillator2 = audioContext.createOscillator();
+    var gain2 = audioContext.createGain();
+    oscillator2.type = "sine";
+    oscillator2.frequency.setValueAtTime(1175, now + 0.26);
+    gain2.gain.setValueAtTime(0.0001, now + 0.26);
+    gain2.gain.exponentialRampToValueAtTime(0.18, now + 0.28);
+    gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.46);
+    oscillator2.connect(gain2);
+    gain2.connect(audioContext.destination);
+    oscillator2.start(now + 0.26);
+    oscillator2.stop(now + 0.48);
+  } catch (error) {
+    console.warn("POS order sound failed", error);
+  }
+}
+
+function isQrOrderForSound(order) {
+  if (!order) return false;
+  return String(order.source || "").toLowerCase() === "qr";
+}
+
+function processNewQrOrderSound(nextOrdersData) {
+  var entries = Object.entries(nextOrdersData || {});
+
+  if (!orderSoundReady) {
+    entries.forEach(function(entry) {
+      orderSoundKnownIds[entry[0]] = true;
+    });
+    orderSoundReady = true;
+    return;
+  }
+
+  entries.forEach(function(entry) {
+    var id = entry[0];
+    var order = entry[1];
+    if (orderSoundKnownIds[id]) return;
+    orderSoundKnownIds[id] = true;
+    if (isQrOrderForSound(order)) {
+      playNewQrOrderBeep();
+    }
+  });
+}
+
 function switchOrderSubtab(target) {
   var next = target === "cart" ? "cart" : "menu";
 
@@ -442,6 +552,9 @@ function switchOrderSubtab(target) {
     var panel = orderSubtabPanels[j];
     var panelActive = panel.getAttribute("data-order-subtab-panel") === next;
     setLegacyClassActive(panel, "order-subtab-active", panelActive);
+    panel.style.display = panelActive ? "" : "none";
+    panel.style.visibility = panelActive ? "visible" : "hidden";
+    panel.style.overflowY = panelActive ? "auto" : "";
   }
 }
 
@@ -1486,6 +1599,29 @@ function closeCustomModal() {
 
 }
 
+function hasDirtyCustomModalInput() {
+  if (!currentItem) return false;
+  if (editingCartId) return true;
+  if (currentQuantity && currentQuantity !== 1) return true;
+  if (selectedExtras && selectedExtras.length) return true;
+  if (selectedRemoves && selectedRemoves.length) return true;
+  if (selectedRequiredOption) return true;
+  if (noteInput && noteInput.value && noteInput.value.trim()) return true;
+  if (allowSatay(currentItem) && selectedSatay && selectedSatay !== "不要" && selectedSatay !== "銝?") return true;
+  if (allowSpicy(currentItem) && spicySelect && spicySelect.value && spicySelect.value !== "不辣" && spicySelect.value !== "銝麾") return true;
+  const portionOptions = getPortionOptions(currentItem);
+  if (selectedPortion && portionOptions[0] && selectedPortion.name !== portionOptions[0].name) return true;
+  return false;
+}
+
+function requestCloseCustomModal(event) {
+  if (event && event.preventDefault) event.preventDefault();
+  if (event && event.stopPropagation) event.stopPropagation();
+  if (hasDirtyCustomModalInput() && !confirm("放棄本次新增餐點？")) return false;
+  closeCustomModal();
+  return false;
+}
+
 function renderPortionOptions() {
   const options = getPortionOptions(currentItem);
 
@@ -1634,10 +1770,15 @@ modalPlusBtn.addEventListener("click", () => {
   modalQuantity.textContent = currentQuantity;
 });
 
-cancelCustomBtn.addEventListener("click", closeCustomModal);
+cancelCustomBtn.addEventListener("click", requestCloseCustomModal);
+cancelCustomBtn.addEventListener("touchend", requestCloseCustomModal, false);
+if (closeCustomModalBtn) {
+  closeCustomModalBtn.addEventListener("click", requestCloseCustomModal, false);
+  closeCustomModalBtn.addEventListener("touchend", requestCloseCustomModal, false);
+}
 
 customModal.addEventListener("click", event => {
-  if (event.target === customModal) closeCustomModal();
+  if (event.target === customModal) requestCloseCustomModal(event);
 });
 
 confirmCustomBtn.addEventListener("click", () => {

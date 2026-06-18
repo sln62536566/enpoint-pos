@@ -4069,3 +4069,101 @@ body{
     padding-bottom:40px !important;
   }
 }
+
+/* v63-4 legacy tablet order subtab visibility and modal close */
+.modal-close-btn{
+  position:absolute !important;
+  top:12px !important;
+  right:14px !important;
+  z-index:5 !important;
+  width:38px !important;
+  height:38px !important;
+  border:1px solid #d9c7ae !important;
+  border-radius:50% !important;
+  background:#fffaf2 !important;
+  color:#2b2118 !important;
+  font-size:26px !important;
+  line-height:1 !important;
+  font-weight:900 !important;
+  cursor:pointer !important;
+}
+
+.modal-card{
+  position:relative !important;
+}
+
+#orderTab .order-subtabs{
+  display:-webkit-box !important;
+  display:-webkit-flex !important;
+  display:flex !important;
+  visibility:visible !important;
+  opacity:1 !important;
+}
+
+#orderTab .order-subtab-btn{
+  -webkit-box-flex:0 !important;
+  -webkit-flex:0 0 auto !important;
+  flex:0 0 auto !important;
+  touch-action:manipulation;
+}
+
+#orderTab [data-order-subtab-panel]{
+  visibility:hidden !important;
+  opacity:0 !important;
+  pointer-events:none !important;
+  display:none !important;
+}
+
+#orderTab [data-order-subtab-panel].order-subtab-active{
+  display:block !important;
+  display:-webkit-box !important;
+  display:-webkit-flex !important;
+  display:flex !important;
+  visibility:visible !important;
+  opacity:1 !important;
+  pointer-events:auto !important;
+  width:100% !important;
+  min-height:0 !important;
+  overflow-y:auto !important;
+  overflow-x:hidden !important;
+  -webkit-overflow-scrolling:touch !important;
+}
+
+#orderTab .cart-panel.order-subtab-active{
+  position:static !important;
+  left:auto !important;
+  right:auto !important;
+  top:auto !important;
+  bottom:auto !important;
+  height:auto !important;
+  max-height:none !important;
+  min-height:calc(100vh - 160px) !important;
+  padding-bottom:18px !important;
+}
+
+#orderTab .cart-panel.order-subtab-active .cart-list{
+  display:block !important;
+  min-height:160px !important;
+  max-height:none !important;
+  overflow-y:auto !important;
+  -webkit-overflow-scrolling:touch !important;
+}
+
+#orderTab .cart-panel.order-subtab-active .whole-order-note-box,
+#orderTab .cart-panel.order-subtab-active .cart-total,
+#orderTab .cart-panel.order-subtab-active .cart-actions-main{
+  display:block !important;
+  visibility:visible !important;
+  opacity:1 !important;
+}
+
+#orderTab .cart-panel.order-subtab-active .cart-actions-main{
+  display:-webkit-box !important;
+  display:-webkit-flex !important;
+  display:flex !important;
+  position:static !important;
+}
+
+#orderTab #submitTestOrderBtn{
+  display:block;
+}
