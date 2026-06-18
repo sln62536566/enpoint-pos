@@ -2378,3 +2378,34 @@ body.admin-modal-open{
     grid-template-columns:1fr;
   }
 }
+
+/* v63-6 bugfix: keep edit-item modal top visible on old tablet browsers */
+.item-editor-modal{
+  top:48px !important;
+  right:18px !important;
+  bottom:14px !important;
+  left:18px !important;
+  max-height:none !important;
+  overflow-y:auto !important;
+  -webkit-overflow-scrolling:touch !important;
+  padding-top:58px !important;
+}
+
+.item-editor-close-btn{
+  top:56px !important;
+}
+
+@media (max-width:760px){
+  .item-editor-modal{
+    top:38px !important;
+    right:8px !important;
+    bottom:8px !important;
+    left:8px !important;
+    padding-top:54px !important;
+  }
+
+  .item-editor-close-btn{
+    top:46px !important;
+    right:16px !important;
+  }
+}

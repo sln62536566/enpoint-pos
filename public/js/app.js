@@ -226,8 +226,27 @@ let selectedRequiredOption = "";
 let selectedQty = 1;
 var qrLastOrderTypeAlertAt = 0;
 var qrLastSubmitTapAt = 0;
+var qrLastOrderActionAt = 0;
+var qrLastOrderActionKey = "";
 
 const SPICY_OPTIONS = ["不辣", "微辣", "小辣", "中辣", "大辣"];
+
+function shouldHandleQrOrderAction(event, key, waitMs) {
+  var now = Date.now ? Date.now() : new Date().getTime();
+  var nextKey = key || "order";
+  var interval = waitMs || 900;
+  if (qrLastOrderActionKey === nextKey && now - qrLastOrderActionAt < interval) {
+    if (event) {
+      if (event.preventDefault) event.preventDefault();
+      if (event.stopPropagation) event.stopPropagation();
+      if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+    }
+    return false;
+  }
+  qrLastOrderActionKey = nextKey;
+  qrLastOrderActionAt = now;
+  return true;
+}
 
 function money(n) {
   return `$${Number(n || 0)}`;
@@ -1125,6 +1144,8 @@ window.qrSubmitOrderNow = function (event) {
     event.stopPropagation();
   }
 
+  if (!shouldHandleQrOrderAction(event, "submitOrder", 1000)) return false;
+
   if (cart.length === 0) {
     alert("購物車目前是空的");
     return false;
@@ -1706,13 +1727,15 @@ loadLastOrderIfExists();
 // v58-46 舊平板送單強制修正
 // =========================
 
-function legacySubmitOrder() {
+function legacySubmitOrder(event) {
+  if (!shouldHandleQrOrderAction(event, "submitOrder", 1000)) return false;
   if (cart.length === 0) {
     alert("購物車目前是空的");
-    return;
+    return false;
   }
 
   renderConfirmModal();
+  return false;
 }
 
 window.legacySubmitOrder = legacySubmitOrder;
@@ -1724,7 +1747,7 @@ if (submitOrderBtn) {
       event.stopPropagation();
     }
 
-    legacySubmitOrder();
+    legacySubmitOrder(event);
     return false;
   };
 
@@ -1734,7 +1757,7 @@ if (submitOrderBtn) {
       event.stopPropagation();
     }
 
-    legacySubmitOrder();
+    legacySubmitOrder(event);
     return false;
   };
 }
@@ -2675,6 +2698,8 @@ window.qrLegacyDirectSubmitOrder = function (event) {
     if (event.stopPropagation) event.stopPropagation();
     if (event.stopImmediatePropagation) event.stopImmediatePropagation();
   }
+
+  if (!shouldHandleQrOrderAction(event, "submitOrder", 1000)) return false;
 
   var nowTime = new Date().getTime();
   if (qrLegacySubmitting || nowTime - qrLegacySubmitLastAt < 1200) {

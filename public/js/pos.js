@@ -143,6 +143,10 @@ const prepTimeInput = document.getElementById("prepTimeInput");
 const orderLookupMinutesInput = document.getElementById("orderLookupMinutesInput");
 const showTestOrdersToggle = document.getElementById("showTestOrdersToggle");
 const enableSoundToggle = document.getElementById("enableSoundToggle");
+const soundTypeSelect = document.getElementById("soundTypeSelect");
+const soundVolumeInput = document.getElementById("soundVolumeInput");
+const soundVolumeValue = document.getElementById("soundVolumeValue");
+const testSoundBtn = document.getElementById("testSoundBtn");
 const autoSwitchCartToggle = document.getElementById("autoSwitchCartToggle");
 
 /* =========================
@@ -154,6 +158,9 @@ const categoriesRef = ref(db, "categories");
 const ordersRef = ref(db, "orders");
 const storeNameRef = ref(db, "settings/storeName");
 const orderLookupMinutesRef = ref(db, "settings/orderLookupMinutes");
+const enableSoundRef = ref(db, "settings/enableSound");
+const soundTypeRef = ref(db, "settings/soundType");
+const soundVolumeRef = ref(db, "settings/soundVolume");
 
 /* =========================
    State
@@ -216,6 +223,8 @@ const defaultSettings = {
   orderLookupMinutes: 60,
   showTestOrders: true,
   enableSound: true,
+  soundType: "double",
+  soundVolume: 80,
   autoSwitchCartAfterAdd: false
 };
 
@@ -349,6 +358,15 @@ function readNumberSetting(key, fallback, min, max) {
   return Math.min(max, Math.max(min, Math.floor(value)));
 }
 
+function readSoundTypeSetting(key, fallback) {
+  var value = localStorage.getItem(key) || fallback;
+  return isValidSoundType(value) ? value : fallback;
+}
+
+function isValidSoundType(value) {
+  return value === "short" || value === "double" || value === "dingdong" || value === "urgent";
+}
+
 function loadSettings() {
   return {
     storeName: localStorage.getItem("storeName") || defaultSettings.storeName,
@@ -357,6 +375,8 @@ function loadSettings() {
     orderLookupMinutes: readNumberSetting("orderLookupMinutes", defaultSettings.orderLookupMinutes, 1, 10080),
     showTestOrders: readBooleanSetting("showTestOrders", defaultSettings.showTestOrders),
     enableSound: readBooleanSetting("enableSound", defaultSettings.enableSound),
+    soundType: readSoundTypeSetting("soundType", defaultSettings.soundType),
+    soundVolume: readNumberSetting("soundVolume", defaultSettings.soundVolume, 0, 100),
     autoSwitchCartAfterAdd: readBooleanSetting("autoSwitchCartAfterAdd", defaultSettings.autoSwitchCartAfterAdd)
   };
 }
@@ -390,6 +410,18 @@ function syncOrderLookupMinutesToFirebase(value) {
   });
 }
 
+function syncSoundSettingsToFirebase() {
+  set(enableSoundRef, posSettings.enableSound === true).catch(error => {
+    console.error("同步提示音開關失敗：", error);
+  });
+  set(soundTypeRef, posSettings.soundType || defaultSettings.soundType).catch(error => {
+    console.error("同步提示音類型失敗：", error);
+  });
+  set(soundVolumeRef, Number(posSettings.soundVolume || 0)).catch(error => {
+    console.error("同步提示音音量失敗：", error);
+  });
+}
+
 function watchSharedSettings() {
   onValue(storeNameRef, snapshot => {
     const name = snapshot && snapshot.exists && snapshot.exists() ? String(snapshot.val() || "") : "";
@@ -408,6 +440,34 @@ function watchSharedSettings() {
     posSettings.orderLookupMinutes = minutes;
     saveSetting("orderLookupMinutes", minutes);
     if (orderLookupMinutesInput && document.activeElement !== orderLookupMinutesInput) orderLookupMinutesInput.value = minutes;
+  });
+
+  onValue(enableSoundRef, snapshot => {
+    const value = snapshot && snapshot.exists && snapshot.exists() ? snapshot.val() : null;
+    if (value === null || value === undefined) return;
+    const enabled = value === true || value === "true";
+    if (enabled === posSettings.enableSound) return;
+    posSettings.enableSound = enabled;
+    saveSetting("enableSound", enabled);
+    setSwitchState(enableSoundToggle, enabled);
+  });
+
+  onValue(soundTypeRef, snapshot => {
+    const value = snapshot && snapshot.exists && snapshot.exists() ? String(snapshot.val() || "") : "";
+    if (!isValidSoundType(value) || value === posSettings.soundType) return;
+    posSettings.soundType = value;
+    saveSetting("soundType", value);
+    if (soundTypeSelect && document.activeElement !== soundTypeSelect) soundTypeSelect.value = value;
+  });
+
+  onValue(soundVolumeRef, snapshot => {
+    const value = snapshot && snapshot.exists && snapshot.exists() ? snapshot.val() : null;
+    if (value === null || value === undefined) return;
+    const volume = Math.min(100, Math.max(0, Math.floor(Number(value) || 0)));
+    if (volume === posSettings.soundVolume) return;
+    posSettings.soundVolume = volume;
+    saveSetting("soundVolume", volume);
+    renderSoundVolume();
   });
 }
 
@@ -434,6 +494,13 @@ function applyShowTestOrdersSetting() {
   submitTestOrderBtn.hidden = !enabled;
   submitTestOrderBtn.disabled = !enabled;
   submitTestOrderBtn.setAttribute("aria-hidden", enabled ? "false" : "true");
+  setLegacyClassActive(document.body, "hide-test-order-button", !enabled);
+}
+
+function renderSoundVolume() {
+  var volume = Math.min(100, Math.max(0, Math.floor(Number(posSettings.soundVolume) || 0)));
+  if (soundVolumeInput && document.activeElement !== soundVolumeInput) soundVolumeInput.value = volume;
+  if (soundVolumeValue) soundVolumeValue.textContent = String(volume);
 }
 
 function getPosAudioContext() {
@@ -467,8 +534,22 @@ function initPosOrderSoundUnlock() {
   document.addEventListener("touchend", unlockOnce, false);
 }
 
-function playNewQrOrderBeep() {
-  if (!posSettings || posSettings.enableSound !== true) return;
+function playTone(audioContext, frequency, start, duration, volume) {
+  var gain = audioContext.createGain();
+  var oscillator = audioContext.createOscillator();
+  oscillator.type = "sine";
+  oscillator.frequency.setValueAtTime(frequency, start);
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, volume), start + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+  oscillator.connect(gain);
+  gain.connect(audioContext.destination);
+  oscillator.start(start);
+  oscillator.stop(start + duration + 0.02);
+}
+
+function playNewQrOrderBeep(forcePlay) {
+  if (!posSettings || (posSettings.enableSound !== true && !forcePlay)) return;
   var audioContext = getPosAudioContext();
   if (!audioContext) return;
 
@@ -478,34 +559,39 @@ function playNewQrOrderBeep() {
 
   if (audioContext.state === "suspended") {
     if (audioContext.resume) audioContext.resume().catch(function() {});
+    if (!forcePlay) return;
+  }
+
+  if (audioContext.state === "suspended") {
     return;
   }
 
   try {
     var now = audioContext.currentTime || 0;
-    var gain = audioContext.createGain();
-    var oscillator = audioContext.createOscillator();
-    oscillator.type = "sine";
-    oscillator.frequency.setValueAtTime(880, now);
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.22, now + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
-    oscillator.connect(gain);
-    gain.connect(audioContext.destination);
-    oscillator.start(now);
-    oscillator.stop(now + 0.24);
+    var volume = Math.min(1, Math.max(0, Number(posSettings.soundVolume || 0) / 100)) * 0.32;
+    if (volume <= 0) return;
+    var soundType = isValidSoundType(posSettings.soundType) ? posSettings.soundType : defaultSettings.soundType;
 
-    var oscillator2 = audioContext.createOscillator();
-    var gain2 = audioContext.createGain();
-    oscillator2.type = "sine";
-    oscillator2.frequency.setValueAtTime(1175, now + 0.26);
-    gain2.gain.setValueAtTime(0.0001, now + 0.26);
-    gain2.gain.exponentialRampToValueAtTime(0.18, now + 0.28);
-    gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.46);
-    oscillator2.connect(gain2);
-    gain2.connect(audioContext.destination);
-    oscillator2.start(now + 0.26);
-    oscillator2.stop(now + 0.48);
+    if (soundType === "short") {
+      playTone(audioContext, 920, now, 0.18, volume);
+      return;
+    }
+
+    if (soundType === "dingdong") {
+      playTone(audioContext, 784, now, 0.24, volume);
+      playTone(audioContext, 1046, now + 0.25, 0.32, volume * 0.9);
+      return;
+    }
+
+    if (soundType === "urgent") {
+      playTone(audioContext, 980, now, 0.12, volume);
+      playTone(audioContext, 980, now + 0.16, 0.12, volume);
+      playTone(audioContext, 980, now + 0.32, 0.12, volume);
+      return;
+    }
+
+    playTone(audioContext, 880, now, 0.18, volume);
+    playTone(audioContext, 1175, now + 0.24, 0.18, volume * 0.9);
   } catch (error) {
     console.warn("POS order sound failed", error);
   }
@@ -563,6 +649,8 @@ function renderSettings() {
   if (tableCountInput) tableCountInput.value = posSettings.tableCount;
   if (prepTimeInput) prepTimeInput.value = posSettings.prepTime;
   if (orderLookupMinutesInput) orderLookupMinutesInput.value = posSettings.orderLookupMinutes;
+  if (soundTypeSelect) soundTypeSelect.value = posSettings.soundType || defaultSettings.soundType;
+  renderSoundVolume();
 
   applyStoreName();
   applyShowTestOrdersSetting();
@@ -3273,6 +3361,48 @@ if (enableSoundToggle) {
     posSettings.enableSound = !posSettings.enableSound;
     saveSetting("enableSound", posSettings.enableSound);
     setSwitchState(enableSoundToggle, posSettings.enableSound);
+    syncSoundSettingsToFirebase();
+  });
+}
+
+if (soundTypeSelect) {
+  soundTypeSelect.addEventListener("change", () => {
+    var nextType = soundTypeSelect.value;
+    posSettings.soundType = isValidSoundType(nextType) ? nextType : defaultSettings.soundType;
+    soundTypeSelect.value = posSettings.soundType;
+    saveSetting("soundType", posSettings.soundType);
+    syncSoundSettingsToFirebase();
+  });
+}
+
+if (soundVolumeInput) {
+  soundVolumeInput.addEventListener("input", () => {
+    posSettings.soundVolume = Math.min(100, Math.max(0, Math.floor(Number(soundVolumeInput.value) || 0)));
+    if (soundVolumeValue) soundVolumeValue.textContent = String(posSettings.soundVolume);
+  });
+
+  soundVolumeInput.addEventListener("change", () => {
+    posSettings.soundVolume = Math.min(100, Math.max(0, Math.floor(Number(soundVolumeInput.value) || 0)));
+    saveSetting("soundVolume", posSettings.soundVolume);
+    renderSoundVolume();
+    syncSoundSettingsToFirebase();
+  });
+}
+
+if (testSoundBtn) {
+  addLegacyTapListener(testSoundBtn, function(event) {
+    if (event && event.preventDefault) event.preventDefault();
+    var audioContext = getPosAudioContext();
+    posSoundUnlocked = true;
+    if (audioContext && audioContext.state === "suspended" && audioContext.resume) {
+      audioContext.resume().then(function() {
+        playNewQrOrderBeep(true);
+      }).catch(function() {
+        playNewQrOrderBeep(true);
+      });
+      return;
+    }
+    playNewQrOrderBeep(true);
   });
 }
 

@@ -4168,6 +4168,24 @@ body{
   display:block;
 }
 
+body.hide-test-order-button #orderTab #submitTestOrderBtn{
+  display:none !important;
+  visibility:hidden !important;
+  pointer-events:none !important;
+}
+
+.settings-sound-card{
+  gap:14px !important;
+}
+
+.settings-range-input{
+  padding-left:0 !important;
+  padding-right:0 !important;
+  background:transparent !important;
+  border:none !important;
+  box-shadow:none !important;
+}
+
 /* v63-5 bugfix: always show POS order subtabs on old tablets */
 #orderTab.active{
   overflow-y:auto !important;
