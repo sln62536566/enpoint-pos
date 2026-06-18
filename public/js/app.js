@@ -228,6 +228,7 @@ var qrLastOrderTypeAlertAt = 0;
 var qrLastSubmitTapAt = 0;
 var qrLastOrderActionAt = 0;
 var qrLastOrderActionKey = "";
+var qrOrderTypeAlertLocked = false;
 
 const SPICY_OPTIONS = ["不辣", "微辣", "小辣", "中辣", "大辣"];
 
@@ -246,6 +247,17 @@ function shouldHandleQrOrderAction(event, key, waitMs) {
   qrLastOrderActionKey = nextKey;
   qrLastOrderActionAt = now;
   return true;
+}
+
+function showQrOrderTypeAlertOnce(message) {
+  var now = Date.now ? Date.now() : new Date().getTime();
+  if (qrOrderTypeAlertLocked || now - qrLastOrderTypeAlertAt < 2200) return;
+  qrOrderTypeAlertLocked = true;
+  qrLastOrderTypeAlertAt = now;
+  alert(message);
+  window.setTimeout(function() {
+    qrOrderTypeAlertLocked = false;
+  }, 900);
 }
 
 function money(n) {
@@ -1097,6 +1109,14 @@ function getOrderMeta() {
 
 function validateOrderType() {
   if (currentOrderType === "內用") {
+    var tableValueForAlert = (table || qrTableInput.value.trim()).trim();
+    if (!tableValueForAlert) {
+      showQrOrderTypeAlertOnce("請輸入桌號，或改選外帶。");
+      return false;
+    }
+  }
+
+  if (currentOrderType === "內用") {
     const tableValue = (table || qrTableInput.value.trim()).trim();
 
     if (!tableValue) {
@@ -1144,7 +1164,7 @@ window.qrSubmitOrderNow = function (event) {
     event.stopPropagation();
   }
 
-  if (!shouldHandleQrOrderAction(event, "submitOrder", 1000)) return false;
+  if (!shouldHandleQrOrderAction(event, "submitOrder", 2200)) return false;
 
   if (cart.length === 0) {
     alert("購物車目前是空的");
@@ -1728,7 +1748,7 @@ loadLastOrderIfExists();
 // =========================
 
 function legacySubmitOrder(event) {
-  if (!shouldHandleQrOrderAction(event, "submitOrder", 1000)) return false;
+  if (!shouldHandleQrOrderAction(event, "submitOrder", 2200)) return false;
   if (cart.length === 0) {
     alert("購物車目前是空的");
     return false;
@@ -2699,10 +2719,10 @@ window.qrLegacyDirectSubmitOrder = function (event) {
     if (event.stopImmediatePropagation) event.stopImmediatePropagation();
   }
 
-  if (!shouldHandleQrOrderAction(event, "submitOrder", 1000)) return false;
+  if (!shouldHandleQrOrderAction(event, "submitOrder", 2200)) return false;
 
   var nowTime = new Date().getTime();
-  if (qrLegacySubmitting || nowTime - qrLegacySubmitLastAt < 1200) {
+  if (qrLegacySubmitting || nowTime - qrLegacySubmitLastAt < 2200) {
     return false;
   }
   if (qrLastSubmitTapAt && nowTime - qrLastSubmitTapAt < 900) return false;

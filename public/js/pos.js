@@ -234,6 +234,9 @@ let orderSoundKnownIds = {};
 let orderSoundReady = false;
 let posAudioContext = null;
 let posSoundUnlocked = false;
+let pendingNewOrderAlert = false;
+let orderAlertIntervalId = null;
+let submittingPosOrder = false;
 
 /* =========================
    Init
@@ -323,6 +326,9 @@ for (var posTabIndex = 0; posTabIndex < tabButtons.length; posTabIndex += 1) {
       for (var j = 0; j < tabPanels.length; j += 1) {
         setLegacyClassActive(tabPanels[j], "active", tabPanels[j].id === target);
       }
+      if (target === "todayTab") {
+        stopOrderAlertSound();
+      }
     });
   })(tabButtons[posTabIndex]);
 }
@@ -364,7 +370,15 @@ function readSoundTypeSetting(key, fallback) {
 }
 
 function isValidSoundType(value) {
-  return value === "short" || value === "double" || value === "dingdong" || value === "urgent";
+  return value === "short" ||
+    value === "double" ||
+    value === "dingdong" ||
+    value === "urgent" ||
+    value === "triple" ||
+    value === "doorbell" ||
+    value === "fastDingdong" ||
+    value === "longShort" ||
+    value === "rapidShort";
 }
 
 function loadSettings() {
@@ -450,6 +464,7 @@ function watchSharedSettings() {
     posSettings.enableSound = enabled;
     saveSetting("enableSound", enabled);
     setSwitchState(enableSoundToggle, enabled);
+    if (!enabled) stopOrderAlertSound();
   });
 
   onValue(soundTypeRef, snapshot => {
@@ -590,6 +605,39 @@ function playNewQrOrderBeep(forcePlay) {
       return;
     }
 
+    if (soundType === "triple") {
+      playTone(audioContext, 900, now, 0.14, volume);
+      playTone(audioContext, 900, now + 0.2, 0.14, volume);
+      playTone(audioContext, 900, now + 0.4, 0.14, volume);
+      return;
+    }
+
+    if (soundType === "doorbell") {
+      playTone(audioContext, 660, now, 0.28, volume);
+      playTone(audioContext, 880, now + 0.3, 0.38, volume * 0.95);
+      return;
+    }
+
+    if (soundType === "fastDingdong") {
+      playTone(audioContext, 784, now, 0.14, volume);
+      playTone(audioContext, 1046, now + 0.15, 0.18, volume * 0.9);
+      return;
+    }
+
+    if (soundType === "longShort") {
+      playTone(audioContext, 760, now, 0.42, volume);
+      playTone(audioContext, 1020, now + 0.5, 0.16, volume * 0.95);
+      return;
+    }
+
+    if (soundType === "rapidShort") {
+      playTone(audioContext, 1050, now, 0.09, volume);
+      playTone(audioContext, 1050, now + 0.13, 0.09, volume);
+      playTone(audioContext, 1050, now + 0.26, 0.09, volume);
+      playTone(audioContext, 1050, now + 0.39, 0.09, volume);
+      return;
+    }
+
     playTone(audioContext, 880, now, 0.18, volume);
     playTone(audioContext, 1175, now + 0.24, 0.18, volume * 0.9);
   } catch (error) {
@@ -600,6 +648,41 @@ function playNewQrOrderBeep(forcePlay) {
 function isQrOrderForSound(order) {
   if (!order) return false;
   return String(order.source || "").toLowerCase() === "qr";
+}
+
+function isTodayTabActive() {
+  var panel = document.getElementById("todayTab");
+  return !!(panel && (" " + (panel.className || "") + " ").indexOf(" active ") !== -1);
+}
+
+function startOrderAlertSound() {
+  if (!posSettings || posSettings.enableSound !== true) return;
+  if (isTodayTabActive()) {
+    playNewQrOrderBeep();
+    return;
+  }
+  pendingNewOrderAlert = true;
+  playNewQrOrderBeep();
+  if (orderAlertIntervalId) return;
+  orderAlertIntervalId = window.setInterval(function() {
+    if (!pendingNewOrderAlert || posSettings.enableSound !== true) {
+      stopOrderAlertSound();
+      return;
+    }
+    if (isTodayTabActive()) {
+      stopOrderAlertSound();
+      return;
+    }
+    playNewQrOrderBeep();
+  }, 4500);
+}
+
+function stopOrderAlertSound() {
+  pendingNewOrderAlert = false;
+  if (orderAlertIntervalId) {
+    window.clearInterval(orderAlertIntervalId);
+    orderAlertIntervalId = null;
+  }
 }
 
 function processNewQrOrderSound(nextOrdersData) {
@@ -619,7 +702,7 @@ function processNewQrOrderSound(nextOrdersData) {
     if (orderSoundKnownIds[id]) return;
     orderSoundKnownIds[id] = true;
     if (isQrOrderForSound(order)) {
-      playNewQrOrderBeep();
+      startOrderAlertSound();
     }
   });
 }
@@ -1945,25 +2028,28 @@ function renderCart() {
     const removes = itemRemoves(item);
 
     return `
-      <div class="cart-item">
-        <div>
-          <strong>${item.name} × ${itemQty(item)}</strong>
+      <div class="cart-item" data-cart-id="${item.cartId}">
+        <button class="swipe-delete-action" type="button" onclick="removeFromCart('${item.cartId}')">刪除</button>
+        <div class="cart-item-inner">
+          <div>
+            <strong>${item.name} × ${itemQty(item)}</strong>
 
-          <div class="cart-detail">
-            ${item.size && item.size !== "一般" ? `<p>份量：${item.size}</p>` : ""}
-            ${item.spicy ? `<p>辣度：${item.spicy}</p>` : ""}
-            ${item.satay ? `<p>沙茶：${item.satay}</p>` : ""}
-            ${item.requiredOption ? `<p>${item.requiredOption.title}：${item.requiredOption.value}</p>` : ""}
-            ${extras.length ? `<p>加料：${extras.map(extra => extra.name).join("、")}</p>` : ""}
-            ${removes.length ? `<p>不要：${removes.join("、")}</p>` : ""}
-            ${item.note ? `<p>備註：${item.note}</p>` : ""}
-            <p>小計：${money(itemSubtotal(item))}</p>
+            <div class="cart-detail">
+              ${item.size && item.size !== "一般" ? `<p>份量：${item.size}</p>` : ""}
+              ${item.spicy ? `<p>辣度：${item.spicy}</p>` : ""}
+              ${item.satay ? `<p>沙茶：${item.satay}</p>` : ""}
+              ${item.requiredOption ? `<p>${item.requiredOption.title}：${item.requiredOption.value}</p>` : ""}
+              ${extras.length ? `<p>加料：${extras.map(extra => extra.name).join("、")}</p>` : ""}
+              ${removes.length ? `<p>不要：${removes.join("、")}</p>` : ""}
+              ${item.note ? `<p>備註：${item.note}</p>` : ""}
+              <p>小計：${money(itemSubtotal(item))}</p>
+            </div>
           </div>
-        </div>
 
-        <div class="cart-item-actions">
-          <button class="secondary-btn" type="button" onclick="openCartItemEditModal(${index})">修改</button>
-          <button class="danger-btn" type="button" onclick="removeFromCart('${item.cartId}')">刪除</button>
+          <div class="cart-item-actions">
+            <button class="secondary-btn" type="button" onclick="openCartItemEditModal(${index})">修改</button>
+            <button class="danger-btn" type="button" onclick="removeFromCart('${item.cartId}')">刪除</button>
+          </div>
         </div>
       </div>
     `;
@@ -1983,6 +2069,31 @@ function removeFromCart(cartId) {
 function bindCartCardActions() {
   if (!cartList) return;
 
+  function isButtonTarget(target, root) {
+    while (target && target !== root) {
+      if (target.tagName && String(target.tagName).toLowerCase() === "button") return true;
+      target = target.parentNode;
+    }
+    return false;
+  }
+
+  function closeSwipeCards(exceptCard) {
+    var openCards = cartList.querySelectorAll(".cart-item.swipe-open, .cart-item.swipe-delete-ready");
+    for (var i = 0; i < openCards.length; i += 1) {
+      if (openCards[i] === exceptCard) continue;
+      openCards[i].classList.remove("swipe-open");
+      openCards[i].classList.remove("swipe-delete-ready");
+    }
+  }
+
+  if (cartList.dataset.boundSwipeClose !== "true") {
+    cartList.dataset.boundSwipeClose = "true";
+    document.addEventListener("click", function(event) {
+      var target = event.target;
+      if (!target || !cartList.contains(target)) closeSwipeCards(null);
+    });
+  }
+
   const cards = cartList.querySelectorAll(".cart-item");
   cards.forEach((card, index) => {
     if (card.dataset.boundCartUx === "true") return;
@@ -1995,7 +2106,13 @@ function bindCartCardActions() {
     let moved = false;
 
     card.addEventListener("click", event => {
-      if (event.target && event.target.closest && event.target.closest("button")) return;
+      if (isButtonTarget(event.target, card)) return;
+      if (card.classList.contains("swipe-open") || card.classList.contains("swipe-delete-ready")) {
+        card.classList.remove("swipe-open");
+        card.classList.remove("swipe-delete-ready");
+        return;
+      }
+      closeSwipeCards(card);
       openCartItemEditModal(index);
     });
 
@@ -2012,7 +2129,7 @@ function bindCartCardActions() {
       startX = touch.clientX || 0;
       startY = touch.clientY || 0;
       moved = false;
-      card.classList.remove("swipe-delete-ready");
+      closeSwipeCards(card);
     }, { passive: true });
 
     card.addEventListener("touchmove", event => {
@@ -2020,17 +2137,21 @@ function bindCartCardActions() {
       if (!touch) return;
       const dx = (touch.clientX || 0) - startX;
       const dy = Math.abs((touch.clientY || 0) - startY);
-      if (dx < -48 && dy < 36) {
+      if (dx < -58 && dy < 44) {
         moved = true;
+        card.classList.add("swipe-open");
         card.classList.add("swipe-delete-ready");
+      } else if (dx > 28 && dy < 44) {
+        moved = true;
+        card.classList.remove("swipe-open");
+        card.classList.remove("swipe-delete-ready");
       }
     }, { passive: true });
 
     card.addEventListener("touchend", event => {
       if (!moved) return;
       event.preventDefault();
-      const item = cart[index];
-      if (item) removeFromCart(item.cartId);
+      event.stopPropagation();
     });
   });
 }
@@ -2093,8 +2214,9 @@ async function submitTestOrder() {
 }
 
 async function submitOrderCore(isTestMode) {
-  if (submitOrderBtn && submitOrderBtn.disabled) return;
-  if (submitTestOrderBtn && submitTestOrderBtn.disabled) return;
+  if (submittingPosOrder) return;
+  if (!isTestMode && submitOrderBtn && submitOrderBtn.disabled) return;
+  if (isTestMode && (!posSettings.showTestOrders || (submitTestOrderBtn && submitTestOrderBtn.disabled))) return;
   if (cart.length === 0) {
     alert("請先加入餐點");
     return;
@@ -2129,9 +2251,13 @@ async function submitOrderCore(isTestMode) {
   const ok = confirm(checkoutText);
   if (!ok) return;
 
-  submitOrderBtn.disabled = true;
-  if (submitTestOrderBtn) submitTestOrderBtn.disabled = true;
-  submitOrderBtn.textContent = "送出中...";
+  submittingPosOrder = true;
+  if (isTestMode) {
+    if (submitTestOrderBtn) submitTestOrderBtn.disabled = true;
+  } else if (submitOrderBtn) {
+    submitOrderBtn.disabled = true;
+  }
+  if (!isTestMode && submitOrderBtn) submitOrderBtn.textContent = "送出中...";
   if (isTestMode && submitTestOrderBtn) submitTestOrderBtn.textContent = "測試送出中...";
 
   try {
@@ -2188,10 +2314,12 @@ async function submitOrderCore(isTestMode) {
     alert("結帳送出失敗");
   }
 
-  submitOrderBtn.disabled = false;
-  if (submitTestOrderBtn) submitTestOrderBtn.disabled = false;
-  submitOrderBtn.textContent = "結帳";
+  submittingPosOrder = false;
+  if (submitOrderBtn) submitOrderBtn.disabled = false;
+  if (submitTestOrderBtn) submitTestOrderBtn.disabled = posSettings.showTestOrders !== true;
+  if (submitOrderBtn) submitOrderBtn.textContent = "結帳";
   if (submitTestOrderBtn) submitTestOrderBtn.textContent = "測試訂單";
+  applyShowTestOrdersSetting();
 }
 
 /* =========================
@@ -3361,6 +3489,7 @@ if (enableSoundToggle) {
     posSettings.enableSound = !posSettings.enableSound;
     saveSetting("enableSound", posSettings.enableSound);
     setSwitchState(enableSoundToggle, posSettings.enableSound);
+    if (posSettings.enableSound !== true) stopOrderAlertSound();
     syncSoundSettingsToFirebase();
   });
 }
