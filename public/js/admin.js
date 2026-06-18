@@ -102,6 +102,7 @@ let addonRows = [];
 let removeOptionRows = [];
 let requiredGroupRows = [];
 let templateRequiredGroupRows = [];
+let itemEditorInitialState = "";
 
 /* =========================
    Helpers
@@ -334,8 +335,10 @@ function openItemEditorModal() {
   itemEditorModal.classList.add("item-editor-modal");
   moveOptionGridToItemModal();
   itemEditorModal.classList.remove("hidden");
-  if (adminSharedActions) adminSharedActions.classList.remove("hidden");
+  setAdminModalOpen(true);
+  moveSharedActionsToModalBottom();
   updateItemEditorActionLabels();
+  itemEditorInitialState = getItemEditorStateSnapshot();
 }
 
 function restoreItemEditorToHome() {
@@ -354,6 +357,7 @@ function closeItemEditorModal() {
   itemEditorModal.classList.remove("item-editor-inline");
   itemEditorModal.classList.add("item-editor-modal");
   itemEditorModal.classList.add("hidden");
+  setAdminModalOpen(false);
 }
 
 function openInlineItemCreate(event) {
@@ -374,25 +378,70 @@ function openInlineItemCreate(event) {
   if (adminSharedActions && itemEditorModal && !itemEditorModal.contains(adminSharedActions)) {
     itemEditorModal.appendChild(adminSharedActions);
   }
+  moveSharedActionsToInlineBottom();
   if (adminSharedActions) adminSharedActions.classList.remove("hidden");
   updateItemEditorActionLabels();
+  itemEditorInitialState = getItemEditorStateSnapshot();
   if (itemName) itemName.focus();
   return false;
 }
 
+function setAdminModalOpen(open) {
+  var body = document.body;
+  if (!body) return;
+  var current = " " + (body.className || "") + " ";
+  if (open && current.indexOf(" admin-modal-open ") === -1) {
+    body.className = (body.className ? body.className + " " : "") + "admin-modal-open";
+  }
+  if (!open && current.indexOf(" admin-modal-open ") !== -1) {
+    body.className = current.replace(" admin-modal-open ", " ").replace(/\s+/g, " ").replace(/^\s+|\s+$/g, "");
+  }
+}
+
+function moveSharedActionsToModalBottom() {
+  if (!itemEditorModal || !adminSharedActions) return;
+  itemEditorModal.appendChild(adminSharedActions);
+  adminSharedActions.classList.remove("hidden");
+}
+
+function moveSharedActionsToInlineBottom() {
+  if (!adminSharedActions) return;
+  var optionPanel = document.querySelector("#optionAdminTab .admin-option-panel");
+  if (!optionPanel) return;
+  if (adminOptionGrid && adminOptionGrid.parentNode === optionPanel) {
+    if (adminOptionGrid.nextSibling) {
+      optionPanel.insertBefore(adminSharedActions, adminOptionGrid.nextSibling);
+    } else {
+      optionPanel.appendChild(adminSharedActions);
+    }
+  } else {
+    optionPanel.appendChild(adminSharedActions);
+  }
+  adminSharedActions.classList.remove("hidden");
+}
+
+function getItemEditorStateSnapshot() {
+  var selectedFileName = "";
+  if (itemImageFile && itemImageFile.files && itemImageFile.files[0]) {
+    selectedFileName = itemImageFile.files[0].name || "";
+  }
+  return JSON.stringify({
+    editingId: editingId || "",
+    name: itemName ? itemName.value.trim() : "",
+    category: itemCategory ? itemCategory.value.trim() : "",
+    price: itemPrice ? String(itemPrice.value || "").trim() : "",
+    image: itemImage ? itemImage.value.trim() : "",
+    selectedFileName: selectedFileName,
+    description: itemDescription ? itemDescription.value.trim() : "",
+    sizes: getSizesFromRows(),
+    options: getOptionsFromAddonRows(),
+    removeOptions: getRemoveOptionsFromRows(),
+    requiredGroups: getRequiredGroupsFromForm()
+  });
+}
+
 function hasDirtyItemForm() {
-  if (editingId) return true;
-  return !!(
-    (itemName && itemName.value.trim()) ||
-    (itemPrice && itemPrice.value.trim()) ||
-    (itemImage && itemImage.value.trim()) ||
-    (itemDescription && itemDescription.value.trim()) ||
-    (requiredOptionTitle && requiredOptionTitle.value.trim()) ||
-    (requiredOptionChoices && requiredOptionChoices.value.trim()) ||
-    sizeRows.length ||
-    addonRows.length ||
-    removeOptionRows.length
-  );
+  return getItemEditorStateSnapshot() !== itemEditorInitialState;
 }
 
 function cancelItemEditorWithConfirm(event) {
@@ -412,7 +461,12 @@ function ensureItemModalCloseButton() {
   button.setAttribute("aria-label", "關閉");
   button.textContent = "×";
   itemEditorModal.insertBefore(button, itemEditorModal.firstChild);
-  addAdminTapListener(button, cancelItemEditorWithConfirm);
+  button.onclick = cancelItemEditorWithConfirm;
+  button.ontouchend = function(event) {
+    if (event && event.preventDefault) event.preventDefault();
+    if (event && event.stopPropagation) event.stopPropagation();
+    return cancelItemEditorWithConfirm(event);
+  };
 }
 
 function moveOptionGridToItemModal() {
@@ -424,8 +478,7 @@ function moveOptionGridToItemModal() {
   }
   if (!itemEditorModal.contains(adminModalOptionHeading)) itemEditorModal.appendChild(adminModalOptionHeading);
   if (!itemEditorModal.contains(adminOptionGrid)) itemEditorModal.appendChild(adminOptionGrid);
-  if (adminSharedActions && !itemEditorModal.contains(adminSharedActions)) itemEditorModal.appendChild(adminSharedActions);
-  if (adminSharedActions) itemEditorModal.appendChild(adminSharedActions);
+  moveSharedActionsToModalBottom();
 }
 
 function restoreOptionGridToOptionTab() {
@@ -450,8 +503,14 @@ function openItemEditorForCreate(event) {
 }
 
 function updateItemEditorActionLabels() {
-  if (cancelEditBtn) cancelEditBtn.textContent = "取消";
-  if (addItemBtn) addItemBtn.textContent = editingId ? "確認修改" : "確認新增";
+  if (cancelEditBtn) {
+    cancelEditBtn.textContent = "取消";
+    cancelEditBtn.style.display = "inline-flex";
+  }
+  if (addItemBtn) {
+    addItemBtn.textContent = editingId ? "確認修改" : "確認新增";
+    addItemBtn.style.display = "inline-flex";
+  }
 }
 
 function setupTemplateSubtabs() {
@@ -517,6 +576,18 @@ function setupTemplateRowEditor(textarea, container, addButton) {
     return Object.entries(parsed).map(([name, price]) => ({ name, price }));
   }
 
+  function readVisibleRows() {
+    const rows = Array.from(container.querySelectorAll(".template-row")).map(row => {
+      const nameInput = row.querySelector('[data-field="name"]');
+      const priceInput = row.querySelector('[data-field="price"]');
+      return {
+        name: nameInput ? nameInput.value : "",
+        price: Number(priceInput ? priceInput.value : 0)
+      };
+    });
+    return rows.length ? rows : readRows();
+  }
+
   function syncTextarea() {
     const rows = Array.from(container.querySelectorAll(".template-row")).map(row => {
       const nameInput = row.querySelector('[data-field="name"]');
@@ -556,7 +627,7 @@ function setupTemplateRowEditor(textarea, container, addButton) {
 
   addAdminTapListener(addButton, function(event) {
     if (event && event.preventDefault) event.preventDefault();
-    render(readRows().concat({ name: "", price: 0 }));
+    render(readVisibleRows().concat({ name: "", price: 0 }));
   });
   textarea.addEventListener("change", function() { render(readRows()); });
   const initialRows = readRows();
@@ -571,6 +642,14 @@ function setupTemplateNameListEditor(textarea, container, addButton, placeholder
 
   function readRows() {
     return parseListText(textarea.value || "").map(name => ({ name }));
+  }
+
+  function readVisibleRows() {
+    const rows = Array.from(container.querySelectorAll(".template-row")).map(row => {
+      const nameInput = row.querySelector('[data-field="name"]');
+      return { name: nameInput ? nameInput.value : "" };
+    });
+    return rows.length ? rows : readRows();
   }
 
   function syncTextarea() {
@@ -608,7 +687,7 @@ function setupTemplateNameListEditor(textarea, container, addButton, placeholder
 
   addAdminTapListener(addButton, function(event) {
     if (event && event.preventDefault) event.preventDefault();
-    render(readRows().concat({ name: "" }));
+    render(readVisibleRows().concat({ name: "" }));
   });
   textarea.addEventListener("change", function() { render(readRows()); });
   const initialRows = readRows();
