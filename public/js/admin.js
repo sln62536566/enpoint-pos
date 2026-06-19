@@ -229,7 +229,7 @@ function initAdminV63Ux() {
     optionNewItemBtn.textContent = "新增餐點";
     const optionTitleRow = optionPanel.querySelector(".panel-title-row");
     if (optionTitleRow) optionTitleRow.appendChild(optionNewItemBtn);
-    addAdminTapListener(optionNewItemBtn, openInlineItemCreate);
+    addAdminTapListener(optionNewItemBtn, openItemEditorForCreate);
   }
   if (optionPanel && mediaForm && !document.getElementById("adminMediaInlineBox")) {
     const box = document.createElement("div");
@@ -255,7 +255,7 @@ function initAdminV63Ux() {
   }
 
   const itemPanel = document.querySelector("#itemAdminTab .admin-menu-panel");
-  if (false && itemPanel && !openNewItemModalBtn) {
+  if (itemPanel && !openNewItemModalBtn) {
     openNewItemModalBtn = document.createElement("button");
     openNewItemModalBtn.id = "openNewItemModalBtn";
     openNewItemModalBtn.className = "primary-btn";
@@ -263,10 +263,7 @@ function initAdminV63Ux() {
     openNewItemModalBtn.textContent = "新增餐點";
     const titleRow = itemPanel.querySelector(".panel-title-row");
     if (titleRow) titleRow.appendChild(openNewItemModalBtn);
-  }
-  if (openNewItemModalBtn && openNewItemModalBtn.parentNode) {
-    openNewItemModalBtn.parentNode.removeChild(openNewItemModalBtn);
-    openNewItemModalBtn = null;
+    addAdminTapListener(openNewItemModalBtn, openItemEditorForCreate);
   }
 
   if (itemEditorModal) {
@@ -330,6 +327,9 @@ function ensureTemplateRowEditorNodes() {
 function openItemEditorModal() {
   if (!itemEditorModal) return;
   restoreItemEditorToHome();
+  if (document.body && itemEditorModal.parentNode !== document.body) {
+    document.body.appendChild(itemEditorModal);
+  }
   itemEditorMode = "modal";
   itemEditorModal.classList.remove("item-editor-inline");
   itemEditorModal.classList.add("item-editor-modal");
@@ -995,7 +995,18 @@ function applyOptionTemplate(templateId) {
   setSizeRowsFromSizes(template.sizes || {});
   setAddonRowsFromOptions(template.options || {});
   setRemoveOptionRows(template.removeOptions || []);
-  switchAdminTab("optionAdminTab");
+  refreshItemEditorAfterTemplateApply();
+}
+
+function refreshItemEditorAfterTemplateApply() {
+  try {
+    renderRequiredGroupEditor();
+    renderSizeEditor();
+    renderAddonEditor();
+    renderRemoveOptionEditor();
+  } catch (error) {
+    console.error("apply template refresh failed", error);
+  }
 }
 
 async function saveOptionTemplate() {
@@ -1026,6 +1037,7 @@ async function saveOptionTemplate() {
     }
 
     resetTemplateForm();
+    switchTemplateSubtab("list");
   } catch (error) {
     console.error("選項範本儲存失敗", error);
     alert("選項範本儲存失敗，請稍後再試");
@@ -1040,6 +1052,7 @@ function editOptionTemplate(templateId) {
   editingTemplateId = templateId;
   fillTemplateForm(template);
   switchAdminTab("templateAdminTab");
+  switchTemplateSubtab("form");
 }
 
 async function deleteOptionTemplate(templateId) {
@@ -2616,6 +2629,14 @@ if (itemImageFile) {
 initAdminV63Ux();
 resetForm();
 switchAdminTab("categoryAdminTab");
+hideAppLoadingScreen();
+
+function hideAppLoadingScreen() {
+  var el = document.getElementById("appLoadingScreen");
+  if (el && (" " + (el.className || "") + " ").indexOf(" hidden ") === -1) {
+    el.className += " hidden";
+  }
+}
 
 /* =====================================================
    v60 FINAL ADMIN ITEM MOVE

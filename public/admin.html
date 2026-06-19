@@ -9,10 +9,16 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <title>恩點系統｜菜單後台</title>
   <link rel="manifest" href="./manifest.json" />
-  <link rel="stylesheet" href="./css/style.css?v=644" />
+  <link rel="stylesheet" href="./css/style.css?v=646" />
 </head>
 
 <body class="admin-page">
+  <div id="appLoadingScreen" class="app-loading-screen">
+    <div class="app-loading-box">
+      <strong>恩點系統載入中...</strong>
+      <span>請稍候</span>
+    </div>
+  </div>
   <header class="topbar admin-topbar">
     <h1>恩點菜單後台</h1>
     <p>分類、餐點、選項與圖片管理</p>
@@ -302,6 +308,12 @@
       }
     })();
   </script>
-  <script type="module" src="./js/admin.js?v=644"></script>
+  <script>
+    window.addEventListener("load", function() {
+      var el = document.getElementById("appLoadingScreen");
+      if (el) el.className += " hidden";
+    }, false);
+  </script>
+  <script type="module" src="./js/admin.js?v=646"></script>
 </body>
 </html>

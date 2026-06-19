@@ -4357,3 +4357,45 @@ body.hide-test-order-button #orderTab #submitTestOrderBtn{
   visibility:visible !important;
   opacity:1 !important;
 }
+/* v63 closeout: app loading screen */
+.app-loading-screen{
+  position:fixed;
+  left:0;
+  top:0;
+  right:0;
+  bottom:0;
+  z-index:99999;
+  display:block;
+  background:#fff7ed;
+  color:#2b2118;
+  text-align:center;
+}
+.app-loading-screen.hidden{
+  display:none !important;
+}
+.app-loading-box{
+  position:absolute;
+  left:50%;
+  top:50%;
+  width:260px;
+  margin-left:-130px;
+  margin-top:-48px;
+  padding:24px 16px;
+  border:1px solid #ead7bd;
+  background:#fffaf2;
+  border-radius:14px;
+  box-shadow:0 10px 28px rgba(67,40,18,.14);
+}
+.app-loading-box strong,
+.app-loading-box span{
+  display:block;
+}
+.app-loading-box strong{
+  font-size:20px;
+  line-height:1.4;
+}
+.app-loading-box span{
+  margin-top:8px;
+  color:#7a6040;
+  font-weight:700;
+}

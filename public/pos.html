@@ -9,10 +9,16 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <title>恩點系統｜店員 POS</title>
   <link rel="manifest" href="./manifest.json" />
-  <link rel="stylesheet" href="./css/pos-v600.css?v=645" />
+  <link rel="stylesheet" href="./css/pos-v600.css?v=646" />
 </head>
 
 <body>
+  <div id="appLoadingScreen" class="app-loading-screen">
+    <div class="app-loading-box">
+      <strong>恩點系統載入中...</strong>
+      <span>請稍候</span>
+    </div>
+  </div>
   <div class="pos-app">
     <header class="pos-header">
       <div>
@@ -275,7 +281,15 @@
                 <span>訂單查詢保留時間</span>
                 <small>分鐘，完成後超過此時間不顯示明細</small>
               </label>
-              <input id="orderLookupMinutesInput" class="settings-input" type="number" min="1" max="10080" step="1" />
+              <select id="orderLookupMinutesInput" class="settings-input">
+                <option value="30">30 分鐘</option>
+                <option value="60">1 小時</option>
+                <option value="120">2 小時</option>
+                <option value="240">4 小時</option>
+                <option value="480">8 小時</option>
+                <option value="1440">24 小時</option>
+                <option value="0">永久顯示</option>
+              </select>
             </section>
 
             <section class="settings-card settings-toggle-card">
@@ -533,6 +547,12 @@
       }
     })();
   </script>
-  <script type="module" src="./js/pos.js?v=645"></script>
+  <script>
+    window.addEventListener("load", function() {
+      var el = document.getElementById("appLoadingScreen");
+      if (el) el.className += " hidden";
+    }, false);
+  </script>
+  <script type="module" src="./js/pos.js?v=646"></script>
 </body>
 </html>

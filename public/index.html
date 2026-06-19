@@ -16,10 +16,16 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <title>恩點系統｜QR 點餐</title>
   <link rel="manifest" href="./manifest.json" />
-  <link rel="stylesheet" href="./css/qr.css?v=645" />
+  <link rel="stylesheet" href="./css/qr.css?v=646" />
 </head>
 
 <body class="qr-page">
+  <div id="appLoadingScreen" class="app-loading-screen">
+    <div class="app-loading-box">
+      <strong>恩點系統載入中...</strong>
+      <span>請稍候</span>
+    </div>
+  </div>
   <header class="qr-header">
     <h1 id="qrStoreNameTitle">恩點點餐</h1>
     <p id="tableInfo">掃碼點餐</p>
@@ -212,6 +218,12 @@
       }
     })();
   </script>
-  <script type="module" src="./js/app.js?v=645"></script>
+  <script>
+    window.addEventListener("load", function() {
+      var el = document.getElementById("appLoadingScreen");
+      if (el) el.className += " hidden";
+    }, false);
+  </script>
+  <script type="module" src="./js/app.js?v=646"></script>
 </body>
 </html>

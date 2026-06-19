@@ -39,6 +39,13 @@ const LAST_ORDER_KEY_COMPAT = "lastQrOrderId";
 const DEFAULT_QR_STORE_NAME = "恩點點餐";
 const DEFAULT_ORDER_LOOKUP_MINUTES = 60;
 
+function normalizeQrOrderLookupMinutes(value) {
+  var raw = String(value === undefined || value === null ? "" : value);
+  if (raw === "0" || raw === "forever" || raw === "permanent") return 0;
+  var minutes = Math.floor(Number(value) || DEFAULT_ORDER_LOOKUP_MINUTES);
+  return Math.min(1440, Math.max(30, minutes));
+}
+
 const params = new URLSearchParams(window.location.search);
 const table = params.get("table") || "";
 
@@ -1372,12 +1379,12 @@ function getOrderCompletedTime(order) {
 }
 
 function isOrderLookupExpired(order) {
-  if (!isOrderDoneForLookup(order)) return false;
-  var completedAt = getOrderCompletedTime(order);
-  if (!completedAt) return false;
-  var minutes = Math.min(10080, Math.max(1, Math.floor(Number(orderLookupMinutes) || DEFAULT_ORDER_LOOKUP_MINUTES)));
+  var minutes = normalizeQrOrderLookupMinutes(orderLookupMinutes);
+  if (minutes === 0) return false;
+  var startedAt = Number(order && (order.createdAt || order.timestamp || order.updatedAt || 0));
+  if (!startedAt) return false;
   var now = Date.now ? Date.now() : new Date().getTime();
-  return now - completedAt > minutes * 60 * 1000;
+  return now - startedAt > minutes * 60 * 1000;
 }
 
 function getQrItemExtras(item) {
@@ -1422,8 +1429,7 @@ function buildDirectOrderViewHtml(order) {
     return '' +
       '<div class="qr-direct-order-card qr-direct-expired-card">' +
         '<div class="qr-direct-store-name">' + escapeHtml(qrStoreName || DEFAULT_QR_STORE_NAME) + '</div>' +
-        '<div class="qr-direct-number"><span>訂單號</span><strong>' + escapeHtml(order.orderNumber || order.id || "-") + '</strong></div>' +
-        '<div class="qr-direct-expired-message">此訂單已完成，查詢已結束</div>' +
+        '<div class="qr-direct-expired-message">此訂單已超過查看保留時間，請重新點餐或洽店員。</div>' +
       '</div>';
   }
 
@@ -1652,8 +1658,7 @@ function loadQrStoreName() {
 }
 
 function applyOrderLookupMinutes(value) {
-  var minutes = Math.floor(Number(value) || DEFAULT_ORDER_LOOKUP_MINUTES);
-  orderLookupMinutes = Math.min(10080, Math.max(1, minutes));
+  orderLookupMinutes = normalizeQrOrderLookupMinutes(value);
   try { localStorage.setItem("orderLookupMinutes", String(orderLookupMinutes)); } catch (e) {}
 }
 
@@ -1667,6 +1672,9 @@ function loadOrderLookupMinutes() {
   onValue(orderLookupMinutesRef, function(snapshot) {
     var value = snapshot && snapshot.exists && snapshot.exists() ? snapshot.val() : DEFAULT_ORDER_LOOKUP_MINUTES;
     applyOrderLookupMinutes(value);
+    if (currentViewingOrderId && document.body && (" " + (document.body.className || "") + " ").indexOf(" qr-tab-order ") >= 0) {
+      loadViewingOrderById(currentViewingOrderId, false);
+    }
   });
 }
 
@@ -1674,6 +1682,14 @@ initOrderTypeUI();
 loadQrStoreName();
 loadOrderLookupMinutes();
 loadMenu();
+hideAppLoadingScreen();
+
+function hideAppLoadingScreen() {
+  var el = document.getElementById("appLoadingScreen");
+  if (el && (" " + (el.className || "") + " ").indexOf(" hidden ") === -1) {
+    el.className += " hidden";
+  }
+}
 
 var qrMenuTouchStartX = 0;
 var qrMenuTouchStartY = 0;
@@ -3338,8 +3354,8 @@ window.openLastQrOrderFromTop = openLastQrOrderFromTop;
 
   function now(){ return Date.now ? Date.now() : new Date().getTime(); }
   function getLookupTtl(){
-    var minutes = Math.floor(Number(orderLookupMinutes) || DEFAULT_ORDER_LOOKUP_MINUTES);
-    minutes = Math.min(10080, Math.max(1, minutes));
+    var minutes = normalizeQrOrderLookupMinutes(orderLookupMinutes);
+    if (minutes === 0) return 0;
     return minutes * 60 * 1000;
   }
   function getValidLastOrderId(){
@@ -3347,7 +3363,8 @@ window.openLastQrOrderFromTop = openLastQrOrderFromTop;
       var id = localStorage.getItem(LAST_ORDER_KEY_V614) || "";
       var savedAt = Number(localStorage.getItem(LAST_ORDER_TIME_KEY_V614) || 0);
       if(!id) return "";
-      if(!savedAt || now() - savedAt > getLookupTtl()){
+      var ttl = getLookupTtl();
+      if(!savedAt || (ttl > 0 && now() - savedAt > ttl)){
         localStorage.removeItem(LAST_ORDER_KEY_V614);
         localStorage.removeItem(LAST_ORDER_TIME_KEY_V614);
         return "";

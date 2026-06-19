@@ -269,6 +269,14 @@ renderStoreModeNotice();
 renderSettings();
 initPosOrderSoundUnlock();
 watchSharedSettings();
+hideAppLoadingScreen();
+
+function hideAppLoadingScreen() {
+  var el = document.getElementById("appLoadingScreen");
+  if (el && (" " + (el.className || "") + " ").indexOf(" hidden ") === -1) {
+    el.className += " hidden";
+  }
+}
 
 /* =========================
    Tabs
@@ -364,6 +372,13 @@ function readNumberSetting(key, fallback, min, max) {
   return Math.min(max, Math.max(min, Math.floor(value)));
 }
 
+function normalizeOrderLookupMinutes(value) {
+  var raw = String(value === undefined || value === null ? "" : value);
+  if (raw === "0" || raw === "forever" || raw === "permanent") return 0;
+  var minutes = Math.floor(Number(value) || defaultSettings.orderLookupMinutes);
+  return Math.min(1440, Math.max(30, minutes));
+}
+
 function readSoundTypeSetting(key, fallback) {
   var value = localStorage.getItem(key) || fallback;
   return isValidSoundType(value) ? value : fallback;
@@ -386,7 +401,7 @@ function loadSettings() {
     storeName: localStorage.getItem("storeName") || defaultSettings.storeName,
     tableCount: readNumberSetting("tableCount", defaultSettings.tableCount, 1, 99),
     prepTime: readNumberSetting("prepTime", defaultSettings.prepTime, 1, 999),
-    orderLookupMinutes: readNumberSetting("orderLookupMinutes", defaultSettings.orderLookupMinutes, 1, 10080),
+    orderLookupMinutes: normalizeOrderLookupMinutes(localStorage.getItem("orderLookupMinutes")),
     showTestOrders: readBooleanSetting("showTestOrders", defaultSettings.showTestOrders),
     enableSound: readBooleanSetting("enableSound", defaultSettings.enableSound),
     soundType: readSoundTypeSetting("soundType", defaultSettings.soundType),
@@ -418,7 +433,7 @@ function syncStoreNameToFirebaseNow(value) {
 }
 
 function syncOrderLookupMinutesToFirebase(value) {
-  const minutes = Math.min(10080, Math.max(1, Math.floor(Number(value) || defaultSettings.orderLookupMinutes)));
+  const minutes = normalizeOrderLookupMinutes(value);
   set(orderLookupMinutesRef, minutes).catch(error => {
     console.error("同步訂單查詢保留時間失敗：", error);
   });
@@ -449,11 +464,11 @@ function watchSharedSettings() {
   onValue(orderLookupMinutesRef, snapshot => {
     const value = snapshot && snapshot.exists && snapshot.exists() ? snapshot.val() : null;
     if (value === null || value === undefined) return;
-    const minutes = Math.min(10080, Math.max(1, Math.floor(Number(value) || defaultSettings.orderLookupMinutes)));
+    const minutes = normalizeOrderLookupMinutes(value);
     if (minutes === posSettings.orderLookupMinutes) return;
     posSettings.orderLookupMinutes = minutes;
     saveSetting("orderLookupMinutes", minutes);
-    if (orderLookupMinutesInput && document.activeElement !== orderLookupMinutesInput) orderLookupMinutesInput.value = minutes;
+    if (orderLookupMinutesInput && document.activeElement !== orderLookupMinutesInput) orderLookupMinutesInput.value = String(minutes);
   });
 
   onValue(enableSoundRef, snapshot => {
@@ -731,7 +746,7 @@ function renderSettings() {
   if (storeNameInput) storeNameInput.value = posSettings.storeName;
   if (tableCountInput) tableCountInput.value = posSettings.tableCount;
   if (prepTimeInput) prepTimeInput.value = posSettings.prepTime;
-  if (orderLookupMinutesInput) orderLookupMinutesInput.value = posSettings.orderLookupMinutes;
+  if (orderLookupMinutesInput) orderLookupMinutesInput.value = String(normalizeOrderLookupMinutes(posSettings.orderLookupMinutes));
   if (soundTypeSelect) soundTypeSelect.value = posSettings.soundType || defaultSettings.soundType;
   renderSoundVolume();
 
@@ -3467,9 +3482,9 @@ if (prepTimeInput) {
 
 if (orderLookupMinutesInput) {
   orderLookupMinutesInput.addEventListener("change", () => {
-    const minutes = Math.min(10080, Math.max(1, Math.floor(Number(orderLookupMinutesInput.value) || defaultSettings.orderLookupMinutes)));
+    const minutes = normalizeOrderLookupMinutes(orderLookupMinutesInput.value);
     posSettings.orderLookupMinutes = minutes;
-    orderLookupMinutesInput.value = minutes;
+    orderLookupMinutesInput.value = String(minutes);
     saveSetting("orderLookupMinutes", minutes);
     syncOrderLookupMinutesToFirebase(minutes);
   });
