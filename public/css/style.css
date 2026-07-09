@@ -2547,3 +2547,37 @@ body.admin-modal-open .admin-v62-layout{
   color:#7a6040;
   font-weight:700;
 }
+/* v64 commercial upgrade */
+.app-loading-screen{position:fixed;left:0;top:0;right:0;bottom:0;z-index:99999;background:#fff7ed;display:flex;align-items:center;justify-content:center;color:#2b2118}
+.app-loading-screen.hidden{display:none}
+.app-loading-box{border:1px solid #f0ce91;background:#fffaf3;border-radius:8px;padding:18px 22px;text-align:center;box-shadow:0 10px 30px rgba(95,61,20,.12)}
+.app-loading-box strong{display:block;font-size:20px;margin-bottom:8px}
+.custom-group-editor-list{display:flex;flex-direction:column;gap:10px;margin-top:10px}
+.custom-group-card{border:1px solid #ead7bd;border-radius:8px;background:#fffaf4;padding:10px}
+.custom-group-head,.custom-group-option-row,.admin-inline-form{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.custom-group-head input{min-width:180px;flex:1}
+.custom-group-modules{display:flex;gap:10px;flex-wrap:wrap;margin:8px 0}
+.custom-group-modules label,.custom-group-check{display:inline-flex;gap:5px;align-items:center;font-weight:800}
+.custom-group-option-row{margin-top:7px}
+.custom-group-option-row input[type="text"]{min-width:150px}
+.item-custom-group-picker{display:flex;gap:8px;flex-wrap:wrap}
+.v64-item-group-picker{margin-top:12px}
+.menu-studio-flow{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+.menu-studio-flow span{border:1px solid #ead7bd;background:#fffaf4;border-radius:8px;padding:8px 10px;font-weight:900}
+.menu-studio-custom-section{margin:14px 0}
+.menu-studio-section-head h3{margin:0 0 4px}
+.menu-studio-section-head p{margin:0 0 10px;color:#7a6040;font-weight:700}
+.menu-studio-custom-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}
+.menu-studio-card-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.menu-studio-card-actions button{border:1px solid #d9bd93;background:#fff;border-radius:8px;padding:7px 9px;font-weight:800}
+.custom-group-card.collapsed .custom-group-rules,
+.custom-group-card.collapsed .custom-group-modules,
+.custom-group-card.collapsed .custom-group-options{display:none}
+.item-editor-modal{position:fixed!important;left:0!important;top:0!important;right:0!important;bottom:0!important;z-index:9999!important;overflow:auto!important;-webkit-overflow-scrolling:touch!important;padding:16px!important;background:rgba(43,33,24,.42)!important}
+.item-editor-modal .admin-form-panel,.item-editor-modal.admin-form-panel{max-height:none!important}
+.item-editor-modal .admin-form-actions{position:sticky!important;bottom:0!important;background:#fffaf4!important}
+body.admin-modal-open{overflow:hidden!important}
+@media (max-width:760px){
+  .custom-group-head,.custom-group-option-row{display:block}
+  .custom-group-head input,.custom-group-option-row input,.custom-group-option-row button{width:100%;margin-bottom:8px}
+}

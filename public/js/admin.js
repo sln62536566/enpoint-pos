@@ -64,6 +64,10 @@ const templateRemoveOptionsInput = document.getElementById("templateRemoveOption
 const saveTemplateBtn = document.getElementById("saveTemplateBtn");
 const cancelTemplateEditBtn = document.getElementById("cancelTemplateEditBtn");
 const optionTemplateList = document.getElementById("optionTemplateList");
+const customGroupNameInput = document.getElementById("customGroupNameInput");
+const addCustomGroupBtn = document.getElementById("addCustomGroupBtn");
+const customGroupEditorList = document.getElementById("customGroupEditorList");
+const itemCustomGroupPicker = document.getElementById("itemCustomGroupPicker");
 let openNewItemModalBtn = document.getElementById("openNewItemModalBtn");
 const itemEditorModal = document.getElementById("itemEditorModal") || document.querySelector("#itemAdminTab .admin-form-panel");
 let templateSizesRows = document.getElementById("templateSizesRows");
@@ -85,10 +89,16 @@ let itemEditorMode = "hidden";
 const menuRef = ref(db, "menu");
 const categoriesRef = ref(db, "categories");
 const optionTemplatesRef = ref(db, "optionTemplates");
+const customOptionGroupsRef = ref(db, "customOptionGroups");
+const customGroupsRef = ref(db, "customGroups");
+const customItemsRef = ref(db, "customItems");
 
 let menuData = {};
 let categoriesData = {};
 let optionTemplatesData = {};
+let customOptionGroupsData = {};
+let customGroupsData = {};
+let customItemsData = {};
 let editingId = null;
 let editingTemplateId = null;
 let currentCategoryFilter = "全部";
@@ -103,6 +113,7 @@ let removeOptionRows = [];
 let requiredGroupRows = [];
 let templateRequiredGroupRows = [];
 let itemEditorInitialState = "";
+let selectedCustomGroupIds = [];
 
 /* =========================
    Helpers
@@ -2006,9 +2017,11 @@ function resetForm() {
   sizeRows = [];
   addonRows = [];
   removeOptionRows = [];
+  selectedCustomGroupIds = [];
   renderSizeEditor();
   renderAddonEditor();
   renderRemoveOptionEditor();
+  renderItemCustomGroupPicker();
 
   formTitle.textContent = "新增餐點";
   addItemBtn.textContent = "新增餐點";
@@ -2049,6 +2062,7 @@ async function saveItem() {
   const removeOptions = getRemoveOptionsFromRows();
   const requiredOption = getRequiredOptionFromForm();
   const requiredGroups = getRequiredGroupsFromForm();
+  const customGroupIds = selectedCustomGroupIds.slice();
 
   if (!name) {
     alert("請輸入餐點名稱");
@@ -2089,6 +2103,8 @@ async function saveItem() {
       requiredOption,
       requiredOptions: requiredGroups,
       requiredGroups,
+      customGroupIds,
+      customOptionGroupIds: customGroupIds,
       enabled: oldItem ? oldItem.enabled !== false : true,
       categoryOrder: getCategoryOrderByName(category),
       sortOrder: oldItem ? Number(oldItem.sortOrder !== undefined ? oldItem.sortOrder : now) : now,
@@ -2164,6 +2180,8 @@ function editItem(id) {
   setSizeRowsFromSizes(item.sizes || {});
   setAddonRowsFromOptions(item.options || {});
   setRemoveOptionRows(item.removeOptions || []);
+  selectedCustomGroupIds = Array.isArray(item.customGroupIds || item.customOptionGroupIds) ? (item.customGroupIds || item.customOptionGroupIds).slice() : [];
+  renderItemCustomGroupPicker();
 
   formTitle.textContent = `編輯餐點｜${item.name || ""}`;
   addItemBtn.textContent = "更新餐點";
@@ -2525,6 +2543,416 @@ function bindMenuCardDragEvents() {
 }
 
 /* =========================
+   v64 Custom Option Groups
+========================= */
+
+function defaultCustomGroupModules() {
+  return { qr: true, pos: true, kds: true, print: true, sticker: true, online: false };
+}
+
+function modulesToVisibility(modules) {
+  modules = modules || defaultCustomGroupModules();
+  return {
+    qr: modules.qr === true,
+    pos: modules.pos !== false,
+    kds: modules.kds !== false,
+    print: modules.print !== false,
+    sticker: modules.sticker !== false,
+    onlineOrder: modules.online === true || modules.onlineOrder === true
+  };
+}
+
+function visibilityToModules(visibility) {
+  visibility = visibility || {};
+  return {
+    qr: visibility.qr === true,
+    pos: visibility.pos !== false,
+    kds: visibility.kds !== false,
+    print: visibility.print !== false,
+    sticker: visibility.sticker !== false,
+    online: visibility.onlineOrder === true || visibility.online === true
+  };
+}
+
+function normalizeCustomGroup(id, group) {
+  group = group || {};
+  var modules = group.modules || visibilityToModules(group.visibility);
+  var options = Array.isArray(group.options) ? group.options : (Array.isArray(group.items) ? group.items : []);
+  return {
+    id: id,
+    name: group.name || "",
+    type: group.type || (modules.qr === true ? "customer" : "posOnly"),
+    modules: modules,
+    visibility: group.visibility || modulesToVisibility(modules),
+    required: group.required === true,
+    minSelect: Number(group.minSelect || 0),
+    maxSelect: Number(group.maxSelect || 0),
+    allowQuantity: group.allowQuantity === true,
+    defaultQuantity: Math.max(1, Number(group.defaultQuantity || 1)),
+    maxQuantity: Math.max(1, Number(group.maxQuantity || 1)),
+    sortOrder: Number(group.sortOrder || 0),
+    options: options
+  };
+}
+
+function getCustomGroupItems() {
+  var merged = {};
+  Object.entries(customOptionGroupsData || {}).forEach(function(entry) {
+    merged[entry[0]] = normalizeCustomGroup(entry[0], entry[1]);
+  });
+  Object.entries(customGroupsData || {}).forEach(function(entry) {
+    merged[entry[0]] = normalizeCustomGroup(entry[0], entry[1]);
+  });
+  return Object.keys(merged).map(function(id) { return merged[id]; }).sort(function(a, b) {
+    return Number(a.sortOrder || 0) - Number(b.sortOrder || 0);
+  });
+}
+
+function renderItemCustomGroupPicker() {
+  if (!itemCustomGroupPicker) return;
+  var groups = getCustomGroupItems();
+  if (!groups.length) {
+    itemCustomGroupPicker.innerHTML = '<div class="empty small-empty">尚未建立客製選項群組</div>';
+    return;
+  }
+  itemCustomGroupPicker.innerHTML = groups.map(function(group) {
+    var checked = selectedCustomGroupIds.indexOf(group.id) >= 0 ? "checked" : "";
+    return '<label class="custom-group-check"><input type="checkbox" value="' + escapeHtml(group.id) + '" ' + checked + ' /> <span>' + escapeHtml(group.name || "選項群組") + '</span></label>';
+  }).join("");
+  var inputs = itemCustomGroupPicker.querySelectorAll("input");
+  for (var i = 0; i < inputs.length; i += 1) {
+    inputs[i].onchange = function() {
+      var id = this.value;
+      var next = [];
+      for (var j = 0; j < selectedCustomGroupIds.length; j += 1) {
+        if (selectedCustomGroupIds[j] !== id) next.push(selectedCustomGroupIds[j]);
+      }
+      if (this.checked) next.push(id);
+      selectedCustomGroupIds = next;
+    };
+  }
+}
+
+function renderCustomGroupEditor() {
+  if (!customGroupEditorList) return;
+  var groups = getCustomGroupItems();
+  if (!groups.length) {
+    customGroupEditorList.innerHTML = '<div class="empty small-empty">尚未建立客製選項群組</div>';
+    renderItemCustomGroupPicker();
+    return;
+  }
+  customGroupEditorList.innerHTML = groups.map(function(group) {
+    var modules = group.modules || defaultCustomGroupModules();
+    var optionsHtml = (group.options || []).map(function(option, index) {
+      option = typeof option === "string" ? { name: option } : option;
+      var optionId = option.id || option.itemId || "";
+      return '<div class="custom-group-option-row" data-index="' + index + '" data-option-id="' + escapeHtml(optionId) + '">' +
+        '<input data-field="name" value="' + escapeHtml(option.name || option.label || "") + '" placeholder="選項名稱" />' +
+        '<input data-field="price" type="number" value="' + Number(option.price || 0) + '" placeholder="加價" />' +
+        '<label><input data-field="qtyEnabled" type="checkbox" ' + (option.qtyEnabled || option.quantityEnabled ? "checked" : "") + ' /> 可調數量</label>' +
+        '<input data-field="maxQty" type="number" min="1" max="99" value="' + Number(option.maxQty || option.maxQuantity || 1) + '" placeholder="最大數量" />' +
+        '<button type="button" data-action="deleteOption">刪除</button>' +
+      '</div>';
+    }).join("");
+    return '<div class="custom-group-card" data-id="' + escapeHtml(group.id) + '">' +
+      '<div class="custom-group-head"><input data-field="groupName" value="' + escapeHtml(group.name || "") + '" />' +
+      '<select data-field="groupType"><option value="customer" ' + (group.type === "customer" ? "selected" : "") + '>客人可選項</option><option value="posOnly" ' + (group.type === "posOnly" ? "selected" : "") + '>POS 內部選項</option></select>' +
+      '<button type="button" data-action="addOption">新增選項</button><button type="button" data-action="deleteGroup">刪除群組</button></div>' +
+      '<div class="custom-group-rules"><label><input data-field="required" type="checkbox" ' + (group.required ? "checked" : "") + ' /> 必選</label><input data-field="minSelect" type="number" min="0" max="99" value="' + Number(group.minSelect || 0) + '" placeholder="最少" /><input data-field="maxSelect" type="number" min="0" max="99" value="' + Number(group.maxSelect || 0) + '" placeholder="最多" /></div>' +
+      '<div class="custom-group-modules">' +
+        ["qr","pos","kds","print","sticker","online"].map(function(name) {
+          var label = { qr:"QR", pos:"POS", kds:"KDS", print:"出單", sticker:"貼紙", online:"線上訂餐" }[name];
+          return '<label><input data-module="' + name + '" type="checkbox" ' + (modules[name] === true ? "checked" : "") + ' /> ' + label + '</label>';
+        }).join("") +
+      '</div><div class="custom-group-options">' + optionsHtml + '</div></div>';
+  }).join("");
+  bindCustomGroupEditor();
+  renderItemCustomGroupPicker();
+}
+
+function bindCustomGroupEditor() {
+  var cards = customGroupEditorList ? customGroupEditorList.querySelectorAll(".custom-group-card") : [];
+  for (var c = 0; c < cards.length; c += 1) {
+    (function(card) {
+      var id = card.getAttribute("data-id");
+      var inputs = card.querySelectorAll("input, select");
+      for (var i = 0; i < inputs.length; i += 1) {
+        inputs[i].onchange = function() { saveCustomGroupFromCard(card, id); };
+      }
+      var buttons = card.querySelectorAll("button");
+      for (var b = 0; b < buttons.length; b += 1) {
+        buttons[b].onclick = function() {
+          var action = this.getAttribute("data-action");
+          if (action === "addOption") addCustomGroupOption(id);
+          if (action === "deleteGroup") deleteCustomGroup(id);
+          if (action === "deleteOption") {
+            var row = this.parentNode;
+            if (row && row.parentNode) row.parentNode.removeChild(row);
+            saveCustomGroupFromCard(card, id);
+          }
+          return false;
+        };
+      }
+    })(cards[c]);
+  }
+}
+
+function saveCustomGroupFromCard(card, id) {
+  if (!card || !id) return;
+  var groupNameInput = card.querySelector('input[data-field="groupName"]');
+  var groupTypeInput = card.querySelector('[data-field="groupType"]');
+  var requiredInput = card.querySelector('input[data-field="required"]');
+  var minSelectInput = card.querySelector('input[data-field="minSelect"]');
+  var maxSelectInput = card.querySelector('input[data-field="maxSelect"]');
+  var modules = {};
+  var moduleInputs = card.querySelectorAll("input[data-module]");
+  for (var m = 0; m < moduleInputs.length; m += 1) modules[moduleInputs[m].getAttribute("data-module")] = moduleInputs[m].checked === true;
+  if (groupTypeInput && groupTypeInput.value === "posOnly") {
+    modules.qr = false;
+    modules.pos = true;
+  }
+  var rows = card.querySelectorAll(".custom-group-option-row");
+  var options = [];
+  var customItemsUpdates = {};
+  for (var r = 0; r < rows.length; r += 1) {
+    var optionId = rows[r].getAttribute("data-option-id") || (id + "-item-" + (Date.now ? Date.now() : new Date().getTime()) + "-" + r);
+    var nameInput = rows[r].querySelector('input[data-field="name"]');
+    var priceInput = rows[r].querySelector('input[data-field="price"]');
+    var qtyInput = rows[r].querySelector('input[data-field="qtyEnabled"]');
+    var maxQtyInput = rows[r].querySelector('input[data-field="maxQty"]');
+    var name = nameInput ? String(nameInput.value || "").trim() : "";
+    if (!name) continue;
+    var optionData = {
+      id: optionId,
+      name: name,
+      price: Number(priceInput && priceInput.value || 0),
+      allowQuantity: qtyInput && qtyInput.checked === true,
+      qtyEnabled: qtyInput && qtyInput.checked === true,
+      defaultQuantity: 1,
+      maxQuantity: Math.max(1, Number(maxQtyInput && maxQtyInput.value || 1)),
+      maxQty: Math.max(1, Number(maxQtyInput && maxQtyInput.value || 1)),
+      sortOrder: (r + 1) * 1000
+    };
+    options.push(optionData);
+    customItemsUpdates["customItems/" + optionId] = optionData;
+  }
+  var nowTime = Date.now ? Date.now() : new Date().getTime();
+  var name = groupNameInput ? groupNameInput.value : "";
+  var formalGroup = {
+    id: id,
+    name: name,
+    type: groupTypeInput ? groupTypeInput.value : (modules.qr === true ? "customer" : "posOnly"),
+    visibility: modulesToVisibility(modules),
+    required: requiredInput && requiredInput.checked === true,
+    minSelect: Math.max(0, Number(minSelectInput && minSelectInput.value || 0)),
+    maxSelect: Math.max(0, Number(maxSelectInput && maxSelectInput.value || 0)),
+    allowQuantity: false,
+    defaultQuantity: 1,
+    maxQuantity: 1,
+    sortOrder: Number((customGroupsData[id] && customGroupsData[id].sortOrder) || (customOptionGroupsData[id] && customOptionGroupsData[id].sortOrder) || nowTime),
+    items: options,
+    updatedAt: nowTime
+  };
+  var updates = {};
+  updates["customGroups/" + id] = formalGroup;
+  updates["customOptionGroups/" + id] = {
+    name: name,
+    type: formalGroup.type,
+    modules: modules,
+    visibility: formalGroup.visibility,
+    required: formalGroup.required,
+    minSelect: formalGroup.minSelect,
+    maxSelect: formalGroup.maxSelect,
+    options: options,
+    updatedAt: nowTime
+  };
+  Object.keys(customItemsUpdates).forEach(function(key) { updates[key] = customItemsUpdates[key]; });
+  update(ref(db), updates);
+}
+
+function addCustomGroup() {
+  var name = customGroupNameInput ? String(customGroupNameInput.value || "").trim() : "";
+  if (!name) {
+    alert("請輸入群組名稱");
+    return;
+  }
+  var newRef = push(customOptionGroupsRef);
+  var id = newRef.key;
+  var nowTime = Date.now ? Date.now() : new Date().getTime();
+  var modules = defaultCustomGroupModules();
+  var updates = {};
+  updates["customOptionGroups/" + id] = { id: id, name: name, type: "customer", modules: modules, visibility: modulesToVisibility(modules), options: [], createdAt: nowTime, updatedAt: nowTime };
+  updates["customGroups/" + id] = { id: id, name: name, type: "customer", visibility: modulesToVisibility(modules), required: false, minSelect: 0, maxSelect: 0, allowQuantity: false, defaultQuantity: 1, maxQuantity: 1, sortOrder: nowTime, items: [], createdAt: nowTime, updatedAt: nowTime };
+  update(ref(db), updates);
+  if (customGroupNameInput) customGroupNameInput.value = "";
+}
+
+function addCustomGroupOption(id) {
+  var group = customGroupsData[id] || customOptionGroupsData[id] || {};
+  var options = Array.isArray(group.items) ? group.items.slice() : (Array.isArray(group.options) ? group.options.slice() : []);
+  options.push({ id: id + "-item-" + (Date.now ? Date.now() : new Date().getTime()), name: "", price: 0, allowQuantity: false, qtyEnabled: false, defaultQuantity: 1, maxQuantity: 1, maxQty: 1, sortOrder: (options.length + 1) * 1000 });
+  var updates = {};
+  updates["customGroups/" + id + "/items"] = options;
+  updates["customGroups/" + id + "/updatedAt"] = Date.now();
+  updates["customOptionGroups/" + id + "/options"] = options;
+  updates["customOptionGroups/" + id + "/updatedAt"] = Date.now();
+  update(ref(db), updates);
+}
+
+function deleteCustomGroup(id) {
+  if (!confirm("確定刪除此客製選項群組？")) return;
+  var updates = {};
+  updates["customOptionGroups/" + id] = null;
+  updates["customGroups/" + id] = null;
+  update(ref(db), updates);
+  selectedCustomGroupIds = selectedCustomGroupIds.filter(function(item) { return item !== id; });
+  renderItemCustomGroupPicker();
+}
+
+function renderCustomGroupEditorV649() {
+  if (!customGroupEditorList) return;
+  var groups = getCustomGroupItems();
+  if (!groups.length) {
+    customGroupEditorList.innerHTML = '<div class="empty small-empty">尚未建立客製分類</div>';
+    renderItemCustomGroupPicker();
+    return;
+  }
+  var customerGroups = groups.filter(function(group) { return group.type !== "posOnly"; });
+  var posOnlyGroups = groups.filter(function(group) { return group.type === "posOnly"; });
+  customGroupEditorList.innerHTML =
+    '<div class="menu-studio-flow"><span>Step 1 名稱</span><span>Step 2 類型</span><span>Step 3 模組與選項</span></div>' +
+    renderCustomGroupSectionV649("客人可看到", "QR / POS / KDS / 出單 / 貼紙 / 線上訂餐", customerGroups) +
+    renderCustomGroupSectionV649("店員專用", "POS / KDS / 出單 / 貼紙", posOnlyGroups);
+  bindCustomGroupEditorV649();
+  renderItemCustomGroupPicker();
+}
+
+function renderCustomGroupSectionV649(title, subtitle, groups) {
+  var html = '<section class="menu-studio-custom-section"><div class="menu-studio-section-head"><h3>' + title + '</h3><p>' + subtitle + '</p></div><div class="menu-studio-custom-grid">';
+  if (!groups.length) html += '<div class="empty small-empty">尚未建立</div>';
+  for (var i = 0; i < groups.length; i += 1) html += renderCustomGroupCardV649(groups[i]);
+  html += '</div></section>';
+  return html;
+}
+
+function renderCustomGroupCardV649(group) {
+  var modules = group.modules || defaultCustomGroupModules();
+  var options = group.options || [];
+  var optionHtml = "";
+  for (var i = 0; i < options.length; i += 1) {
+    var option = typeof options[i] === "string" ? { name: options[i] } : options[i];
+    optionHtml += '<div class="custom-group-option-row" data-option-id="' + escapeHtml(option.id || option.itemId || "") + '">' +
+      '<input data-field="name" value="' + escapeHtml(option.name || option.label || "") + '" placeholder="選項名稱" />' +
+      '<input data-field="price" type="number" value="' + Number(option.price || 0) + '" placeholder="加價" />' +
+      '<label><input data-field="qtyEnabled" type="checkbox" ' + (option.qtyEnabled || option.quantityEnabled || option.allowQuantity ? "checked" : "") + ' /> 數量</label>' +
+      '<input data-field="maxQty" type="number" min="1" max="99" value="' + Number(option.maxQty || option.maxQuantity || 1) + '" placeholder="上限" />' +
+      '<button type="button" data-action="deleteOption">刪除</button>' +
+    '</div>';
+  }
+  return '<article class="custom-group-card menu-studio-card" data-id="' + escapeHtml(group.id) + '">' +
+    '<div class="custom-group-head">' +
+      '<input data-field="groupName" value="' + escapeHtml(group.name || "") + '" placeholder="分類名稱" />' +
+      '<select data-field="groupType"><option value="customer" ' + (group.type !== "posOnly" ? "selected" : "") + '>客人可看到</option><option value="posOnly" ' + (group.type === "posOnly" ? "selected" : "") + '>店員專用</option></select>' +
+    '</div>' +
+    '<div class="custom-group-rules">' +
+      '<select data-field="choiceType"><option value="single">單選</option><option value="multi">多選</option><option value="quantity">數量</option><option value="toggle">開關</option></select>' +
+      '<label><input data-field="required" type="checkbox" ' + (group.required ? "checked" : "") + ' /> 必填</label>' +
+      '<input data-field="minSelect" type="number" min="0" max="99" value="' + Number(group.minSelect || 0) + '" placeholder="最少" />' +
+      '<input data-field="maxSelect" type="number" min="0" max="99" value="' + Number(group.maxSelect || 0) + '" placeholder="最多" />' +
+    '</div>' +
+    '<div class="custom-group-modules">' + ["qr","pos","kds","print","sticker","online"].map(function(name) {
+      var label = { qr:"QR", pos:"POS", kds:"KDS", print:"出單", sticker:"貼紙", online:"線上訂餐" }[name];
+      return '<label><input data-module="' + name + '" type="checkbox" ' + (modules[name] === true ? "checked" : "") + ' /> ' + label + '</label>';
+    }).join("") + '</div>' +
+    '<div class="custom-group-options">' + optionHtml + '</div>' +
+    '<div class="menu-studio-card-actions"><button type="button" data-action="toggleCollapse">收合</button><button type="button" data-action="previewGroup">預覽</button><button type="button" data-action="copyGroup">複製</button><button type="button" data-action="moveGroupUp">上移</button><button type="button" data-action="moveGroupDown">下移</button><button type="button" data-action="addOption">新增選項</button><button type="button" data-action="deleteGroup">刪除</button></div>' +
+  '</article>';
+}
+
+function bindCustomGroupEditorV649() {
+  var cards = customGroupEditorList ? customGroupEditorList.querySelectorAll(".custom-group-card") : [];
+  for (var c = 0; c < cards.length; c += 1) {
+    (function(card) {
+      var id = card.getAttribute("data-id");
+      var inputs = card.querySelectorAll("input, select");
+      for (var i = 0; i < inputs.length; i += 1) inputs[i].onchange = function() { saveCustomGroupFromCard(card, id); };
+      var buttons = card.querySelectorAll("button");
+      for (var b = 0; b < buttons.length; b += 1) {
+        buttons[b].onclick = function() {
+          var action = this.getAttribute("data-action");
+          if (action === "addOption") addCustomGroupOption(id);
+          if (action === "deleteGroup") deleteCustomGroup(id);
+          if (action === "copyGroup") copyCustomGroup(id);
+          if (action === "moveGroupUp") moveCustomGroup(id, -1);
+          if (action === "moveGroupDown") moveCustomGroup(id, 1);
+          if (action === "previewGroup") previewCustomGroup(id);
+          if (action === "toggleCollapse") {
+            card.className = (" " + card.className + " ").indexOf(" collapsed ") >= 0 ? card.className.replace(/\bcollapsed\b/g, "") : card.className + " collapsed";
+          }
+          if (action === "deleteOption") {
+            var row = this.parentNode;
+            if (row && row.parentNode) row.parentNode.removeChild(row);
+            saveCustomGroupFromCard(card, id);
+          }
+          return false;
+        };
+      }
+    })(cards[c]);
+  }
+}
+
+function copyCustomGroup(id) {
+  var source = normalizeCustomGroup(id, customGroupsData[id] || customOptionGroupsData[id]);
+  var newId = push(customGroupsRef).key;
+  var nowTime = Date.now ? Date.now() : new Date().getTime();
+  var copy = {
+    id: newId,
+    name: (source.name || "客製分類") + " 複製",
+    type: source.type,
+    visibility: source.visibility,
+    required: source.required,
+    minSelect: source.minSelect,
+    maxSelect: source.maxSelect,
+    allowQuantity: source.allowQuantity,
+    defaultQuantity: source.defaultQuantity,
+    maxQuantity: source.maxQuantity,
+    sortOrder: nowTime,
+    items: source.options || [],
+    createdAt: nowTime,
+    updatedAt: nowTime
+  };
+  var updates = {};
+  updates["customGroups/" + newId] = copy;
+  updates["customOptionGroups/" + newId] = { id: newId, name: copy.name, type: copy.type, visibility: copy.visibility, modules: visibilityToModules(copy.visibility), options: copy.items, createdAt: nowTime, updatedAt: nowTime };
+  update(ref(db), updates);
+}
+
+function moveCustomGroup(id, direction) {
+  var groups = getCustomGroupItems();
+  var index = -1;
+  for (var i = 0; i < groups.length; i += 1) if (groups[i].id === id) index = i;
+  var target = index + direction;
+  if (index < 0 || target < 0 || target >= groups.length) return;
+  var moved = groups.splice(index, 1)[0];
+  groups.splice(target, 0, moved);
+  var updates = {};
+  for (var j = 0; j < groups.length; j += 1) {
+    updates["customGroups/" + groups[j].id + "/sortOrder"] = (j + 1) * 1000;
+    updates["customOptionGroups/" + groups[j].id + "/sortOrder"] = (j + 1) * 1000;
+  }
+  update(ref(db), updates);
+}
+
+function previewCustomGroup(id) {
+  var group = normalizeCustomGroup(id, customGroupsData[id] || customOptionGroupsData[id]);
+  var options = group.options || [];
+  var names = options.map(function(option) { return (typeof option === "string" ? option : option.name || option.label || "選項"); }).join("、");
+  alert("QR / POS / KDS 預覽\n\n" + (group.name || "客製分類") + "\n" + (names || "尚未新增選項"));
+}
+
+renderCustomGroupEditor = renderCustomGroupEditorV649;
+
+/* =========================
    Firebase
 ========================= */
 
@@ -2541,6 +2969,20 @@ onValue(categoriesRef, snapshot => {
 onValue(optionTemplatesRef, snapshot => {
   optionTemplatesData = snapshot.exists() ? snapshot.val() : {};
   renderOptionTemplates();
+});
+
+onValue(customOptionGroupsRef, snapshot => {
+  customOptionGroupsData = snapshot.exists() ? snapshot.val() : {};
+  renderCustomGroupEditor();
+});
+
+onValue(customGroupsRef, snapshot => {
+  customGroupsData = snapshot.exists() ? snapshot.val() : {};
+  renderCustomGroupEditor();
+});
+
+onValue(customItemsRef, snapshot => {
+  customItemsData = snapshot.exists() ? snapshot.val() : {};
 });
 
 /* =========================
@@ -2573,6 +3015,13 @@ if (addRemoveOptionRowBtn) {
   addAdminTapListener(addRemoveOptionRowBtn, function(event) {
     if (event && event.preventDefault) event.preventDefault();
     addRemoveOptionRow();
+  });
+}
+
+if (addCustomGroupBtn) {
+  addAdminTapListener(addCustomGroupBtn, function(event) {
+    if (event && event.preventDefault) event.preventDefault();
+    addCustomGroup();
   });
 }
 
@@ -2626,9 +3075,41 @@ if (itemImageFile) {
   });
 }
 
+function initMenuStudioV64() {
+  var headerTitle = document.querySelector(".admin-topbar h1");
+  var headerText = document.querySelector(".admin-topbar p");
+  if (headerTitle) headerTitle.textContent = "Menu Studio";
+  if (headerText) headerText.textContent = "菜單、客製選項、範本與分類管理";
+
+  var tabOrder = ["itemAdminTab", "optionAdminTab", "templateAdminTab", "categoryAdminTab", "mediaAdminTab"];
+  var nav = document.querySelector(".admin-page-tabs");
+  for (var i = 0; nav && i < tabOrder.length; i += 1) {
+    var btn = document.querySelector('[data-admin-tab="' + tabOrder[i] + '"]');
+    if (btn) nav.appendChild(btn);
+  }
+
+  var labels = {
+    itemAdminTab: "菜單",
+    optionAdminTab: "客製選項",
+    templateAdminTab: "範本管理",
+    categoryAdminTab: "分類管理",
+    mediaAdminTab: "圖片"
+  };
+  Object.keys(labels).forEach(function(tabId) {
+    var button = document.querySelector('[data-admin-tab="' + tabId + '"]');
+    if (button) button.textContent = labels[tabId];
+  });
+
+  var mediaBtn = document.querySelector('[data-admin-tab="mediaAdminTab"]');
+  var mediaPanel = document.getElementById("mediaAdminTab");
+  if (mediaBtn) mediaBtn.style.display = "none";
+  if (mediaPanel) mediaPanel.style.display = "none";
+}
+
 initAdminV63Ux();
+initMenuStudioV64();
 resetForm();
-switchAdminTab("categoryAdminTab");
+switchAdminTab("itemAdminTab");
 hideAppLoadingScreen();
 
 function hideAppLoadingScreen() {

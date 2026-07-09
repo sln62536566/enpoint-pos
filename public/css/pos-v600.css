@@ -4399,3 +4399,33 @@ body.hide-test-order-button #orderTab #submitTestOrderBtn{
   color:#7a6040;
   font-weight:700;
 }
+/* v64 commercial upgrade */
+.app-loading-screen{position:fixed;left:0;top:0;right:0;bottom:0;z-index:99999;background:#fff7ed;display:flex;align-items:center;justify-content:center;color:#2b2118}
+.app-loading-screen.hidden{display:none}
+.app-loading-box{border:1px solid #f0ce91;background:#fffaf3;border-radius:8px;padding:18px 22px;text-align:center;box-shadow:0 10px 30px rgba(95,61,20,.12)}
+.app-loading-box strong{display:block;font-size:20px;margin-bottom:8px}
+.pos-menu-manage-layout{padding:16px}
+.pos-menu-manage-tools{display:flex;gap:10px;align-items:center;margin:10px 0 14px;flex-wrap:wrap}
+.pos-menu-manage-tools input{max-width:320px}
+.pos-menu-manage-list{display:flex;flex-direction:column;gap:8px}
+.pos-menu-manage-row{display:grid;grid-template-columns:minmax(150px,1fr) minmax(260px,auto);gap:8px;align-items:center;border:1px solid #ead7bd;background:#fffaf4;border-radius:8px;padding:10px}
+.pos-menu-manage-main strong,.pos-menu-manage-main span,.pos-menu-manage-main em{display:block}
+.pos-menu-manage-main em{font-style:normal;font-weight:800;color:#2e7d32}
+.pos-menu-manage-row.sale-paused .pos-menu-manage-main em{color:#9a6a00}
+.pos-menu-manage-row.sale-soldout .pos-menu-manage-main em{color:#b3261e}
+.pos-menu-status-actions{display:flex;gap:6px;flex-wrap:wrap}
+.pos-menu-status-actions button{border:1px solid #d9bd93;background:#fff;border-radius:8px;padding:7px 9px;font-weight:800}
+.pos-food-btn.sale-paused{opacity:.78}
+.pos-food-btn.sale-soldout{opacity:.58}
+.pos-sale-status{display:inline-block;margin-top:4px;font-size:13px;font-weight:900;color:#2e7d32}
+.sale-paused .pos-sale-status{color:#9a6a00}
+.sale-soldout .pos-sale-status{color:#b3261e}
+.cart-count-dot{color:#d32f2f;font-weight:900;white-space:nowrap}
+.v64-custom-groups{border-top:1px solid #ead7bd;margin-top:10px;padding-top:10px}
+.v64-custom-group{margin:8px 0}
+.v64-custom-group h3{font-size:16px;margin:0 0 8px}
+@media (max-width:760px){
+  .pos-menu-manage-row{grid-template-columns:1fr}
+  .pos-menu-manage-tools{display:block}
+  .pos-menu-manage-tools input,.pos-menu-manage-tools button{width:100%;margin-bottom:8px}
+}

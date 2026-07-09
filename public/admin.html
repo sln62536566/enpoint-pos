@@ -9,7 +9,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <title>恩點系統｜菜單後台</title>
   <link rel="manifest" href="./manifest.json" />
-  <link rel="stylesheet" href="./css/style.css?v=646" />
+  <link rel="stylesheet" href="./css/style.css?v=649" />
 </head>
 
 <body class="admin-page">
@@ -83,6 +83,10 @@
             <button id="applyTemplateBtn" class="secondary-btn" type="button">套用</button>
           </div>
           <p class="form-help">套用後會帶入必選、加料、不要項目與份量設定。</p>
+          <div class="admin-option-card v64-item-group-picker">
+            <label>套用客製選項群組</label>
+            <div id="itemCustomGroupPicker" class="item-custom-group-picker"></div>
+          </div>
         </section>
 
         <section class="admin-menu-panel">
@@ -118,6 +122,16 @@
           </div>
 
           <div class="admin-option-grid">
+            <div class="admin-option-card v64-custom-group-card">
+              <label>客製選項群組</label>
+              <div class="admin-inline-form">
+                <input id="customGroupNameInput" type="text" placeholder="群組名稱，例如：辣度、甜度、冰量" />
+                <button id="addCustomGroupBtn" class="secondary-btn" type="button">新增群組</button>
+              </div>
+              <div id="customGroupEditorList" class="custom-group-editor-list"></div>
+              <p class="form-help">可設定 QR / POS / KDS / 出單 / 貼紙 / 線上訂餐適用模組；線上訂餐先保留不做功能。</p>
+            </div>
+
             <div class="admin-option-card">
               <label>份量選項</label>
               <div id="sizeEditor" class="addon-editor"></div>
@@ -314,6 +328,6 @@
       if (el) el.className += " hidden";
     }, false);
   </script>
-  <script type="module" src="./js/admin.js?v=646"></script>
+  <script type="module" src="./js/admin.js?v=649"></script>
 </body>
 </html>

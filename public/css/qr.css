@@ -2508,3 +2508,16 @@ body.qr-page.qr-direct-order-mode #topOrderPanel.hidden{
   color:#7a6040;
   font-weight:700;
 }
+/* v64 commercial upgrade */
+.app-loading-screen{position:fixed;left:0;top:0;right:0;bottom:0;z-index:99999;background:#fff7ed;display:flex;align-items:center;justify-content:center;color:#2b2118}
+.app-loading-screen.hidden{display:none}
+.app-loading-box{border:1px solid #f0ce91;background:#fffaf3;border-radius:8px;padding:18px 22px;text-align:center;box-shadow:0 10px 30px rgba(95,61,20,.12)}
+.app-loading-box strong{display:block;font-size:20px;margin-bottom:8px}
+.menu-card.sale-paused,.menu-card.sale-soldout{opacity:.72}
+.menu-card.sale-paused:after,.menu-card.sale-soldout:after{content:"";position:absolute;left:0;top:0;right:0;bottom:0}
+.qr-sale-status{font-weight:900;color:#b3261e;margin-top:4px}
+.sale-paused .qr-sale-status{color:#9a6a00}
+.v64-custom-groups{border-top:1px solid #ead7bd;margin-top:10px;padding-top:10px}
+.v64-custom-group{margin:8px 0}
+.v64-custom-group h3{font-size:16px;margin:0 0 8px}
+.qr-direct-expired-message{font-size:18px;font-weight:900;text-align:center;padding:24px;color:#8a1c13}

@@ -38,11 +38,17 @@ const LAST_ORDER_KEY = "enpoint_last_qr_order_id";
 const LAST_ORDER_KEY_COMPAT = "lastQrOrderId";
 const DEFAULT_QR_STORE_NAME = "恩點點餐";
 const DEFAULT_ORDER_LOOKUP_MINUTES = 60;
+const DEFAULT_QR_VALID_MINUTES = 120;
 
 function normalizeQrOrderLookupMinutes(value) {
   var raw = String(value === undefined || value === null ? "" : value);
   if (raw === "0" || raw === "forever" || raw === "permanent") return 0;
   var minutes = Math.floor(Number(value) || DEFAULT_ORDER_LOOKUP_MINUTES);
+  return Math.min(1440, Math.max(30, minutes));
+}
+
+function normalizeQrValidMinutes(value) {
+  var minutes = Math.floor(Number(value) || DEFAULT_QR_VALID_MINUTES);
   return Math.min(1440, Math.max(30, minutes));
 }
 
@@ -58,6 +64,7 @@ const qrHeaderTitle = document.getElementById("qrStoreNameTitle") || document.qu
 let currentViewingOrderId = "";
 let qrStoreName = DEFAULT_QR_STORE_NAME;
 let orderLookupMinutes = DEFAULT_ORDER_LOOKUP_MINUTES;
+let qrValidMinutes = DEFAULT_QR_VALID_MINUTES;
 let qrHasStoreNameFromFirebase = false;
 
 function addBodyClass(name) {
@@ -215,12 +222,18 @@ const backToCartBtn = document.getElementById("backToCartBtn");
 const menuRef = ref(db, "menu");
 const categoriesRef = ref(db, "categories");
 const storeNameRef = ref(db, "settings/storeName");
+const qrValidMinutesRef = ref(db, "settings/qrValidMinutes");
 const orderLookupMinutesRef = ref(db, "settings/orderLookupMinutes");
+const customOptionGroupsRef = ref(db, "customOptionGroups");
+const customGroupsRef = ref(db, "customGroups");
 
 let menuData = [];
 let categoriesData = {};
+let customOptionGroupsData = {};
+let customGroupsData = {};
 let currentCategory = "全部";
 let cart = [];
+window.qrV64SelectedCustomOptions = [];
 
 let currentOrderType = table ? "內用" : "內用";
 
@@ -326,6 +339,24 @@ function normalizeMenu(raw) {
   return Object.entries(raw)
     .map(([id, item]) => ({ id, ...item }))
     .filter(item => item.enabled !== false);
+}
+
+function getSaleStatus(item) {
+  var status = item && (item.saleStatus || item.posStatus || item.status);
+  if (status === "soldout" || status === "sold_out" || status === "todaySoldOut") return "soldout";
+  if (status === "paused" || status === "pause" || status === "suspended") return "paused";
+  return "normal";
+}
+
+function getSaleStatusText(item) {
+  var status = getSaleStatus(item);
+  if (status === "soldout") return "今日售完";
+  if (status === "paused") return "此餐點暫停販售，請稍後再試";
+  return "";
+}
+
+function canQrOrderItem(item) {
+  return !!item && item.enabled !== false && getSaleStatus(item) === "normal";
 }
 
 function getItemCategory(item) {
@@ -647,6 +678,7 @@ function openItemModal(item) {
   }
 
   selectedItem = item;
+  window.qrV64SelectedCustomOptions = [];
   selectedAddons = [];
   selectedSpicy = "不辣";
   selectedSatay = "不要";
@@ -809,11 +841,96 @@ function renderModalOptions() {
   });
 
   modalQty.textContent = selectedQty;
+  renderQrCustomOptionGroups();
+}
+
+function getAppliedCustomGroups(item, moduleName) {
+  var groups = [];
+  var ids = item && (item.customGroupIds || item.customOptionGroupIds || item.optionGroupIds);
+  if (!ids) return groups;
+  if (!Array.isArray(ids)) ids = Object.keys(ids || {}).filter(function(id) { return ids[id] !== false; });
+  for (var i = 0; i < ids.length; i += 1) {
+    var group = (customGroupsData && customGroupsData[ids[i]]) || (customOptionGroupsData && customOptionGroupsData[ids[i]]);
+    if (!group) continue;
+    var visibility = group.visibility || {};
+    var modules = group.modules || {
+      qr: visibility.qr === true,
+      pos: visibility.pos !== false,
+      kds: visibility.kds !== false,
+      print: visibility.print !== false,
+      sticker: visibility.sticker !== false,
+      online: visibility.onlineOrder === true
+    };
+    if (moduleName === "qr" && modules.qr !== true) continue;
+    groups.push({ id: ids[i], name: group.name || group.title || "選項", options: group.options || group.items || [] });
+  }
+  return groups;
+}
+
+function findQrSelectedCustomOption(groupId, optionName) {
+  var selected = window.qrV64SelectedCustomOptions || [];
+  for (var i = 0; i < selected.length; i += 1) {
+    if (String(selected[i].groupId) === String(groupId) && String(selected[i].name) === String(optionName)) return selected[i];
+  }
+  return null;
+}
+
+function renderQrCustomOptionGroups() {
+  var oldBox = document.getElementById("qrCustomOptionGroupsBox");
+  if (oldBox && oldBox.parentNode) oldBox.parentNode.removeChild(oldBox);
+  if (!selectedItem || !addonsSection) return;
+  var groups = getAppliedCustomGroups(selectedItem, "qr");
+  if (!groups.length) return;
+  var box = document.createElement("div");
+  box.id = "qrCustomOptionGroupsBox";
+  box.className = "v64-custom-groups";
+  var html = "";
+  for (var g = 0; g < groups.length; g += 1) {
+    var group = groups[g];
+    html += '<div class="v64-custom-group"><h3>' + escapeHtml(group.name) + '</h3><div class="option-grid">';
+    for (var o = 0; o < group.options.length; o += 1) {
+      var option = typeof group.options[o] === "string" ? { name: group.options[o] } : group.options[o];
+      var name = option.name || option.label || option.value || "";
+      var selected = findQrSelectedCustomOption(group.id, name);
+      html += '<button type="button" class="option-btn qr-v64-option ' + (selected ? "active" : "") + '" data-group-id="' + escapeHtml(group.id) + '" data-group-name="' + escapeHtml(group.name) + '" data-option-name="' + escapeHtml(name) + '" data-option-price="' + Number(option.price || 0) + '" data-qty-enabled="' + (option.qtyEnabled || option.quantityEnabled ? "true" : "false") + '" data-max-qty="' + Number(option.maxQty || option.maxQuantity || 1) + '">' + escapeHtml(name) + (Number(option.price || 0) ? " +" + Number(option.price || 0) : "") + (selected && Number(selected.qty || 1) > 1 ? " x" + Number(selected.qty || 1) : "") + '</button>';
+    }
+    html += '</div></div>';
+  }
+  box.innerHTML = html;
+  addonsSection.appendChild(box);
+  var buttons = box.querySelectorAll(".qr-v64-option");
+  for (var i = 0; i < buttons.length; i += 1) buttons[i].onclick = function() { toggleQrCustomOption(this); };
+}
+
+function toggleQrCustomOption(button) {
+  var list = window.qrV64SelectedCustomOptions || [];
+  var groupId = button.getAttribute("data-group-id");
+  var name = button.getAttribute("data-option-name");
+  var found = -1;
+  for (var i = 0; i < list.length; i += 1) {
+    if (String(list[i].groupId) === String(groupId) && String(list[i].name) === String(name)) found = i;
+  }
+  if (found >= 0) {
+    if (list[found].qtyEnabled && Number(list[found].qty || 1) < Number(list[found].maxQty || 1)) list[found].qty = Number(list[found].qty || 1) + 1;
+    else list.splice(found, 1);
+  } else {
+    list.push({ groupId: groupId, groupName: button.getAttribute("data-group-name"), name: name, price: Number(button.getAttribute("data-option-price") || 0), qty: 1, qtyEnabled: button.getAttribute("data-qty-enabled") === "true", maxQty: Number(button.getAttribute("data-max-qty") || 1) });
+  }
+  window.qrV64SelectedCustomOptions = list;
+  renderModalOptions();
+  updateModalSubtotal();
+}
+
+function qrCustomOptionsTotal(list) {
+  var total = 0;
+  list = list || [];
+  for (var i = 0; i < list.length; i += 1) total += Number(list[i].price || 0) * Number(list[i].qty || 1);
+  return total;
 }
 
 function updateModalSubtotal() {
   const base = Number(selectedSize && selectedSize.price || 0);
-  const addonsTotal = selectedAddons.reduce((sum, addon) => sum + Number(addon.price || 0), 0);
+  const addonsTotal = selectedAddons.reduce((sum, addon) => sum + Number(addon.price || 0), 0) + qrCustomOptionsTotal(window.qrV64SelectedCustomOptions || []);
   modalSubtotal.textContent = money((base + addonsTotal) * selectedQty);
 }
 
@@ -924,6 +1041,7 @@ function qrAddCurrentItemToCart(event) {
   for (var i = 0; i < selectedAddons.length; i++) {
     addonsTotal += Number(selectedAddons[i].price || 0);
   }
+  addonsTotal += qrCustomOptionsTotal(window.qrV64SelectedCustomOptions || []);
   var unitPrice = basePrice + addonsTotal;
   var nowId = selectedItem.id + "-" + new Date().getTime();
 
@@ -940,6 +1058,7 @@ function qrAddCurrentItemToCart(event) {
       title: requiredOption.title,
       value: selectedRequiredOption
     } : null,
+    customOptions: window.qrV64SelectedCustomOptions || [],
     addons: selectedAddons,
     extras: selectedAddons,
     spicy: allowSpicy(selectedItem) ? selectedSpicy : "",
@@ -1205,6 +1324,10 @@ function submitConfirmedQrOrder(event) {
   qrLastSubmitTapAt = nowTap;
 
   if (!validateOrderType()) return false;
+  if (isQrOrderingExpired()) {
+    showQrOrderingExpired();
+    return false;
+  }
   if (!cart || cart.length === 0) {
     alert("購物車目前是空的");
     return false;
@@ -1393,6 +1516,17 @@ function getQrItemExtras(item) {
 
 function getQrItemRemoves(item) {
   return (item && (item.removes || item.removeOptionsSelected || item.noOptionsSelected)) || [];
+}
+
+function renderQrCustomOptionsDetail(item) {
+  var list = item && item.customOptions;
+  if (!list || !list.length) return "";
+  var html = "";
+  for (var i = 0; i < list.length; i += 1) {
+    var opt = list[i] || {};
+    html += '<p>' + escapeHtml(opt.groupName || "選項") + '：' + escapeHtml(opt.name || "") + (Number(opt.qty || 1) > 1 ? ' x' + Number(opt.qty || 1) : '') + '</p>';
+  }
+  return html;
 }
 
 function buildDirectItemDetailHtml(item) {
@@ -1632,6 +1766,16 @@ function loadMenu() {
     renderCategories();
     renderMenu();
   });
+
+  onValue(customOptionGroupsRef, function(snapshot) {
+    customOptionGroupsData = snapshot && snapshot.exists && snapshot.exists() ? snapshot.val() : {};
+    renderMenu();
+  });
+
+  onValue(customGroupsRef, function(snapshot) {
+    customGroupsData = snapshot && snapshot.exists && snapshot.exists() ? snapshot.val() : {};
+    renderMenu();
+  });
 }
 
 function loadQrStoreName() {
@@ -1678,9 +1822,89 @@ function loadOrderLookupMinutes() {
   });
 }
 
+function applyQrValidMinutes(value) {
+  qrValidMinutes = normalizeQrValidMinutes(value);
+  try { localStorage.setItem("qrValidMinutes", String(qrValidMinutes)); } catch (e) {}
+}
+
+function loadQrValidMinutes() {
+  try {
+    applyQrValidMinutes(localStorage.getItem("qrValidMinutes") || DEFAULT_QR_VALID_MINUTES);
+  } catch (e) {
+    applyQrValidMinutes(DEFAULT_QR_VALID_MINUTES);
+  }
+  onValue(qrValidMinutesRef, function(snapshot) {
+    var value = snapshot && snapshot.exists && snapshot.exists() ? snapshot.val() : DEFAULT_QR_VALID_MINUTES;
+    applyQrValidMinutes(value);
+  });
+}
+
+function isQrOrderingExpired() {
+  var minutes = normalizeQrValidMinutes(qrValidMinutes);
+  var startAt = 0;
+  try {
+    startAt = Number(sessionStorage.getItem("enpoint_qr_session_started_at") || 0);
+    if (!startAt) {
+      startAt = Date.now ? Date.now() : new Date().getTime();
+      sessionStorage.setItem("enpoint_qr_session_started_at", String(startAt));
+    }
+  } catch (e) {
+    startAt = Date.now ? Date.now() : new Date().getTime();
+  }
+  return (Date.now ? Date.now() : new Date().getTime()) - startAt > minutes * 60 * 1000;
+}
+
+function showQrOrderingExpired() {
+  alert("此點餐連結已過期，請重新掃描 QR Code");
+}
+
+function renderMenuCardV64(item) {
+  var imageUrl = getImageUrl(item);
+  var description = item.description || "";
+  var requiredOption = getRequiredOption(item);
+  var saleStatus = getSaleStatus(item);
+  var saleText = getSaleStatusText(item);
+  return '' +
+    '<button type="button" class="menu-card sale-' + saleStatus + '" data-id="' + escapeHtml(item.id) + '" ' + (canQrOrderItem(item) ? "" : 'aria-disabled="true"') + '>' +
+      '<div class="menu-image">' + (imageUrl ? '<img src="' + escapeHtml(imageUrl) + '" alt="' + escapeHtml(item.name || "餐點") + '">' : '<div class="no-image">恩點</div>') + '</div>' +
+      '<div class="menu-info"><h3>' + escapeHtml(item.name || "餐點") + '</h3><p>' + escapeHtml(getItemCategory(item)) + '</p>' +
+      (description ? '<p class="qr-menu-desc">' + escapeHtml(description) + '</p>' : '') +
+      (requiredOption ? '<p class="qr-required-tag">必選：' + escapeHtml(requiredOption.title) + '</p>' : '') +
+      (saleText ? '<p class="qr-sale-status">' + escapeHtml(saleText) + '</p>' : '') +
+      '<strong>' + money(getBasePrice(item)) + '</strong></div></button>';
+}
+
+function openItemModalByIdV64(itemId) {
+  var items = getEnabledItems();
+  var item = null;
+  for (var i = 0; i < items.length; i += 1) {
+    if (String(items[i].id) === String(itemId)) {
+      item = items[i];
+      break;
+    }
+  }
+  if (!item) {
+    alert("找不到餐點");
+    return;
+  }
+  if (!canQrOrderItem(item)) {
+    alert(getSaleStatusText(item) || "此餐點目前不可點選");
+    return;
+  }
+  if (isQrOrderingExpired()) {
+    showQrOrderingExpired();
+    return;
+  }
+  openItemModal(item);
+}
+
+renderMenuCard = renderMenuCardV64;
+openItemModalById = openItemModalByIdV64;
+
 initOrderTypeUI();
 loadQrStoreName();
 loadOrderLookupMinutes();
+loadQrValidMinutes();
 loadMenu();
 hideAppLoadingScreen();
 
@@ -3479,6 +3703,48 @@ window.openLastQrOrderFromTop = openLastQrOrderFromTop;
 })();
 
 /* =========================
+   v64 QR freshness closeout
+========================= */
+(function(){
+  var oldBuildQrOrderHtmlV64 = window.buildQrOrderHtml || buildQrOrderHtml;
+
+  function orderViewExpired(order) {
+    return isOrderLookupExpired(order);
+  }
+
+  window.buildQrOrderHtml = function(order) {
+    if (orderViewExpired(order || {})) {
+      return '<div class="qr-direct-order-card qr-direct-expired-card"><div class="qr-direct-expired-message">此訂單已超過查看時間</div></div>';
+    }
+    return oldBuildQrOrderHtmlV64(order);
+  };
+
+  var oldShowOrderTab = window.qrShowOrderTab;
+  window.qrShowOrderTab = function(event) {
+    if (event && event.preventDefault) event.preventDefault();
+    var id = getSavedViewingOrderId();
+    if (!id) {
+      qrShowMenuMode();
+      return false;
+    }
+    if (typeof oldShowOrderTab === "function") return oldShowOrderTab(event);
+    loadViewingOrderById(id, true);
+    return false;
+  };
+
+  try {
+    var searchParams = new URLSearchParams(window.location.search || "");
+    var isDirectOrder = searchParams.get("view") === "order" && !!searchParams.get("orderId");
+    var isLastOrder = searchParams.get("view") === "last";
+    if (!isDirectOrder && !isLastOrder) {
+      qrShowMenuMode();
+    }
+  } catch (e) {
+    qrShowMenuMode();
+  }
+})();
+
+/* =========================
    v63 final tab binding: every View Order tab open reloads Firebase by orderId.
 ========================= */
 (function(){
@@ -3517,5 +3783,29 @@ window.openLastQrOrderFromTop = openLastQrOrderFromTop;
     viewTab.href = "javascript:void(0)";
     viewTab.onclick = openOrder;
     viewTab.ontouchend = openOrder;
+  }
+})();
+
+/* v64 final tab guard after v63 binding */
+(function(){
+  var viewTab = document.getElementById("qrViewOrderPlainLink");
+  function openOrderV64(event) {
+    if (event) {
+      if (event.preventDefault) event.preventDefault();
+      if (event.stopPropagation) event.stopPropagation();
+      if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+    }
+    var id = getSavedViewingOrderId();
+    if (!id) {
+      qrShowMenuMode();
+      return false;
+    }
+    loadViewingOrderById(id, true);
+    return false;
+  }
+  window.qrShowOrderTab = openOrderV64;
+  if (viewTab) {
+    viewTab.onclick = openOrderV64;
+    viewTab.ontouchend = openOrderV64;
   }
 })();

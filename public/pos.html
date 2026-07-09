@@ -9,7 +9,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <title>恩點系統｜店員 POS</title>
   <link rel="manifest" href="./manifest.json" />
-  <link rel="stylesheet" href="./css/pos-v600.css?v=646" />
+  <link rel="stylesheet" href="./css/pos-v600.css?v=650" />
 </head>
 
 <body>
@@ -29,6 +29,7 @@
       <nav class="pos-tabs">
         <button class="tab-btn active" data-tab="orderTab">點餐</button>
         <button class="tab-btn" data-tab="todayTab">今日訂單</button>
+        <button class="tab-btn" data-tab="menuManageTab">菜單管理</button>
         <button class="tab-btn" data-tab="databaseTab">資料庫</button>
         <button class="tab-btn" data-tab="statsTab">統計</button>
         <button class="tab-btn" data-tab="settingsTab">設定</button>
@@ -109,6 +110,22 @@
             </div>
             <div id="processingOrderList" class="order-list"></div>
           </section>
+        </div>
+      </section>
+
+      <section id="menuManageTab" class="tab-panel">
+        <div class="pos-menu-manage-layout">
+          <div class="panel-title">
+            <h2>菜單管理</h2>
+            <p>營業中快速調整名稱、價格、上架狀態、今日售完與暫停販售。</p>
+          </div>
+          <div class="pos-menu-manage-tools">
+            <input id="posMenuManageSearch" class="settings-input" type="text" placeholder="搜尋餐點" />
+            <button id="restoreSoldoutBtn" class="secondary-btn" type="button">一鍵恢復今日售完</button>
+            <button id="restorePausedBtn" class="secondary-btn" type="button">一鍵恢復暫停販售</button>
+            <button id="restoreMenuStatusBtn" class="secondary-btn" type="button">全部恢復正常</button>
+          </div>
+          <div id="posMenuManageList" class="pos-menu-manage-list"></div>
         </div>
       </section>
 
@@ -274,6 +291,21 @@
                 <small>分鐘</small>
               </label>
               <input id="prepTimeInput" class="settings-input" type="number" min="1" max="999" step="1" />
+            </section>
+
+            <section class="settings-card">
+              <label for="qrValidMinutesInput" class="settings-card-title">
+                <span>QR 點餐有效時間</span>
+                <small>超過時間後不可送單</small>
+              </label>
+              <select id="qrValidMinutesInput" class="settings-input">
+                <option value="30">30 分鐘</option>
+                <option value="60">1 小時</option>
+                <option value="120">2 小時</option>
+                <option value="240">4 小時</option>
+                <option value="480">8 小時</option>
+                <option value="1440">24 小時</option>
+              </select>
             </section>
 
             <section class="settings-card">
@@ -553,6 +585,6 @@
       if (el) el.className += " hidden";
     }, false);
   </script>
-  <script type="module" src="./js/pos.js?v=646"></script>
+  <script type="module" src="./js/pos.js?v=650"></script>
 </body>
 </html>

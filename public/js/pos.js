@@ -140,6 +140,7 @@ const fullscreenBtn = document.getElementById("fullscreenBtn");
 const storeNameInput = document.getElementById("storeNameInput");
 const tableCountInput = document.getElementById("tableCountInput");
 const prepTimeInput = document.getElementById("prepTimeInput");
+const qrValidMinutesInput = document.getElementById("qrValidMinutesInput");
 const orderLookupMinutesInput = document.getElementById("orderLookupMinutesInput");
 const showTestOrdersToggle = document.getElementById("showTestOrdersToggle");
 const enableSoundToggle = document.getElementById("enableSoundToggle");
@@ -148,6 +149,11 @@ const soundVolumeInput = document.getElementById("soundVolumeInput");
 const soundVolumeValue = document.getElementById("soundVolumeValue");
 const testSoundBtn = document.getElementById("testSoundBtn");
 const autoSwitchCartToggle = document.getElementById("autoSwitchCartToggle");
+const posMenuManageSearch = document.getElementById("posMenuManageSearch");
+const posMenuManageList = document.getElementById("posMenuManageList");
+const restoreMenuStatusBtn = document.getElementById("restoreMenuStatusBtn");
+const restoreSoldoutBtn = document.getElementById("restoreSoldoutBtn");
+const restorePausedBtn = document.getElementById("restorePausedBtn");
 
 /* =========================
    Firebase
@@ -156,7 +162,10 @@ const autoSwitchCartToggle = document.getElementById("autoSwitchCartToggle");
 const menuRef = ref(db, "menu");
 const categoriesRef = ref(db, "categories");
 const ordersRef = ref(db, "orders");
+const customOptionGroupsRef = ref(db, "customOptionGroups");
+const customGroupsRef = ref(db, "customGroups");
 const storeNameRef = ref(db, "settings/storeName");
+const qrValidMinutesRef = ref(db, "settings/qrValidMinutes");
 const orderLookupMinutesRef = ref(db, "settings/orderLookupMinutes");
 const enableSoundRef = ref(db, "settings/enableSound");
 const soundTypeRef = ref(db, "settings/soundType");
@@ -169,6 +178,8 @@ const soundVolumeRef = ref(db, "settings/soundVolume");
 let menuData = {};
 let categoriesData = {};
 let ordersData = {};
+let customOptionGroupsData = {};
+let customGroupsData = {};
 let currentCategory = "全部";
 let cart = [];
 
@@ -182,6 +193,9 @@ let selectedExtras = [];
 let selectedRemoves = [];
 let selectedSatay = "不要";
 let selectedRequiredOption = "";
+
+window.posV64SelectedCustomOptions = [];
+window.posV64EditSelectedCustomOptions = [];
 
 let editingOrderId = null;
 let editingItems = [];
@@ -220,10 +234,11 @@ const defaultSettings = {
   storeName: "",
   tableCount: 8,
   prepTime: 15,
+  qrValidMinutes: 120,
   orderLookupMinutes: 60,
   showTestOrders: true,
   enableSound: true,
-  soundType: "double",
+  soundType: "classic",
   soundVolume: 80,
   autoSwitchCartAfterAdd: false
 };
@@ -238,29 +253,77 @@ let pendingNewOrderAlert = false;
 let orderAlertIntervalId = null;
 let submittingPosOrder = false;
 
+function renderPosFoodButton(item) {
+  return renderPosFoodButtonV64(item);
+}
+
+function renderCart() {
+  return renderCartV64();
+}
+
+function renderEditCustomOptionGroups() {
+  return false;
+}
+
+function safePosInit(name, task) {
+  try {
+    return task();
+  } catch (error) {
+    console.error("POS 初始化區塊失敗：", name, error);
+    return null;
+  }
+}
+
 /* =========================
    Init
 ========================= */
 
 onValue(menuRef, snapshot => {
   menuData = snapshot.exists() ? snapshot.val() : {};
-  renderCategories();
-  renderMenu();
+  safePosInit("menu", function() {
+    renderCategories();
+    renderMenu();
+    renderPosMenuManage();
+  });
 });
 
 onValue(categoriesRef, snapshot => {
   categoriesData = snapshot.exists() ? snapshot.val() : {};
-  renderCategories();
-  renderMenu();
+  safePosInit("categories", function() {
+    renderCategories();
+    renderMenu();
+    renderPosMenuManage();
+  });
+});
+
+onValue(customOptionGroupsRef, snapshot => {
+  customOptionGroupsData = snapshot.exists() ? snapshot.val() : {};
+  safePosInit("customOptionGroups", function() {
+    renderCustomOptionGroups();
+    renderEditCustomOptionGroups();
+    renderMenu();
+  });
+});
+
+onValue(customGroupsRef, snapshot => {
+  customGroupsData = snapshot.exists() ? snapshot.val() : {};
+  safePosInit("customGroups", function() {
+    renderCustomOptionGroups();
+    renderEditCustomOptionGroups();
+    renderMenu();
+  });
 });
 
 onValue(ordersRef, snapshot => {
   const nextOrdersData = snapshot.exists() ? snapshot.val() : {};
-  processNewQrOrderSound(nextOrdersData);
-  ordersData = nextOrdersData;
-  renderAllOrders();
-  renderStats();
-  renderRealtimeBadges();
+  safePosInit("orders", function() {
+    processNewQrOrderSound(nextOrdersData);
+    ordersData = nextOrdersData;
+    renderAllOrders();
+    renderStats();
+    renderRealtimeBadges();
+    renderPosMenuManage();
+  });
 });
 
 renderTableButtons();
@@ -379,13 +442,27 @@ function normalizeOrderLookupMinutes(value) {
   return Math.min(1440, Math.max(30, minutes));
 }
 
+function normalizeQrValidMinutes(value) {
+  var minutes = Math.floor(Number(value) || defaultSettings.qrValidMinutes);
+  return Math.min(1440, Math.max(30, minutes));
+}
+
 function readSoundTypeSetting(key, fallback) {
   var value = localStorage.getItem(key) || fallback;
   return isValidSoundType(value) ? value : fallback;
 }
 
 function isValidSoundType(value) {
-  return value === "short" ||
+  return value === "classic" ||
+    value === "harmony" ||
+    value === "breeze" ||
+    value === "bell" ||
+    value === "pulse" ||
+    value === "warm" ||
+    value === "bright" ||
+    value === "pro" ||
+    value === "kitchen" ||
+    value === "short" ||
     value === "double" ||
     value === "dingdong" ||
     value === "urgent" ||
@@ -401,6 +478,7 @@ function loadSettings() {
     storeName: localStorage.getItem("storeName") || defaultSettings.storeName,
     tableCount: readNumberSetting("tableCount", defaultSettings.tableCount, 1, 99),
     prepTime: readNumberSetting("prepTime", defaultSettings.prepTime, 1, 999),
+    qrValidMinutes: normalizeQrValidMinutes(localStorage.getItem("qrValidMinutes")),
     orderLookupMinutes: normalizeOrderLookupMinutes(localStorage.getItem("orderLookupMinutes")),
     showTestOrders: readBooleanSetting("showTestOrders", defaultSettings.showTestOrders),
     enableSound: readBooleanSetting("enableSound", defaultSettings.enableSound),
@@ -439,6 +517,13 @@ function syncOrderLookupMinutesToFirebase(value) {
   });
 }
 
+function syncQrValidMinutesToFirebase(value) {
+  var minutes = normalizeQrValidMinutes(value);
+  set(qrValidMinutesRef, minutes).catch(function(error) {
+    console.error("同步 QR 點餐有效時間失敗：", error);
+  });
+}
+
 function syncSoundSettingsToFirebase() {
   set(enableSoundRef, posSettings.enableSound === true).catch(error => {
     console.error("同步提示音開關失敗：", error);
@@ -469,6 +554,16 @@ function watchSharedSettings() {
     posSettings.orderLookupMinutes = minutes;
     saveSetting("orderLookupMinutes", minutes);
     if (orderLookupMinutesInput && document.activeElement !== orderLookupMinutesInput) orderLookupMinutesInput.value = String(minutes);
+  });
+
+  onValue(qrValidMinutesRef, snapshot => {
+    var value = snapshot && snapshot.exists && snapshot.exists() ? snapshot.val() : null;
+    if (value === null || value === undefined) return;
+    var minutes = normalizeQrValidMinutes(value);
+    if (minutes === posSettings.qrValidMinutes) return;
+    posSettings.qrValidMinutes = minutes;
+    saveSetting("qrValidMinutes", minutes);
+    if (qrValidMinutesInput && document.activeElement !== qrValidMinutesInput) qrValidMinutesInput.value = String(minutes);
   });
 
   onValue(enableSoundRef, snapshot => {
@@ -601,55 +696,46 @@ function playNewQrOrderBeep(forcePlay) {
     var volume = Math.min(1, Math.max(0, Number(posSettings.soundVolume || 0) / 100)) * 0.32;
     if (volume <= 0) return;
     var soundType = isValidSoundType(posSettings.soundType) ? posSettings.soundType : defaultSettings.soundType;
+    if (soundType === "double") soundType = "classic";
+    if (soundType === "dingdong" || soundType === "doorbell" || soundType === "warm") soundType = "harmony";
+    if (soundType === "fastDingdong" || soundType === "triple" || soundType === "bright") soundType = "breeze";
+    if (soundType === "longShort" || soundType === "pro") soundType = "bell";
+    if (soundType === "urgent" || soundType === "rapidShort" || soundType === "kitchen") soundType = "pulse";
 
-    if (soundType === "short") {
-      playTone(audioContext, 920, now, 0.18, volume);
+    if (soundType === "classic" || soundType === "short") {
+      playTone(audioContext, 880, now, 0.18, volume);
+      playTone(audioContext, 1175, now + 0.24, 0.18, volume * 0.9);
       return;
     }
 
-    if (soundType === "dingdong") {
-      playTone(audioContext, 784, now, 0.24, volume);
-      playTone(audioContext, 1046, now + 0.25, 0.32, volume * 0.9);
+    if (soundType === "harmony") {
+      playTone(audioContext, 659, now, 0.28, volume * 0.95);
+      playTone(audioContext, 784, now + 0.28, 0.32, volume);
+      playTone(audioContext, 988, now + 0.68, 0.3, volume * 0.8);
       return;
     }
 
-    if (soundType === "urgent") {
-      playTone(audioContext, 980, now, 0.12, volume);
-      playTone(audioContext, 980, now + 0.16, 0.12, volume);
-      playTone(audioContext, 980, now + 0.32, 0.12, volume);
+    if (soundType === "breeze") {
+      playTone(audioContext, 988, now, 0.11, volume);
+      playTone(audioContext, 1319, now + 0.14, 0.13, volume * 0.9);
+      playTone(audioContext, 1568, now + 0.31, 0.13, volume * 0.85);
+      playTone(audioContext, 1319, now + 0.55, 0.18, volume * 0.75);
       return;
     }
 
-    if (soundType === "triple") {
-      playTone(audioContext, 900, now, 0.14, volume);
-      playTone(audioContext, 900, now + 0.2, 0.14, volume);
-      playTone(audioContext, 900, now + 0.4, 0.14, volume);
+    if (soundType === "bell") {
+      playTone(audioContext, 740, now, 0.16, volume);
+      playTone(audioContext, 932, now + 0.21, 0.16, volume);
+      playTone(audioContext, 1175, now + 0.54, 0.42, volume * 0.85);
       return;
     }
 
-    if (soundType === "doorbell") {
-      playTone(audioContext, 660, now, 0.28, volume);
-      playTone(audioContext, 880, now + 0.3, 0.38, volume * 0.95);
-      return;
-    }
-
-    if (soundType === "fastDingdong") {
-      playTone(audioContext, 784, now, 0.14, volume);
-      playTone(audioContext, 1046, now + 0.15, 0.18, volume * 0.9);
-      return;
-    }
-
-    if (soundType === "longShort") {
-      playTone(audioContext, 760, now, 0.42, volume);
-      playTone(audioContext, 1020, now + 0.5, 0.16, volume * 0.95);
-      return;
-    }
-
-    if (soundType === "rapidShort") {
-      playTone(audioContext, 1050, now, 0.09, volume);
-      playTone(audioContext, 1050, now + 0.13, 0.09, volume);
-      playTone(audioContext, 1050, now + 0.26, 0.09, volume);
-      playTone(audioContext, 1050, now + 0.39, 0.09, volume);
+    if (soundType === "pulse") {
+      playTone(audioContext, 1047, now, 0.1, volume);
+      playTone(audioContext, 1047, now + 0.16, 0.1, volume);
+      playTone(audioContext, 784, now + 0.36, 0.22, volume);
+      playTone(audioContext, 1047, now + 0.78, 0.1, volume);
+      playTone(audioContext, 784, now + 1.0, 0.28, volume);
       return;
     }
 
@@ -689,7 +775,7 @@ function startOrderAlertSound() {
       return;
     }
     playNewQrOrderBeep();
-  }, 4500);
+  }, 1600);
 }
 
 function stopOrderAlertSound() {
@@ -698,6 +784,18 @@ function stopOrderAlertSound() {
     window.clearInterval(orderAlertIntervalId);
     orderAlertIntervalId = null;
   }
+}
+
+function rebuildSoundTypeOptions() {
+  if (!soundTypeSelect || soundTypeSelect.getAttribute("data-v64-ready") === "true") return;
+  soundTypeSelect.innerHTML = [
+    '<option value="classic">Classic</option>',
+    '<option value="harmony">Harmony</option>',
+    '<option value="breeze">Breeze</option>',
+    '<option value="bell">Bell</option>',
+    '<option value="pulse">Pulse</option>'
+  ].join("");
+  soundTypeSelect.setAttribute("data-v64-ready", "true");
 }
 
 function processNewQrOrderSound(nextOrdersData) {
@@ -746,7 +844,17 @@ function renderSettings() {
   if (storeNameInput) storeNameInput.value = posSettings.storeName;
   if (tableCountInput) tableCountInput.value = posSettings.tableCount;
   if (prepTimeInput) prepTimeInput.value = posSettings.prepTime;
+  if (qrValidMinutesInput) qrValidMinutesInput.value = String(normalizeQrValidMinutes(posSettings.qrValidMinutes));
   if (orderLookupMinutesInput) orderLookupMinutesInput.value = String(normalizeOrderLookupMinutes(posSettings.orderLookupMinutes));
+  rebuildSoundTypeOptions();
+  if (posSettings.soundType === "warm") posSettings.soundType = "harmony";
+  if (posSettings.soundType === "bright") posSettings.soundType = "breeze";
+  if (posSettings.soundType === "pro") posSettings.soundType = "bell";
+  if (posSettings.soundType === "kitchen") posSettings.soundType = "pulse";
+  if (posSettings.soundType !== "classic" && posSettings.soundType !== "harmony" && posSettings.soundType !== "breeze" && posSettings.soundType !== "bell" && posSettings.soundType !== "pulse") {
+    posSettings.soundType = "classic";
+    saveSetting("soundType", posSettings.soundType);
+  }
   if (soundTypeSelect) soundTypeSelect.value = posSettings.soundType || defaultSettings.soundType;
   renderSoundVolume();
 
@@ -875,6 +983,24 @@ function getEnabledItems() {
       .filter(item => item.enabled !== false)
       .filter(item => isCategoryVisible(getItemCategory(item)))
   );
+}
+
+function getSaleStatus(item) {
+  var status = item && (item.saleStatus || item.posStatus || item.status);
+  if (status === "soldout" || status === "sold_out" || status === "todaySoldOut") return "soldout";
+  if (status === "paused" || status === "pause" || status === "suspended") return "paused";
+  return "normal";
+}
+
+function getSaleStatusText(item) {
+  var status = getSaleStatus(item);
+  if (status === "soldout") return "今日售完";
+  if (status === "paused") return "暫停販售";
+  return "正常販售";
+}
+
+function canQrOrderItem(item) {
+  return getSaleStatus(item) === "normal" && item.enabled !== false;
 }
 
 function getItemCategory(item) {
@@ -1519,6 +1645,24 @@ function selectCategory(category) {
   renderMenu();
 }
 
+window.selectCategory = selectCategory;
+
+if (categoryList) {
+  addLegacyTapListener(categoryList, function(event) {
+    var target = event && (event.target || event.srcElement);
+    while (target && target !== categoryList) {
+      if (target.tagName && String(target.tagName).toLowerCase() === "button") {
+        var text = target.getAttribute("data-category") || target.textContent || "?券";
+        if (event && event.preventDefault) event.preventDefault();
+        selectCategory(String(text).replace(/^\s+|\s+$/g, ""));
+        return false;
+      }
+      target = target.parentNode;
+    }
+    return true;
+  });
+}
+
 // =====================================================
 // 恩點系統 v58-3 前置修正
 // 日期：2026-05-22
@@ -1585,7 +1729,7 @@ function escapeInlineValue(value) {
     .replace(/"/g, "&quot;");
 }
 
-function renderPosFoodButton(item) {
+function renderPosFoodButtonV64(item) {
   var imageUrl = getImageUrl(item);
   var safeId = escapeInlineValue(item.id);
   var displayName = item.name || "未命名餐點";
@@ -1713,6 +1857,7 @@ function openCustomModal(itemId) {
 
   currentItem = { id: itemId, ...item };
   currentQuantity = 1;
+  window.posV64SelectedCustomOptions = [];
   selectedExtras = [];
   selectedRemoves = [];
   selectedSatay = "不要";
@@ -1736,6 +1881,7 @@ function openCustomModal(itemId) {
   renderRequiredOptionBox();
   renderExtrasOptions();
   renderRemoveOptions();
+  renderCustomOptionGroups();
 
   customModal.classList.remove("hidden");
   customModal.className = (customModal.className || "").replace(/\bhidden\b/g, "");
@@ -1946,6 +2092,134 @@ function toggleExtra(name, price) {
   renderExtrasOptions();
 }
 
+function getAppliedCustomGroups(item, moduleName) {
+  var groups = [];
+  var ids = item && (item.customGroupIds || item.customOptionGroupIds || item.optionGroupIds);
+  if (!ids) return groups;
+  if (!Array.isArray(ids)) ids = Object.keys(ids || {}).filter(function(id) { return ids[id] !== false; });
+  for (var i = 0; i < ids.length; i += 1) {
+    var group = (customGroupsData && customGroupsData[ids[i]]) || (customOptionGroupsData && customOptionGroupsData[ids[i]]);
+    if (!group) continue;
+    var visibility = group.visibility || {};
+    var modules = group.modules || {
+      qr: visibility.qr === true,
+      pos: visibility.pos !== false,
+      kds: visibility.kds !== false,
+      print: visibility.print !== false,
+      sticker: visibility.sticker !== false,
+      online: visibility.onlineOrder === true
+    };
+    if (moduleName && modules[moduleName] === false) continue;
+    if (moduleName && moduleName === "qr" && modules.qr !== true) continue;
+    if (moduleName && moduleName === "pos" && modules.pos === false) continue;
+    groups.push({ id: ids[i], name: group.name || group.title || "選項", options: group.options || group.items || [], modules: modules });
+  }
+  return groups;
+}
+
+function optionLabelWithQty(option, qty) {
+  var name = option && (option.name || option.label || option.value || option);
+  if (qty && Number(qty) > 1) return String(name || "") + " x" + Number(qty);
+  return String(name || "");
+}
+
+function renderCustomOptionGroups() {
+  var oldBox = document.getElementById("posCustomOptionGroupsBox");
+  if (oldBox && oldBox.parentNode) oldBox.parentNode.removeChild(oldBox);
+  if (!currentItem || !customModal) return;
+  var groups = getAppliedCustomGroups(currentItem, "pos");
+  if (!groups.length) return;
+  var box = document.createElement("div");
+  box.id = "posCustomOptionGroupsBox";
+  box.className = "v64-custom-groups";
+  var html = "";
+  for (var g = 0; g < groups.length; g += 1) {
+    var group = groups[g];
+    html += '<div class="v64-custom-group" data-group-id="' + escapeHtml(group.id) + '">';
+    html += '<h3>' + escapeHtml(group.name) + '</h3><div class="option-grid">';
+    var options = group.options || [];
+    for (var o = 0; o < options.length; o += 1) {
+      var option = typeof options[o] === "string" ? { name: options[o] } : options[o];
+      var optionName = option.name || option.label || option.value || "";
+      var selected = findSelectedCustomOption(group.id, optionName);
+      html += '<button type="button" class="option-btn v64-custom-option-btn ' + (selected ? "active" : "") + '" data-group-id="' + escapeHtml(group.id) + '" data-group-name="' + escapeHtml(group.name) + '" data-option-name="' + escapeHtml(optionName) + '" data-option-price="' + Number(option.price || 0) + '" data-qty-enabled="' + (option.qtyEnabled || option.quantityEnabled ? "true" : "false") + '" data-max-qty="' + Number(option.maxQty || option.maxQuantity || 1) + '">';
+      html += escapeHtml(optionName) + (Number(option.price || 0) ? " +" + Number(option.price || 0) : "");
+      if (selected && Number(selected.qty || 1) > 1) html += " x" + Number(selected.qty || 1);
+      html += '</button>';
+    }
+    html += '</div></div>';
+  }
+  box.innerHTML = html;
+  var noteSection = noteInput ? noteInput.parentNode : null;
+  var modalCard = customModal.querySelector(".modal-card");
+  if (modalCard && noteSection) modalCard.insertBefore(box, noteSection);
+  var buttons = box.querySelectorAll(".v64-custom-option-btn");
+  for (var i = 0; i < buttons.length; i += 1) {
+    buttons[i].onclick = function() {
+      toggleCustomOption(this);
+    };
+  }
+}
+
+function findSelectedCustomOption(groupId, optionName) {
+  var selected = window.posV64SelectedCustomOptions || [];
+  for (var i = 0; i < selected.length; i += 1) {
+    if (String(selected[i].groupId) === String(groupId) && String(selected[i].name) === String(optionName)) return selected[i];
+  }
+  return null;
+}
+
+function toggleCustomOption(button) {
+  var list = window.posV64SelectedCustomOptions || [];
+  var groupId = button.getAttribute("data-group-id");
+  var groupName = button.getAttribute("data-group-name");
+  var name = button.getAttribute("data-option-name");
+  var price = Number(button.getAttribute("data-option-price") || 0);
+  var qtyEnabled = button.getAttribute("data-qty-enabled") === "true";
+  var maxQty = Math.max(1, Number(button.getAttribute("data-max-qty") || 1));
+  var foundIndex = -1;
+  for (var i = 0; i < list.length; i += 1) {
+    if (String(list[i].groupId) === String(groupId) && String(list[i].name) === String(name)) foundIndex = i;
+  }
+  if (foundIndex >= 0) {
+    if (qtyEnabled && Number(list[foundIndex].qty || 1) < maxQty) {
+      list[foundIndex].qty = Number(list[foundIndex].qty || 1) + 1;
+    } else {
+      list.splice(foundIndex, 1);
+    }
+  } else {
+    list.push({ groupId: groupId, groupName: groupName, name: name, price: price, qty: 1, qtyEnabled: qtyEnabled, maxQty: maxQty });
+  }
+  window.posV64SelectedCustomOptions = list;
+  renderCustomOptionGroups();
+}
+
+function customOptionsTotal(list) {
+  var total = 0;
+  list = list || [];
+  for (var i = 0; i < list.length; i += 1) total += Number(list[i].price || 0) * Number(list[i].qty || 1);
+  return total;
+}
+
+function renderCustomOptionsDetail(item) {
+  var list = item && item.customOptions;
+  if (!list || !list.length) return "";
+  var byGroup = {};
+  for (var i = 0; i < list.length; i += 1) {
+    var opt = list[i] || {};
+    var group = opt.groupName || "選項";
+    if (!byGroup[group]) byGroup[group] = [];
+    byGroup[group].push(optionLabelWithQty(opt, opt.qty));
+  }
+  var html = "";
+  for (var name in byGroup) {
+    if (Object.prototype.hasOwnProperty.call(byGroup, name)) {
+      html += "<p>" + escapeHtml(name) + "：" + escapeHtml(byGroup[name].join("、")) + "</p>";
+    }
+  }
+  return html;
+}
+
 modalMinusBtn.addEventListener("click", () => {
   currentQuantity = Math.max(1, currentQuantity - 1);
   modalQuantity.textContent = currentQuantity;
@@ -1978,7 +2252,7 @@ confirmCustomBtn.addEventListener("click", () => {
   }
   
   const basePrice = Number(selectedPortion.price || getBasePrice(currentItem));
-  const extrasTotal = selectedExtras.reduce((sum, extra) => sum + Number(extra.price || 0), 0);
+  const extrasTotal = selectedExtras.reduce((sum, extra) => sum + Number(extra.price || 0), 0) + customOptionsTotal(window.posV64SelectedCustomOptions || []);
   const unitPrice = basePrice + extrasTotal;
   const subtotal = unitPrice * currentQuantity;
 
@@ -2004,6 +2278,7 @@ confirmCustomBtn.addEventListener("click", () => {
       : null,
     extras: selectedExtras,
     addons: selectedExtras,
+    customOptions: window.posV64SelectedCustomOptions || [],
     removes: selectedRemoves,
     removeOptionsSelected: selectedRemoves,
     note: "",
@@ -2031,7 +2306,7 @@ confirmCustomBtn.addEventListener("click", () => {
    Cart
 ========================= */
 
-function renderCart() {
+function renderCartV64() {
   if (cart.length === 0) {
     cartList.innerHTML = `<div class="empty">尚未加入餐點</div>`;
     totalAmount.textContent = "$0";
@@ -3370,6 +3645,153 @@ if (posMenuList) {
 }
 
 /* =========================
+   v64 commercial upgrade
+========================= */
+
+function renderPosFoodButtonV649(item) {
+  var imageUrl = getImageUrl(item);
+  var displayName = item.name || "餐點";
+  var saleStatus = getSaleStatus(item);
+  return '' +
+    '<button type="button" class="pos-food-btn pos-food-real-btn sale-' + saleStatus + '" data-id="' + escapeHtml(item.id) + '">' +
+      '<div class="food-img">' + (imageUrl ? '<img src="' + escapeHtml(imageUrl) + '" alt="' + escapeHtml(displayName) + '">' : '<span>恩點</span>') + '</div>' +
+      '<div class="food-info"><strong>' + escapeHtml(displayName) + '</strong><b>' + money(getBasePrice(item)) + '</b><span class="pos-sale-status">' + getSaleStatusText(item) + '</span></div>' +
+    '</button>';
+}
+
+function getCartItemCount() {
+  var count = 0;
+  for (var i = 0; i < cart.length; i += 1) count += itemQty(cart[i]);
+  return count;
+}
+
+function updateCartSubtabBadge() {
+  var buttons = document.querySelectorAll ? document.querySelectorAll('.order-subtab-btn[data-order-subtab="cart"]') : [];
+  var count = getCartItemCount();
+  for (var i = 0; i < buttons.length; i += 1) {
+    buttons[i].innerHTML = count > 0 ? '目前訂單 <span class="cart-count-dot">●' + count + '</span>' : '目前訂單';
+  }
+}
+
+function renderCartV649() {
+  updateCartSubtabBadge();
+  if (!cartList) return;
+  if (!cart.length) {
+    cartList.innerHTML = '<div class="empty">尚未加入餐點</div>';
+    if (totalAmount) totalAmount.textContent = "$0";
+    return;
+  }
+  var html = "";
+  for (var i = 0; i < cart.length; i += 1) {
+    var item = cart[i] || {};
+    var extras = itemExtras(item);
+    var removes = itemRemoves(item);
+    html += '<div class="cart-item" data-cart-id="' + escapeHtml(item.cartId) + '">';
+    html += '<button class="swipe-delete-action" type="button" onclick="removeFromCart(\'' + escapeInlineValue(item.cartId) + '\')">刪除</button>';
+    html += '<div class="cart-item-inner"><div><strong>' + escapeHtml(item.name || "餐點") + ' x ' + itemQty(item) + '</strong><div class="cart-detail">';
+    if (item.size) html += '<p>份量：' + escapeHtml(item.size) + '</p>';
+    if (item.requiredOption && item.requiredOption.title) html += '<p>' + escapeHtml(item.requiredOption.title) + '：' + escapeHtml(item.requiredOption.value) + '</p>';
+    html += renderCustomOptionsDetail(item);
+    if (item.spicy) html += '<p>辣度：' + escapeHtml(item.spicy) + '</p>';
+    if (item.satay) html += '<p>沙茶：' + escapeHtml(item.satay) + '</p>';
+    if (extras.length) html += '<p>加料：' + escapeHtml(extras.map(function(extra) { return optionLabelWithQty(extra, extra.qty); }).join("、")) + '</p>';
+    if (removes.length) html += '<p>不要：' + escapeHtml(removes.join("、")) + '</p>';
+    if (item.note) html += '<p>備註：' + escapeHtml(item.note) + '</p>';
+    html += '<p>小計：' + money(itemSubtotal(item)) + '</p></div></div>';
+    html += '<div class="cart-item-actions"><button class="secondary-btn" type="button" onclick="openCartItemEditModal(' + i + ')">編輯</button><button class="danger-btn" type="button" onclick="removeFromCart(\'' + escapeInlineValue(item.cartId) + '\')">刪除</button></div>';
+    html += '</div></div>';
+  }
+  cartList.innerHTML = html;
+  if (totalAmount) totalAmount.textContent = money(calculateTotal(cart));
+  bindCartCardActions();
+}
+
+function renderPosMenuManage() {
+  if (!posMenuManageList) return;
+  var keyword = posMenuManageSearch ? String(posMenuManageSearch.value || "").toLowerCase() : "";
+  var items = sortMenuItems(Object.entries(menuData || {}).map(function(entry) {
+    var item = entry[1] || {};
+    item.id = entry[0];
+    return item;
+  })).filter(function(item) {
+    if (!keyword) return true;
+    return String(item.name || "").toLowerCase().indexOf(keyword) !== -1 || String(item.category || "").toLowerCase().indexOf(keyword) !== -1;
+  });
+  if (!items.length) {
+    posMenuManageList.innerHTML = '<div class="empty">沒有符合的餐點</div>';
+    return;
+  }
+  var html = "";
+  for (var i = 0; i < items.length; i += 1) {
+    var item = items[i] || {};
+    html += '<div class="pos-menu-manage-row sale-' + getSaleStatus(item) + '" data-id="' + escapeHtml(item.id) + '">';
+    html += '<div class="pos-menu-manage-main"><strong>' + escapeHtml(item.name || "餐點") + '</strong><span>' + escapeHtml(item.category || "") + '</span><em>' + getSaleStatusText(item) + '</em></div>';
+    html += '<div class="pos-menu-status-actions">';
+    html += '<button type="button" data-action="normal">正常</button><button type="button" data-action="paused">暫停</button><button type="button" data-action="soldout">售完</button>';
+    html += '<button type="button" data-action="up">上移</button><button type="button" data-action="down">下移</button>';
+    html += '</div></div>';
+  }
+  posMenuManageList.innerHTML = html;
+  bindPosMenuManageEvents();
+}
+
+function bindPosMenuManageEvents() {
+  if (!posMenuManageList) return;
+  var inputs = posMenuManageList.querySelectorAll("input");
+  for (var i = 0; i < inputs.length; i += 1) {
+    inputs[i].onchange = function() {
+      var row = this.parentNode;
+      var id = row && row.getAttribute("data-id");
+      var field = this.getAttribute("data-field");
+      var value = field === "price" ? Number(this.value || 0) : this.value;
+      var data = { updatedAt: Date.now() };
+      data[field] = value;
+      update(ref(db, "menu/" + id), data);
+    };
+  }
+  var buttons = posMenuManageList.querySelectorAll("button");
+  for (var j = 0; j < buttons.length; j += 1) {
+    buttons[j].onclick = function() {
+      var row = this.parentNode;
+      while (row && row.getAttribute && !row.getAttribute("data-id")) row = row.parentNode;
+      var id = row && row.getAttribute("data-id");
+      var action = this.getAttribute("data-action");
+      if (!id || !menuData[id]) return false;
+      if (action === "enabled") update(ref(db, "menu/" + id), { enabled: menuData[id].enabled === false, updatedAt: Date.now() });
+      if (action === "normal" || action === "paused" || action === "soldout") update(ref(db, "menu/" + id), { saleStatus: action, updatedAt: Date.now() });
+      if (action === "up" || action === "down") moveMenuManageItem(id, action === "up" ? -1 : 1);
+      return false;
+    };
+  }
+}
+
+function moveMenuManageItem(id, direction) {
+  var target = menuData[id];
+  if (!target) return;
+  moveMenuItemByButton(id, target.category || "", direction);
+}
+
+function restoreMenuStatuses(targetStatus) {
+  var updates = {};
+  var now = Date.now();
+  Object.keys(menuData || {}).forEach(function(id) {
+    var status = getSaleStatus(menuData[id]);
+    if ((targetStatus && status === targetStatus) || (!targetStatus && status !== "normal")) {
+      updates["menu/" + id + "/saleStatus"] = "normal";
+      updates["menu/" + id + "/updatedAt"] = now;
+    }
+  });
+  if (Object.keys(updates).length) update(ref(db), updates);
+}
+
+if (posMenuManageSearch) posMenuManageSearch.addEventListener("input", renderPosMenuManage, false);
+if (restoreMenuStatusBtn) restoreMenuStatusBtn.addEventListener("click", function() { restoreMenuStatuses(""); }, false);
+if (restoreSoldoutBtn) restoreSoldoutBtn.addEventListener("click", function() { restoreMenuStatuses("soldout"); }, false);
+if (restorePausedBtn) restorePausedBtn.addEventListener("click", function() { restoreMenuStatuses("paused"); }, false);
+renderPosFoodButton = renderPosFoodButtonV649;
+renderCart = renderCartV649;
+
+/* =========================
    Events / Window
 ========================= */
 
@@ -3488,6 +3910,16 @@ if (orderLookupMinutesInput) {
     saveSetting("orderLookupMinutes", minutes);
     syncOrderLookupMinutesToFirebase(minutes);
   });
+}
+
+if (qrValidMinutesInput) {
+  qrValidMinutesInput.addEventListener("change", function() {
+    var minutes = normalizeQrValidMinutes(qrValidMinutesInput.value);
+    posSettings.qrValidMinutes = minutes;
+    qrValidMinutesInput.value = String(minutes);
+    saveSetting("qrValidMinutes", minutes);
+    syncQrValidMinutesToFirebase(minutes);
+  }, false);
 }
 
 if (showTestOrdersToggle) {
