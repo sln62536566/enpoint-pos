@@ -9,7 +9,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <title>恩點系統｜菜單後台</title>
   <link rel="manifest" href="./manifest.json" />
-  <link rel="stylesheet" href="./css/style.css?v=651" />
+  <link rel="stylesheet" href="./css/style.css?v=652" />
 </head>
 
 <body class="admin-page">
@@ -82,7 +82,7 @@
             <select id="itemTemplateSelect"></select>
             <button id="applyTemplateBtn" class="secondary-btn" type="button">套用</button>
           </div>
-          <p class="form-help">套用後會帶入必選、加料、不要項目與份量設定。</p>
+          <p class="form-help">套用後會將範本內的客製群組套入目前餐點。</p>
           <div class="admin-option-card v64-item-group-picker">
             <label>套用客製選項群組</label>
             <div id="itemCustomGroupPicker" class="item-custom-group-picker"></div>
@@ -117,49 +117,22 @@
           <div class="panel-title-row">
             <div>
               <h2>選項管理</h2>
-              <p>設定必選項目、加料、不要項目與份量。這些設定會跟目前餐點表單一起儲存。</p>
+              <p>建立店家自訂的客製選項群組，餐點只會顯示已套用的群組。</p>
             </div>
           </div>
 
-          <div class="admin-option-grid">
-            <div class="admin-option-card v64-custom-group-card">
-              <label>客製選項群組</label>
-              <div class="admin-inline-form">
-                <input id="customGroupNameInput" type="text" placeholder="群組名稱，例如：辣度、甜度、冰量" />
-                <button id="addCustomGroupBtn" class="secondary-btn" type="button">新增群組</button>
-              </div>
-              <div id="customGroupEditorList" class="custom-group-editor-list"></div>
-              <p class="form-help">可設定 QR / POS / KDS / 出單 / 貼紙 / 線上訂餐適用模組；線上訂餐先保留不做功能。</p>
+          <div class="admin-option-card v64-custom-group-card">
+            <label>新增客製群組</label>
+            <div class="admin-inline-form">
+              <input id="customGroupNameInput" type="text" placeholder="群組名稱，例如：辣度、甜度、冰量、加急" />
+              <select id="customGroupAreaInput">
+                <option value="customer">客人可選項</option>
+                <option value="posOnly">POS 內部選項</option>
+              </select>
+              <button id="addCustomGroupBtn" class="secondary-btn" type="button">＋ 新增客製群組</button>
             </div>
-
-            <div class="admin-option-card">
-              <label>份量選項</label>
-              <div id="sizeEditor" class="addon-editor"></div>
-              <button id="addSizeRowBtn" class="secondary-btn" type="button">＋ 新增份量</button>
-              <p class="form-help">例如：小份 80、大份 100。留空時會使用上方價格作為「一般」。</p>
-            </div>
-
-            <div class="admin-option-card">
-              <label>必選項目</label>
-              <div class="required-option-box">
-                <input id="requiredOptionTitle" type="text" placeholder="選項名稱，例如：湯底、甜度、冰量" />
-                <textarea id="requiredOptionChoices" placeholder="選項內容，用逗號分隔，例如：牛肉,肉骨,肉燥"></textarea>
-                <p class="form-help">留空代表此餐點沒有必選項目。</p>
-              </div>
-            </div>
-
-            <div class="admin-option-card">
-              <label>加料選項</label>
-              <div id="addonEditor" class="addon-editor"></div>
-              <button id="addAddonRowBtn" class="secondary-btn" type="button">＋ 新增加料</button>
-            </div>
-
-            <div class="admin-option-card">
-              <label>不要項目</label>
-              <div id="removeOptionEditor" class="addon-editor"></div>
-              <button id="addRemoveOptionRowBtn" class="secondary-btn" type="button">＋ 新增不要項目</button>
-              <p class="form-help">例如：不要蔥、不要香菜、不要胡椒。POS 點餐時會變成可直接點擊的按鈕。</p>
-            </div>
+            <div id="customGroupEditorList" class="custom-group-editor-list"></div>
+            <p class="form-help">必選、加料、不要、辣度、沙茶、份量都只是群組名稱；新增與編輯一律走客製群組。</p>
           </div>
         </section>
       </div>
@@ -179,29 +152,6 @@
           <input id="templateNameInput" type="text" placeholder="例如：鍋燒通用選項" />
 
           <div class="admin-option-grid">
-            <div class="admin-option-card">
-              <label>份量選項</label>
-              <textarea id="templateSizesInput" placeholder="每行一筆：小份,80"></textarea>
-              <p class="form-help">格式：名稱,價格。例：大份,120</p>
-            </div>
-
-            <div class="admin-option-card">
-              <label>必選項目</label>
-              <input id="templateRequiredTitleInput" type="text" placeholder="例如：湯底" />
-              <textarea id="templateRequiredChoicesInput" placeholder="用逗號分隔，例如：牛肉,肉骨,肉燥"></textarea>
-            </div>
-
-            <div class="admin-option-card">
-              <label>加料選項</label>
-              <textarea id="templateAddonsInput" placeholder="每行一筆：加麵,20"></textarea>
-              <p class="form-help">格式：名稱,價格。例：加蛋,15</p>
-            </div>
-
-            <div class="admin-option-card">
-              <label>不要項目</label>
-              <textarea id="templateRemoveOptionsInput" placeholder="可用逗號或換行分隔，例如：不要蔥,不要香菜"></textarea>
-            </div>
-
             <div class="admin-option-card">
               <label>客製選項群組</label>
               <div id="templateCustomGroupPicker" class="item-custom-group-picker"></div>
@@ -334,6 +284,6 @@
       if (el) el.className += " hidden";
     }, false);
   </script>
-  <script type="module" src="./js/admin.js?v=651"></script>
+  <script type="module" src="./js/admin.js?v=652"></script>
 </body>
 </html>

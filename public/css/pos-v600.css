@@ -4422,6 +4422,7 @@ body.hide-test-order-button #orderTab #submitTestOrderBtn{
 .pos-menu-studio-card h3{margin:0 0 8px}
 .pos-menu-studio-card p{margin:0 0 14px;color:#6f5639;font-weight:700;line-height:1.5}
 .pos-menu-studio-link{display:inline-flex;text-decoration:none;align-items:center;justify-content:center;min-height:44px}
+.legacy-fixed-option{display:none!important}
 .pos-menu-status-actions{display:flex;gap:6px;flex-wrap:wrap}
 .pos-menu-status-actions button{border:1px solid #d9bd93;background:#fff;border-radius:8px;padding:7px 9px;font-weight:800}
 .pos-food-btn.sale-paused{opacity:.78}

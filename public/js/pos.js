@@ -1865,24 +1865,18 @@ function openCustomModal(itemId) {
   selectedSatay = "不要";
   selectedRequiredOption = "";
 
-  const portionOptions = getPortionOptions(currentItem);
-  selectedPortion = portionOptions[0];
+  selectedPortion = { name: "", price: getBasePrice(currentItem) };
 
   modalItemName.textContent = currentItem.name || "未命名餐點";
   modalItemPrice.textContent = `起價 ${money(getBasePrice(currentItem))}`;
   modalQuantity.textContent = "1";
   noteInput.value = "";
 
-  spicySelect.value = allowSpicy(currentItem) ? "不辣" : "";
-  spicySelect.disabled = !allowSpicy(currentItem);
-  renderSpicyButtons(spicySelect, "spicyChipBox", spicySelect.value, !spicySelect.disabled, "selectSpicy");
-
   renderItemDescriptionBox();
-  renderPortionOptions();
-  renderSatayOptions();
-  renderRequiredOptionBox();
-  renderExtrasOptions();
-  renderRemoveOptions();
+  portionBox.innerHTML = "";
+  satayBox.innerHTML = "";
+  extrasBox.innerHTML = "";
+  if (spicySelect && spicySelect.parentNode) spicySelect.parentNode.style.display = "none";
   renderCustomOptionGroups();
 
   customModal.classList.remove("hidden");
@@ -1941,10 +1935,7 @@ function hasDirtyCustomModalInput() {
   if (selectedRemoves && selectedRemoves.length) return true;
   if (selectedRequiredOption) return true;
   if (noteInput && noteInput.value && noteInput.value.trim()) return true;
-  if (allowSatay(currentItem) && selectedSatay && selectedSatay !== "不要" && selectedSatay !== "銝?") return true;
-  if (allowSpicy(currentItem) && spicySelect && spicySelect.value && spicySelect.value !== "不辣" && spicySelect.value !== "銝麾") return true;
-  const portionOptions = getPortionOptions(currentItem);
-  if (selectedPortion && portionOptions[0] && selectedPortion.name !== portionOptions[0].name) return true;
+  if ((window.posV64SelectedCustomOptions || []).length) return true;
   return false;
 }
 
@@ -2097,7 +2088,8 @@ function toggleExtra(name, price) {
 function getAppliedCustomGroups(item, moduleName) {
   var groups = [];
   var ids = item && (item.customGroupIds || item.customOptionGroupIds || item.optionGroupIds);
-  if (!ids) return groups;
+  if (!ids || (Array.isArray(ids) && !ids.length)) return buildLegacyCustomGroups(item, moduleName);
+  if (!Array.isArray(ids) && !Object.keys(ids || {}).length) return buildLegacyCustomGroups(item, moduleName);
   if (!Array.isArray(ids)) ids = Object.keys(ids || {}).filter(function(id) { return ids[id] !== false; });
   for (var i = 0; i < ids.length; i += 1) {
     var group = (customGroupsData && customGroupsData[ids[i]]) || (customOptionGroupsData && customOptionGroupsData[ids[i]]);
@@ -2121,8 +2113,60 @@ function getAppliedCustomGroups(item, moduleName) {
     var options = (group.options || group.items || []).filter(function(option) {
       return !(option && typeof option === "object" && option.enabled === false);
     });
-    groups.push({ id: ids[i], name: group.name || group.title || "選項", area: area, selectionType: selectionType, options: options, modules: modules });
+    groups.push({ id: ids[i], name: group.name || group.title || "選項", area: area, selectionType: selectionType, allowQuantity: group.allowQuantity === true, required: group.required === true, minSelect: Number(group.minSelect || 0), maxSelect: Number(group.maxSelect || 0), options: options, modules: modules });
   }
+  return groups;
+}
+
+function normalizeLegacyNamePriceList(source) {
+  var list = [];
+  if (Array.isArray(source)) {
+    for (var i = 0; i < source.length; i += 1) {
+      var item = source[i];
+      if (typeof item === "string") list.push({ name: item, price: 0 });
+      else if (item) list.push({ name: item.name || item.label || item.value || "", price: Number(item.price || 0) });
+    }
+  } else if (source && typeof source === "object") {
+    Object.keys(source).forEach(function(name) { list.push({ name: name, price: Number(source[name] || 0) }); });
+  }
+  return list.filter(function(item) { return item.name; });
+}
+
+function buildLegacyCustomGroups(item, moduleName) {
+  var groups = [];
+  if (!item) return groups;
+  var base = getBasePrice(item);
+  var sizeOptions = normalizeLegacyNamePriceList(item.sizes || item.sizeOptions);
+  if (sizeOptions.length) {
+    groups.push({ id: "__legacy_sizes", name: "份量", area: "customer", selectionType: "single", required: true, minSelect: 1, maxSelect: 1, options: sizeOptions.map(function(option, index) {
+      return { id: "__legacy_size_" + index, name: option.name, price: Number(option.price || 0) - base, enabled: true, sortOrder: (index + 1) * 1000 };
+    }) });
+  }
+  var requiredGroups = [];
+  if (Array.isArray(item.requiredGroups)) requiredGroups = item.requiredGroups;
+  else if (Array.isArray(item.requiredOptions)) requiredGroups = item.requiredOptions;
+  else if (item.requiredOption) requiredGroups = [item.requiredOption];
+  for (var r = 0; r < requiredGroups.length; r += 1) {
+    var required = requiredGroups[r] || {};
+    var requiredOptions = Array.isArray(required.options) ? required.options : [];
+    if (required.title && requiredOptions.length) {
+      groups.push({ id: "__legacy_required_" + r, name: required.title, area: "customer", selectionType: "single", required: true, minSelect: 1, maxSelect: 1, options: requiredOptions.map(function(name, index) {
+        return { id: "__legacy_required_" + r + "_" + index, name: String(name || ""), price: 0, enabled: true, sortOrder: (index + 1) * 1000 };
+      }) });
+    }
+  }
+  var addons = normalizeLegacyNamePriceList(item.options || item.addons || item.extras);
+  if (addons.length) groups.push({ id: "__legacy_addons", name: "加料", area: "customer", selectionType: "multiple", required: false, options: addons });
+  var removes = item.removeOptions || item.noOptions || item.excludedOptions || [];
+  if (removes && !Array.isArray(removes) && typeof removes === "object") removes = Object.keys(removes);
+  if (Array.isArray(removes) && removes.length) {
+    groups.push({ id: "__legacy_removes", name: "不要項目", area: "customer", selectionType: "multiple", required: false, options: removes.map(function(name, index) {
+      return { id: "__legacy_remove_" + index, name: String(name || ""), price: 0, enabled: true, sortOrder: (index + 1) * 1000 };
+    }) });
+  }
+  if (allowSpicy(item)) groups.push({ id: "__legacy_spicy", name: "辣度", area: "customer", selectionType: "single", required: false, options: SPICY_OPTIONS.map(function(name, index) { return { id: "__legacy_spicy_" + index, name: name, price: 0, enabled: true, sortOrder: (index + 1) * 1000 }; }) });
+  if (allowSatay(item)) groups.push({ id: "__legacy_satay", name: "沙茶", area: "customer", selectionType: "single", required: false, options: ["要沙茶", "不要沙茶"].map(function(name, index) { return { id: "__legacy_satay_" + index, name: name, price: 0, enabled: true, sortOrder: (index + 1) * 1000 }; }) });
+  if (moduleName === "qr") return groups.filter(function(group) { return group.area !== "posOnly"; });
   return groups;
 }
 
@@ -2151,8 +2195,9 @@ function renderCustomOptionGroups() {
       var option = typeof options[o] === "string" ? { name: options[o] } : options[o];
       var optionName = option.name || option.label || option.value || "";
       var selected = findSelectedCustomOption(group.id, optionName);
-      html += '<button type="button" class="option-btn v64-custom-option-btn ' + (selected ? "active" : "") + '" data-group-id="' + escapeHtml(group.id) + '" data-group-name="' + escapeHtml(group.name) + '" data-selection-type="' + escapeHtml(group.selectionType || "single") + '" data-option-name="' + escapeHtml(optionName) + '" data-option-price="' + Number(option.price || 0) + '" data-qty-enabled="' + (option.qtyEnabled || option.quantityEnabled || option.allowQuantity ? "true" : "false") + '" data-max-qty="' + Number(option.maxQty || option.maxQuantity || 1) + '">';
-      html += escapeHtml(optionName) + (Number(option.price || 0) ? " +" + Number(option.price || 0) : "");
+      var priceText = Number(option.price || 0) > 0 ? " +" + Number(option.price || 0) : (Number(option.price || 0) < 0 ? " " + Number(option.price || 0) : "");
+      html += '<button type="button" class="option-btn v64-custom-option-btn ' + (selected ? "active" : "") + '" data-group-id="' + escapeHtml(group.id) + '" data-group-name="' + escapeHtml(group.name) + '" data-selection-type="' + escapeHtml(group.selectionType || "single") + '" data-option-name="' + escapeHtml(optionName) + '" data-option-price="' + Number(option.price || 0) + '" data-qty-enabled="' + (group.allowQuantity || option.qtyEnabled || option.quantityEnabled || option.allowQuantity ? "true" : "false") + '" data-max-qty="' + Number(option.maxQty || option.maxQuantity || 1) + '">';
+      html += escapeHtml(optionName) + priceText;
       if (selected && Number(selected.qty || 1) > 1) html += " x" + Number(selected.qty || 1);
       html += '</button>';
     }
@@ -2214,6 +2259,21 @@ function customOptionsTotal(list) {
   return total;
 }
 
+function validatePosRequiredCustomGroups(item) {
+  var groups = getAppliedCustomGroups(item, "pos");
+  var selected = window.posV64SelectedCustomOptions || [];
+  for (var i = 0; i < groups.length; i += 1) {
+    var group = groups[i] || {};
+    if (group.required !== true && Number(group.minSelect || 0) <= 0) continue;
+    var count = 0;
+    for (var j = 0; j < selected.length; j += 1) {
+      if (String(selected[j].groupId) === String(group.id)) count += 1;
+    }
+    if (count < Math.max(1, Number(group.minSelect || 1))) return group.name || "必選項目";
+  }
+  return "";
+}
+
 function renderCustomOptionsDetail(item) {
   var list = item && item.customOptions;
   if (!list || !list.length) return "";
@@ -2257,15 +2317,15 @@ customModal.addEventListener("click", event => {
 confirmCustomBtn.addEventListener("click", () => {
   if (!currentItem || !selectedPortion) return;
   
-  const requiredOption = getRequiredOption(currentItem);
+  const missingCustomGroup = validatePosRequiredCustomGroups(currentItem);
 
-  if (requiredOption && !selectedRequiredOption) {
-    alert(`請先選擇「${requiredOption.title}」`);
+  if (missingCustomGroup) {
+    alert(`請先選擇「${missingCustomGroup}」`);
     return;
   }
   
-  const basePrice = Number(selectedPortion.price || getBasePrice(currentItem));
-  const extrasTotal = selectedExtras.reduce((sum, extra) => sum + Number(extra.price || 0), 0) + customOptionsTotal(window.posV64SelectedCustomOptions || []);
+  const basePrice = Number(getBasePrice(currentItem));
+  const extrasTotal = customOptionsTotal(window.posV64SelectedCustomOptions || []);
   const unitPrice = basePrice + extrasTotal;
   const subtotal = unitPrice * currentQuantity;
 
@@ -2275,25 +2335,20 @@ confirmCustomBtn.addEventListener("click", () => {
     itemId: currentItem.id,
     name: currentItem.name,
     category: getItemCategory(currentItem),
-    size: selectedPortion.name,
+    size: "",
     basePrice,
     price: unitPrice,
     unitPrice,
     quantity: currentQuantity,
     qty: currentQuantity,
-    spicy: allowSpicy(currentItem) ? spicySelect.value : "",
-    satay: allowSatay(currentItem) ? selectedSatay : "",
-    requiredOption: requiredOption
-      ? {
-          title: requiredOption.title,
-          value: selectedRequiredOption
-        }
-      : null,
-    extras: selectedExtras,
-    addons: selectedExtras,
+    spicy: "",
+    satay: "",
+    requiredOption: null,
+    extras: [],
+    addons: [],
     customOptions: window.posV64SelectedCustomOptions || [],
-    removes: selectedRemoves,
-    removeOptionsSelected: selectedRemoves,
+    removes: [],
+    removeOptionsSelected: [],
     note: "",
     subtotal
   };

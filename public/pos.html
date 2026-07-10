@@ -9,7 +9,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <title>恩點系統｜店員 POS</title>
   <link rel="manifest" href="./manifest.json" />
-  <link rel="stylesheet" href="./css/pos-v600.css?v=651" />
+  <link rel="stylesheet" href="./css/pos-v600.css?v=652" />
 </head>
 
 <body>
@@ -408,8 +408,7 @@
 
       <div id="portionBox" class="option-section"></div>
 
-      <div class="option-section">
-        <h3>辣度</h3>
+      <div class="option-section legacy-fixed-option">
         <select id="spicySelect" class="select-input">
           <option value="不辣">不辣</option>
           <option value="微辣">微辣</option>
@@ -419,10 +418,9 @@
         </select>
       </div>
 
-      <div id="satayBox" class="option-section"></div>
+      <div id="satayBox" class="option-section legacy-fixed-option"></div>
 
-      <div class="option-section">
-        <h3>加料</h3>
+      <div class="option-section legacy-fixed-option">
         <div id="extrasBox" class="extras-box"></div>
       </div>
 
@@ -478,12 +476,11 @@
   <div id="editItemModal" class="modal hidden">
     <div class="modal-card">
       <h2 id="editItemName">修改餐點</h2>
-      <p id="editItemPrice" class="modal-price">調整份量、加料、辣度與備註</p>
+      <p id="editItemPrice" class="modal-price">調整客製選項與備註</p>
 
       <div id="editItemPortionBox" class="option-section"></div>
 
-      <div class="option-section">
-        <h3>辣度</h3>
+      <div class="option-section legacy-fixed-option">
         <select id="editItemSpicySelect" class="select-input">
           <option value="">不需要</option>
           <option value="不辣">不辣</option>
@@ -494,10 +491,9 @@
         </select>
       </div>
 
-      <div id="editItemSatayBox" class="option-section"></div>
+      <div id="editItemSatayBox" class="option-section legacy-fixed-option"></div>
 
-      <div class="option-section">
-        <h3>加料</h3>
+      <div class="option-section legacy-fixed-option">
         <div id="editItemExtrasBox" class="extras-box"></div>
       </div>
 
@@ -598,6 +594,6 @@
       if (el) el.className += " hidden";
     }, false);
   </script>
-  <script type="module" src="./js/pos.js?v=651"></script>
+  <script type="module" src="./js/pos.js?v=652"></script>
 </body>
 </html>

@@ -717,137 +717,72 @@ function openItemModal(item) {
 }
 
 function renderModalOptions() {
-  const sizeOptions = getSizeOptions(selectedItem);
-
-  sizeSection.innerHTML = `
-    ${selectedItem.description ? `<div class="qr-item-description-box">${selectedItem.description}</div>` : ""}
-    <h3>份量</h3>
-    <div class="option-grid">
-      ${sizeOptions.map(opt => `
-        <button type="button" class="option-btn size-btn ${selectedSize && selectedSize.name === opt.name ? "active" : ""}"
-          data-name="${opt.name}"
-          data-price="${opt.price}">
-          ${opt.name} ${money(opt.price)}
-        </button>
-      `).join("")}
-    </div>
-  `;
-
-  document.querySelectorAll(".size-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      selectedSize = {
-        name: btn.dataset.name,
-        price: Number(btn.dataset.price)
-      };
-
-      renderModalOptions();
-      updateModalSubtotal();
-    });
-  });
-
-  const requiredOption = getRequiredOption(selectedItem);
-  const addons = getAddons(selectedItem);
-
-  const requiredHtml = requiredOption ? `
-    <div class="qr-required-option-box">
-      <h3>${requiredOption.title} <span>必選</span></h3>
-      <div class="option-grid">
-        ${requiredOption.options.map(option => `
-          <button
-            type="button"
-            class="option-btn required-option-btn ${selectedRequiredOption === option ? "active" : ""}"
-            data-value="${option}">
-            ${option}
-          </button>
-        `).join("")}
-      </div>
-    </div>
-  ` : "";
-
-  const addonsHtml = addons.length ? `
-    <h3>加料</h3>
-    <div class="option-grid">
-      ${addons.map(addon => `
-        <button
-          type="button"
-          class="option-btn addon-btn ${selectedAddons.some(a => a.name === addon.name) ? "active" : ""}"
-          data-name="${addon.name}"
-          data-price="${addon.price}">
-          ${addon.name} +${addon.price}
-        </button>
-      `).join("")}
-    </div>
-  ` : "";
-
-  addonsSection.innerHTML = requiredHtml + addonsHtml;
-
-  document.querySelectorAll(".required-option-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      selectedRequiredOption = btn.dataset.value;
-      renderModalOptions();
-      updateModalSubtotal();
-    });
-  });
-
-  document.querySelectorAll(".addon-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const addon = {
-        name: btn.dataset.name,
-        price: Number(btn.dataset.price)
-      };
-
-      if (selectedAddons.some(a => a.name === addon.name)) {
-        selectedAddons = selectedAddons.filter(a => a.name !== addon.name);
-      } else {
-        selectedAddons.push(addon);
-      }
-
-      renderModalOptions();
-      updateModalSubtotal();
-    });
-  });
-
-  spicySection.innerHTML = allowSpicy(selectedItem) ? `
-    <h3>辣度</h3>
-    <div class="option-grid">
-      ${SPICY_OPTIONS.map(level => `
-        <button type="button" class="option-btn spicy-btn ${selectedSpicy === level ? "active" : ""}" data-level="${level}">
-          ${level}
-        </button>
-      `).join("")}
-    </div>
-  ` : "";
-
-  document.querySelectorAll(".spicy-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      selectedSpicy = btn.dataset.level;
-      renderModalOptions();
-    });
-  });
-
-  sataySection.innerHTML = allowSatay(selectedItem) ? `
-    <h3>沙茶</h3>
-    <div class="option-grid">
-      <button type="button" class="option-btn satay-btn ${selectedSatay === "要" ? "active" : ""}" data-value="要">要沙茶</button>
-      <button type="button" class="option-btn satay-btn ${selectedSatay === "不要" ? "active" : ""}" data-value="不要">不要沙茶</button>
-    </div>
-  ` : "";
-
-  document.querySelectorAll(".satay-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      selectedSatay = btn.dataset.value;
-      renderModalOptions();
-    });
-  });
+  sizeSection.innerHTML = selectedItem.description ? `<div class="qr-item-description-box">${selectedItem.description}</div>` : "";
+  addonsSection.innerHTML = "";
+  spicySection.innerHTML = "";
+  sataySection.innerHTML = "";
 
   modalQty.textContent = selectedQty;
   renderQrCustomOptionGroups();
 }
 
+function normalizeLegacyNamePriceList(source) {
+  var list = [];
+  if (Array.isArray(source)) {
+    for (var i = 0; i < source.length; i += 1) {
+      var item = source[i];
+      if (typeof item === "string") list.push({ name: item, price: 0 });
+      else if (item) list.push({ name: item.name || item.label || item.value || "", price: Number(item.price || 0) });
+    }
+  } else if (source && typeof source === "object") {
+    Object.keys(source).forEach(function(name) { list.push({ name: name, price: Number(source[name] || 0) }); });
+  }
+  return list.filter(function(item) { return item.name; });
+}
+
+function buildLegacyCustomGroups(item, moduleName) {
+  var groups = [];
+  if (!item) return groups;
+  var base = getBasePrice(item);
+  var sizeOptions = normalizeLegacyNamePriceList(item.sizes || item.sizeOptions);
+  if (sizeOptions.length) {
+    groups.push({ id: "__legacy_sizes", name: "份量", area: "customer", selectionType: "single", required: true, minSelect: 1, maxSelect: 1, options: sizeOptions.map(function(option, index) {
+      return { id: "__legacy_size_" + index, name: option.name, price: Number(option.price || 0) - base, enabled: true, sortOrder: (index + 1) * 1000 };
+    }) });
+  }
+  var requiredGroups = [];
+  if (Array.isArray(item.requiredGroups)) requiredGroups = item.requiredGroups;
+  else if (Array.isArray(item.requiredOptions)) requiredGroups = item.requiredOptions;
+  else if (item.requiredOption) requiredGroups = [item.requiredOption];
+  for (var r = 0; r < requiredGroups.length; r += 1) {
+    var required = requiredGroups[r] || {};
+    var requiredOptions = Array.isArray(required.options) ? required.options : [];
+    if (required.title && requiredOptions.length) {
+      groups.push({ id: "__legacy_required_" + r, name: required.title, area: "customer", selectionType: "single", required: true, minSelect: 1, maxSelect: 1, options: requiredOptions.map(function(name, index) {
+        return { id: "__legacy_required_" + r + "_" + index, name: String(name || ""), price: 0, enabled: true, sortOrder: (index + 1) * 1000 };
+      }) });
+    }
+  }
+  var addons = normalizeLegacyNamePriceList(item.options || item.addons || item.extras);
+  if (addons.length) groups.push({ id: "__legacy_addons", name: "加料", area: "customer", selectionType: "multiple", required: false, options: addons });
+  var removes = item.removeOptions || item.noOptions || item.excludedOptions || [];
+  if (removes && !Array.isArray(removes) && typeof removes === "object") removes = Object.keys(removes);
+  if (Array.isArray(removes) && removes.length) {
+    groups.push({ id: "__legacy_removes", name: "不要項目", area: "customer", selectionType: "multiple", required: false, options: removes.map(function(name, index) {
+      return { id: "__legacy_remove_" + index, name: String(name || ""), price: 0, enabled: true, sortOrder: (index + 1) * 1000 };
+    }) });
+  }
+  if (allowSpicy(item)) groups.push({ id: "__legacy_spicy", name: "辣度", area: "customer", selectionType: "single", required: false, options: SPICY_OPTIONS.map(function(name, index) { return { id: "__legacy_spicy_" + index, name: name, price: 0, enabled: true, sortOrder: (index + 1) * 1000 }; }) });
+  if (allowSatay(item)) groups.push({ id: "__legacy_satay", name: "沙茶", area: "customer", selectionType: "single", required: false, options: ["要沙茶", "不要沙茶"].map(function(name, index) { return { id: "__legacy_satay_" + index, name: name, price: 0, enabled: true, sortOrder: (index + 1) * 1000 }; }) });
+  if (moduleName === "qr") return groups.filter(function(group) { return group.area !== "posOnly"; });
+  return groups;
+}
+
 function getAppliedCustomGroups(item, moduleName) {
   var groups = [];
   var ids = item && (item.customGroupIds || item.customOptionGroupIds || item.optionGroupIds);
-  if (!ids) return groups;
+  if (!ids || (Array.isArray(ids) && !ids.length)) return buildLegacyCustomGroups(item, moduleName);
+  if (!Array.isArray(ids) && !Object.keys(ids || {}).length) return buildLegacyCustomGroups(item, moduleName);
   if (!Array.isArray(ids)) ids = Object.keys(ids || {}).filter(function(id) { return ids[id] !== false; });
   for (var i = 0; i < ids.length; i += 1) {
     var group = (customGroupsData && customGroupsData[ids[i]]) || (customOptionGroupsData && customOptionGroupsData[ids[i]]);
@@ -870,7 +805,7 @@ function getAppliedCustomGroups(item, moduleName) {
     var options = (group.options || group.items || []).filter(function(option) {
       return !(option && typeof option === "object" && option.enabled === false);
     });
-    groups.push({ id: ids[i], name: group.name || group.title || "選項", area: area, selectionType: selectionType, options: options });
+    groups.push({ id: ids[i], name: group.name || group.title || "選項", area: area, selectionType: selectionType, allowQuantity: group.allowQuantity === true, required: group.required === true, minSelect: Number(group.minSelect || 0), maxSelect: Number(group.maxSelect || 0), options: options });
   }
   return groups;
 }
@@ -900,7 +835,8 @@ function renderQrCustomOptionGroups() {
       var option = typeof group.options[o] === "string" ? { name: group.options[o] } : group.options[o];
       var name = option.name || option.label || option.value || "";
       var selected = findQrSelectedCustomOption(group.id, name);
-      html += '<button type="button" class="option-btn qr-v64-option ' + (selected ? "active" : "") + '" data-group-id="' + escapeHtml(group.id) + '" data-group-name="' + escapeHtml(group.name) + '" data-selection-type="' + escapeHtml(group.selectionType || "single") + '" data-option-name="' + escapeHtml(name) + '" data-option-price="' + Number(option.price || 0) + '" data-qty-enabled="' + (option.qtyEnabled || option.quantityEnabled || option.allowQuantity ? "true" : "false") + '" data-max-qty="' + Number(option.maxQty || option.maxQuantity || 1) + '">' + escapeHtml(name) + (Number(option.price || 0) ? " +" + Number(option.price || 0) : "") + (selected && Number(selected.qty || 1) > 1 ? " x" + Number(selected.qty || 1) : "") + '</button>';
+      var priceText = Number(option.price || 0) > 0 ? " +" + Number(option.price || 0) : (Number(option.price || 0) < 0 ? " " + Number(option.price || 0) : "");
+      html += '<button type="button" class="option-btn qr-v64-option ' + (selected ? "active" : "") + '" data-group-id="' + escapeHtml(group.id) + '" data-group-name="' + escapeHtml(group.name) + '" data-selection-type="' + escapeHtml(group.selectionType || "single") + '" data-option-name="' + escapeHtml(name) + '" data-option-price="' + Number(option.price || 0) + '" data-qty-enabled="' + (group.allowQuantity || option.qtyEnabled || option.quantityEnabled || option.allowQuantity ? "true" : "false") + '" data-max-qty="' + Number(option.maxQty || option.maxQuantity || 1) + '">' + escapeHtml(name) + priceText + (selected && Number(selected.qty || 1) > 1 ? " x" + Number(selected.qty || 1) : "") + '</button>';
     }
     html += '</div></div>';
   }
@@ -938,6 +874,21 @@ function qrCustomOptionsTotal(list) {
   list = list || [];
   for (var i = 0; i < list.length; i += 1) total += Number(list[i].price || 0) * Number(list[i].qty || 1);
   return total;
+}
+
+function validateQrRequiredCustomGroups(item) {
+  var groups = getAppliedCustomGroups(item, "qr");
+  var selected = window.qrV64SelectedCustomOptions || [];
+  for (var i = 0; i < groups.length; i += 1) {
+    var group = groups[i] || {};
+    if (group.required !== true && Number(group.minSelect || 0) <= 0) continue;
+    var count = 0;
+    for (var j = 0; j < selected.length; j += 1) {
+      if (String(selected[j].groupId) === String(group.id)) count += 1;
+    }
+    if (count < Math.max(1, Number(group.minSelect || 1))) return group.name || "必選項目";
+  }
+  return "";
 }
 
 function updateModalSubtotal() {
@@ -1042,17 +993,14 @@ function qrAddCurrentItemToCart(event) {
     return false;
   }
 
-  var requiredOption = getRequiredOption(selectedItem);
-  if (requiredOption && !selectedRequiredOption) {
-    alert("請先選擇「" + requiredOption.title + "」");
+  var missingCustomGroup = validateQrRequiredCustomGroups(selectedItem);
+  if (missingCustomGroup) {
+    alert("請先選擇「" + missingCustomGroup + "」");
     return false;
   }
 
-  var basePrice = Number((selectedSize && selectedSize.price) || 0);
+  var basePrice = Number(getBasePrice(selectedItem) || 0);
   var addonsTotal = 0;
-  for (var i = 0; i < selectedAddons.length; i++) {
-    addonsTotal += Number(selectedAddons[i].price || 0);
-  }
   addonsTotal += qrCustomOptionsTotal(window.qrV64SelectedCustomOptions || []);
   var unitPrice = basePrice + addonsTotal;
   var nowId = selectedItem.id + "-" + new Date().getTime();
@@ -1062,19 +1010,16 @@ function qrAddCurrentItemToCart(event) {
     itemId: selectedItem.id,
     name: selectedItem.name,
     category: getItemCategory(selectedItem),
-    size: (selectedSize && selectedSize.name) || "一般",
+    size: "",
     basePrice: basePrice,
     price: unitPrice,
     unitPrice: unitPrice,
-    requiredOption: requiredOption ? {
-      title: requiredOption.title,
-      value: selectedRequiredOption
-    } : null,
+    requiredOption: null,
     customOptions: window.qrV64SelectedCustomOptions || [],
-    addons: selectedAddons,
-    extras: selectedAddons,
-    spicy: allowSpicy(selectedItem) ? selectedSpicy : "",
-    satay: allowSatay(selectedItem) ? selectedSatay : "",
+    addons: [],
+    extras: [],
+    spicy: "",
+    satay: "",
     note: itemNote ? itemNote.value.trim() : "",
     qty: selectedQty,
     quantity: selectedQty,
