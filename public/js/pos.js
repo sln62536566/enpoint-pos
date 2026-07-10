@@ -151,6 +151,8 @@ const testSoundBtn = document.getElementById("testSoundBtn");
 const autoSwitchCartToggle = document.getElementById("autoSwitchCartToggle");
 const posMenuManageSearch = document.getElementById("posMenuManageSearch");
 const posMenuManageList = document.getElementById("posMenuManageList");
+const posMenuManageSubtabButtons = document.querySelectorAll("[data-menu-manage-subtab]");
+const posMenuManagePanes = document.querySelectorAll("[data-menu-manage-pane]");
 const restoreMenuStatusBtn = document.getElementById("restoreMenuStatusBtn");
 const restoreSoldoutBtn = document.getElementById("restoreSoldoutBtn");
 const restorePausedBtn = document.getElementById("restorePausedBtn");
@@ -2100,6 +2102,8 @@ function getAppliedCustomGroups(item, moduleName) {
   for (var i = 0; i < ids.length; i += 1) {
     var group = (customGroupsData && customGroupsData[ids[i]]) || (customOptionGroupsData && customOptionGroupsData[ids[i]]);
     if (!group) continue;
+    if (group.enabled === false) continue;
+    var area = group.area || group.type || "";
     var visibility = group.visibility || {};
     var modules = group.modules || {
       qr: visibility.qr === true,
@@ -2112,7 +2116,12 @@ function getAppliedCustomGroups(item, moduleName) {
     if (moduleName && modules[moduleName] === false) continue;
     if (moduleName && moduleName === "qr" && modules.qr !== true) continue;
     if (moduleName && moduleName === "pos" && modules.pos === false) continue;
-    groups.push({ id: ids[i], name: group.name || group.title || "選項", options: group.options || group.items || [], modules: modules });
+    var selectionType = group.selectionType || group.choiceType || (group.allowQuantity ? "quantity" : "single");
+    if (selectionType === "multi") selectionType = "multiple";
+    var options = (group.options || group.items || []).filter(function(option) {
+      return !(option && typeof option === "object" && option.enabled === false);
+    });
+    groups.push({ id: ids[i], name: group.name || group.title || "選項", area: area, selectionType: selectionType, options: options, modules: modules });
   }
   return groups;
 }
@@ -2142,7 +2151,7 @@ function renderCustomOptionGroups() {
       var option = typeof options[o] === "string" ? { name: options[o] } : options[o];
       var optionName = option.name || option.label || option.value || "";
       var selected = findSelectedCustomOption(group.id, optionName);
-      html += '<button type="button" class="option-btn v64-custom-option-btn ' + (selected ? "active" : "") + '" data-group-id="' + escapeHtml(group.id) + '" data-group-name="' + escapeHtml(group.name) + '" data-option-name="' + escapeHtml(optionName) + '" data-option-price="' + Number(option.price || 0) + '" data-qty-enabled="' + (option.qtyEnabled || option.quantityEnabled ? "true" : "false") + '" data-max-qty="' + Number(option.maxQty || option.maxQuantity || 1) + '">';
+      html += '<button type="button" class="option-btn v64-custom-option-btn ' + (selected ? "active" : "") + '" data-group-id="' + escapeHtml(group.id) + '" data-group-name="' + escapeHtml(group.name) + '" data-selection-type="' + escapeHtml(group.selectionType || "single") + '" data-option-name="' + escapeHtml(optionName) + '" data-option-price="' + Number(option.price || 0) + '" data-qty-enabled="' + (option.qtyEnabled || option.quantityEnabled || option.allowQuantity ? "true" : "false") + '" data-max-qty="' + Number(option.maxQty || option.maxQuantity || 1) + '">';
       html += escapeHtml(optionName) + (Number(option.price || 0) ? " +" + Number(option.price || 0) : "");
       if (selected && Number(selected.qty || 1) > 1) html += " x" + Number(selected.qty || 1);
       html += '</button>';
@@ -2177,6 +2186,7 @@ function toggleCustomOption(button) {
   var price = Number(button.getAttribute("data-option-price") || 0);
   var qtyEnabled = button.getAttribute("data-qty-enabled") === "true";
   var maxQty = Math.max(1, Number(button.getAttribute("data-max-qty") || 1));
+  var selectionType = button.getAttribute("data-selection-type") || "single";
   var foundIndex = -1;
   for (var i = 0; i < list.length; i += 1) {
     if (String(list[i].groupId) === String(groupId) && String(list[i].name) === String(name)) foundIndex = i;
@@ -2188,6 +2198,9 @@ function toggleCustomOption(button) {
       list.splice(foundIndex, 1);
     }
   } else {
+    if (selectionType === "single" || selectionType === "toggle") {
+      list = list.filter(function(item) { return String(item.groupId) !== String(groupId); });
+    }
     list.push({ groupId: groupId, groupName: groupName, name: name, price: price, qty: 1, qtyEnabled: qtyEnabled, maxQty: maxQty });
   }
   window.posV64SelectedCustomOptions = list;
@@ -3725,7 +3738,7 @@ function renderPosMenuManage() {
   for (var i = 0; i < items.length; i += 1) {
     var item = items[i] || {};
     html += '<div class="pos-menu-manage-row sale-' + getSaleStatus(item) + '" data-id="' + escapeHtml(item.id) + '">';
-    html += '<div class="pos-menu-manage-main"><strong>' + escapeHtml(item.name || "餐點") + '</strong><span>' + escapeHtml(item.category || "") + '</span><em>' + getSaleStatusText(item) + '</em></div>';
+    html += '<div class="pos-menu-manage-main"><strong>' + escapeHtml(item.name || "餐點") + '</strong><span>' + escapeHtml(item.category || "") + '</span><b>' + money(getBasePrice(item)) + '</b><em>' + getSaleStatusText(item) + '</em></div>';
     html += '<div class="pos-menu-status-actions">';
     html += '<button type="button" data-action="normal">正常</button><button type="button" data-action="paused">暫停</button><button type="button" data-action="soldout">售完</button>';
     html += '<button type="button" data-action="up">上移</button><button type="button" data-action="down">下移</button>';
@@ -3788,6 +3801,32 @@ if (posMenuManageSearch) posMenuManageSearch.addEventListener("input", renderPos
 if (restoreMenuStatusBtn) restoreMenuStatusBtn.addEventListener("click", function() { restoreMenuStatuses(""); }, false);
 if (restoreSoldoutBtn) restoreSoldoutBtn.addEventListener("click", function() { restoreMenuStatuses("soldout"); }, false);
 if (restorePausedBtn) restorePausedBtn.addEventListener("click", function() { restoreMenuStatuses("paused"); }, false);
+function switchPosMenuManageSubtab(target) {
+  var next = target === "studio" ? "studio" : "quick";
+  for (var i = 0; i < posMenuManageSubtabButtons.length; i += 1) {
+    var active = posMenuManageSubtabButtons[i].getAttribute("data-menu-manage-subtab") === next;
+    if (posMenuManageSubtabButtons[i].classList) {
+      if (active) posMenuManageSubtabButtons[i].classList.add("active");
+      else posMenuManageSubtabButtons[i].classList.remove("active");
+    } else {
+      posMenuManageSubtabButtons[i].className = active ? "active" : "";
+    }
+  }
+  for (var j = 0; j < posMenuManagePanes.length; j += 1) {
+    var paneActive = posMenuManagePanes[j].getAttribute("data-menu-manage-pane") === next;
+    if (posMenuManagePanes[j].classList) {
+      if (paneActive) posMenuManagePanes[j].classList.add("active");
+      else posMenuManagePanes[j].classList.remove("active");
+    } else {
+      posMenuManagePanes[j].style.display = paneActive ? "" : "none";
+    }
+  }
+}
+for (var manageTabIndex = 0; manageTabIndex < posMenuManageSubtabButtons.length; manageTabIndex += 1) {
+  posMenuManageSubtabButtons[manageTabIndex].addEventListener("click", function() {
+    switchPosMenuManageSubtab(this.getAttribute("data-menu-manage-subtab"));
+  }, false);
+}
 renderPosFoodButton = renderPosFoodButtonV649;
 renderCart = renderCartV649;
 

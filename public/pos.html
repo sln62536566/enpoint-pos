@@ -9,7 +9,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <title>恩點系統｜店員 POS</title>
   <link rel="manifest" href="./manifest.json" />
-  <link rel="stylesheet" href="./css/pos-v600.css?v=650" />
+  <link rel="stylesheet" href="./css/pos-v600.css?v=651" />
 </head>
 
 <body>
@@ -117,15 +117,28 @@
         <div class="pos-menu-manage-layout">
           <div class="panel-title">
             <h2>菜單管理</h2>
-            <p>營業中快速調整名稱、價格、上架狀態、今日售完與暫停販售。</p>
+            <p>營業中快速調整，或開啟完整菜單工作室。</p>
           </div>
-          <div class="pos-menu-manage-tools">
-            <input id="posMenuManageSearch" class="settings-input" type="text" placeholder="搜尋餐點" />
-            <button id="restoreSoldoutBtn" class="secondary-btn" type="button">一鍵恢復今日售完</button>
-            <button id="restorePausedBtn" class="secondary-btn" type="button">一鍵恢復暫停販售</button>
-            <button id="restoreMenuStatusBtn" class="secondary-btn" type="button">全部恢復正常</button>
+          <div class="pos-menu-manage-subtabs" role="tablist" aria-label="菜單管理">
+            <button class="active" type="button" data-menu-manage-subtab="quick">快速營業管理</button>
+            <button type="button" data-menu-manage-subtab="studio">完整菜單工作室</button>
           </div>
-          <div id="posMenuManageList" class="pos-menu-manage-list"></div>
+          <div class="pos-menu-manage-pane active" data-menu-manage-pane="quick">
+            <div class="pos-menu-manage-tools">
+              <input id="posMenuManageSearch" class="settings-input" type="text" placeholder="搜尋餐點" />
+              <button id="restoreSoldoutBtn" class="secondary-btn" type="button">一鍵恢復今日售完</button>
+              <button id="restorePausedBtn" class="secondary-btn" type="button">一鍵恢復暫停販售</button>
+              <button id="restoreMenuStatusBtn" class="secondary-btn" type="button">全部恢復正常</button>
+            </div>
+            <div id="posMenuManageList" class="pos-menu-manage-list"></div>
+          </div>
+          <div class="pos-menu-manage-pane" data-menu-manage-pane="studio">
+            <div class="pos-menu-studio-card">
+              <h3>完整菜單工作室</h3>
+              <p>分類、餐點新增/編輯、客製中心、範本中心、圖片設定與排序都使用 Admin 同一套資料與儲存邏輯。</p>
+              <a class="primary-btn pos-menu-studio-link" href="./admin.html" target="_blank" rel="noopener">開啟完整菜單工作室</a>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -585,6 +598,6 @@
       if (el) el.className += " hidden";
     }, false);
   </script>
-  <script type="module" src="./js/pos.js?v=650"></script>
+  <script type="module" src="./js/pos.js?v=651"></script>
 </body>
 </html>

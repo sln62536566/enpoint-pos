@@ -68,6 +68,7 @@ const customGroupNameInput = document.getElementById("customGroupNameInput");
 const addCustomGroupBtn = document.getElementById("addCustomGroupBtn");
 const customGroupEditorList = document.getElementById("customGroupEditorList");
 const itemCustomGroupPicker = document.getElementById("itemCustomGroupPicker");
+const templateCustomGroupPicker = document.getElementById("templateCustomGroupPicker");
 let openNewItemModalBtn = document.getElementById("openNewItemModalBtn");
 const itemEditorModal = document.getElementById("itemEditorModal") || document.querySelector("#itemAdminTab .admin-form-panel");
 let templateSizesRows = document.getElementById("templateSizesRows");
@@ -114,6 +115,7 @@ let requiredGroupRows = [];
 let templateRequiredGroupRows = [];
 let itemEditorInitialState = "";
 let selectedCustomGroupIds = [];
+let selectedTemplateCustomGroupIds = [];
 
 /* =========================
    Helpers
@@ -934,6 +936,8 @@ function getTemplateDataFromForm() {
     requiredOption: getTemplateRequiredOptionFromForm(),
     requiredOptions: requiredGroups,
     requiredGroups,
+    customGroupIds: selectedTemplateCustomGroupIds.slice(),
+    customOptionGroupIds: selectedTemplateCustomGroupIds.slice(),
     options: parseNamePriceText(templateAddonsInput ? templateAddonsInput.value : ""),
     removeOptions: parseListText(templateRemoveOptionsInput ? templateRemoveOptionsInput.value : "")
   };
@@ -957,10 +961,12 @@ function resetTemplateForm() {
   if (templateRequiredTitleInput) templateRequiredTitleInput.value = "";
   if (templateRequiredChoicesInput) templateRequiredChoicesInput.value = "";
   templateRequiredGroupRows = [];
+  selectedTemplateCustomGroupIds = [];
   if (templateAddonsInput) templateAddonsInput.value = "";
   if (templateRemoveOptionsInput) templateRemoveOptionsInput.value = "";
   if (saveTemplateBtn) saveTemplateBtn.textContent = "儲存範本";
   refreshTemplateRowEditors();
+  renderTemplateCustomGroupPicker();
 }
 
 function fillTemplateForm(template) {
@@ -969,11 +975,13 @@ function fillTemplateForm(template) {
   if (templateNameInput) templateNameInput.value = template.name || "";
   if (templateSizesInput) templateSizesInput.value = formatNamePriceText(template.sizes || {});
   templateRequiredGroupRows = normalizeRequiredGroups(template);
+  selectedTemplateCustomGroupIds = Array.isArray(template.customGroupIds || template.customOptionGroupIds) ? (template.customGroupIds || template.customOptionGroupIds).slice() : [];
   syncTemplateLegacyRequiredInputs();
   if (templateAddonsInput) templateAddonsInput.value = formatNamePriceText(template.options || {});
   if (templateRemoveOptionsInput) templateRemoveOptionsInput.value = formatListText(template.removeOptions || []);
   if (saveTemplateBtn) saveTemplateBtn.textContent = "更新範本";
   refreshTemplateRowEditors();
+  renderTemplateCustomGroupPicker();
 }
 
 function refreshTemplateRowEditors() {
@@ -1006,6 +1014,15 @@ function applyOptionTemplate(templateId) {
   setSizeRowsFromSizes(template.sizes || {});
   setAddonRowsFromOptions(template.options || {});
   setRemoveOptionRows(template.removeOptions || []);
+  var templateGroupIds = template.customGroupIds || template.customOptionGroupIds || [];
+  if (Array.isArray(templateGroupIds)) {
+    var existing = {};
+    for (var i = 0; i < selectedCustomGroupIds.length; i += 1) existing[selectedCustomGroupIds[i]] = true;
+    for (var j = 0; j < templateGroupIds.length; j += 1) {
+      if (!existing[templateGroupIds[j]]) selectedCustomGroupIds.push(templateGroupIds[j]);
+    }
+    renderItemCustomGroupPicker();
+  }
   refreshItemEditorAfterTemplateApply();
 }
 
@@ -1100,13 +1117,14 @@ function renderOptionTemplates() {
     const sizeCount = Object.keys(template.sizes || {}).length;
     const addonCount = Object.keys(template.options || {}).length;
     const removeCount = Array.isArray(template.removeOptions) ? template.removeOptions.length : 0;
+    const groupCount = Array.isArray(template.customGroupIds || template.customOptionGroupIds) ? (template.customGroupIds || template.customOptionGroupIds).length : 0;
 
     return `
       <article class="option-template-card">
         <div>
           <strong>${escapeHtml(template.name || "未命名範本")}</strong>
           <p>${escapeHtml(requiredText)}</p>
-          <small>份量 ${sizeCount}｜加料 ${addonCount}｜不要項目 ${removeCount}</small>
+          <small>份量 ${sizeCount}｜加料 ${addonCount}｜不要項目 ${removeCount}｜客製群組 ${groupCount}</small>
         </div>
         <div class="option-template-actions">
           <button type="button" data-action="apply" data-id="${escapeHtml(template.id)}">套用</button>
@@ -2550,6 +2568,28 @@ function defaultCustomGroupModules() {
   return { qr: true, pos: true, kds: true, print: true, sticker: true, online: false };
 }
 
+function defaultCustomGroupModulesForArea(area) {
+  if (area === "posOnly") {
+    return { qr: false, pos: true, kds: true, print: true, sticker: true, online: false };
+  }
+  return defaultCustomGroupModules();
+}
+
+function normalizeSelectionType(value) {
+  if (value === "multi") return "multiple";
+  if (value === "quantity") return "quantity";
+  if (value === "toggle") return "toggle";
+  return value === "multiple" ? "multiple" : "single";
+}
+
+function selectionTypeLabel(value) {
+  value = normalizeSelectionType(value);
+  if (value === "multiple") return "多選";
+  if (value === "quantity") return "可調數量";
+  if (value === "toggle") return "開關";
+  return "單選";
+}
+
 function modulesToVisibility(modules) {
   modules = modules || defaultCustomGroupModules();
   return {
@@ -2576,22 +2616,46 @@ function visibilityToModules(visibility) {
 
 function normalizeCustomGroup(id, group) {
   group = group || {};
+  var area = group.area || group.type || (group.modules && group.modules.qr === false ? "posOnly" : "");
   var modules = group.modules || visibilityToModules(group.visibility);
+  if (!group.modules && !group.visibility) modules = defaultCustomGroupModulesForArea(area === "posOnly" ? "posOnly" : "customer");
+  if (area === "posOnly") modules.qr = false;
   var options = Array.isArray(group.options) ? group.options : (Array.isArray(group.items) ? group.items : []);
   return {
     id: id,
     name: group.name || "",
-    type: group.type || (modules.qr === true ? "customer" : "posOnly"),
+    area: area === "posOnly" ? "posOnly" : "customer",
+    type: area === "posOnly" ? "posOnly" : "customer",
+    selectionType: normalizeSelectionType(group.selectionType || group.choiceType || group.typeMode || (group.allowQuantity ? "quantity" : "single")),
     modules: modules,
     visibility: group.visibility || modulesToVisibility(modules),
     required: group.required === true,
     minSelect: Number(group.minSelect || 0),
     maxSelect: Number(group.maxSelect || 0),
+    description: group.description || "",
+    enabled: group.enabled !== false,
     allowQuantity: group.allowQuantity === true,
     defaultQuantity: Math.max(1, Number(group.defaultQuantity || 1)),
     maxQuantity: Math.max(1, Number(group.maxQuantity || 1)),
     sortOrder: Number(group.sortOrder || 0),
-    options: options
+    options: options.map(function(option, index) {
+      if (typeof option === "string") option = { name: option };
+      option = option || {};
+      return {
+        id: option.id || option.itemId || "",
+        name: option.name || option.label || option.value || "",
+        price: Number(option.price || 0),
+        allowQuantity: option.allowQuantity === true || option.qtyEnabled === true || option.quantityEnabled === true,
+        qtyEnabled: option.allowQuantity === true || option.qtyEnabled === true || option.quantityEnabled === true,
+        defaultQuantity: Math.max(1, Number(option.defaultQuantity || 1)),
+        maxQuantity: Math.max(1, Number(option.maxQuantity || option.maxQty || 1)),
+        maxQty: Math.max(1, Number(option.maxQuantity || option.maxQty || 1)),
+        enabled: option.enabled !== false,
+        sortOrder: Number(option.sortOrder || ((index + 1) * 1000))
+      };
+    }).sort(function(a, b) {
+      return Number(a.sortOrder || 0) - Number(b.sortOrder || 0);
+    })
   };
 }
 
@@ -2617,7 +2681,8 @@ function renderItemCustomGroupPicker() {
   }
   itemCustomGroupPicker.innerHTML = groups.map(function(group) {
     var checked = selectedCustomGroupIds.indexOf(group.id) >= 0 ? "checked" : "";
-    return '<label class="custom-group-check"><input type="checkbox" value="' + escapeHtml(group.id) + '" ' + checked + ' /> <span>' + escapeHtml(group.name || "選項群組") + '</span></label>';
+    var areaText = group.area === "posOnly" ? "POS 內部" : "客人可選";
+    return '<label class="custom-group-check"><input type="checkbox" value="' + escapeHtml(group.id) + '" ' + checked + ' /> <span>' + escapeHtml(group.name || "選項群組") + '｜' + areaText + '</span></label>';
   }).join("");
   var inputs = itemCustomGroupPicker.querySelectorAll("input");
   for (var i = 0; i < inputs.length; i += 1) {
@@ -2633,12 +2698,39 @@ function renderItemCustomGroupPicker() {
   }
 }
 
+function renderTemplateCustomGroupPicker() {
+  if (!templateCustomGroupPicker) return;
+  var groups = getCustomGroupItems();
+  if (!groups.length) {
+    templateCustomGroupPicker.innerHTML = '<div class="empty small-empty">尚未建立客製選項群組</div>';
+    return;
+  }
+  templateCustomGroupPicker.innerHTML = groups.map(function(group) {
+    var checked = selectedTemplateCustomGroupIds.indexOf(group.id) >= 0 ? "checked" : "";
+    var areaText = group.area === "posOnly" ? "POS 內部" : "客人可選";
+    return '<label class="custom-group-check"><input type="checkbox" value="' + escapeHtml(group.id) + '" ' + checked + ' /> <span>' + escapeHtml(group.name || "選項群組") + '｜' + areaText + '</span></label>';
+  }).join("");
+  var inputs = templateCustomGroupPicker.querySelectorAll("input");
+  for (var i = 0; i < inputs.length; i += 1) {
+    inputs[i].onchange = function() {
+      var id = this.value;
+      var next = [];
+      for (var j = 0; j < selectedTemplateCustomGroupIds.length; j += 1) {
+        if (selectedTemplateCustomGroupIds[j] !== id) next.push(selectedTemplateCustomGroupIds[j]);
+      }
+      if (this.checked) next.push(id);
+      selectedTemplateCustomGroupIds = next;
+    };
+  }
+}
+
 function renderCustomGroupEditor() {
   if (!customGroupEditorList) return;
   var groups = getCustomGroupItems();
   if (!groups.length) {
     customGroupEditorList.innerHTML = '<div class="empty small-empty">尚未建立客製選項群組</div>';
     renderItemCustomGroupPicker();
+    renderTemplateCustomGroupPicker();
     return;
   }
   customGroupEditorList.innerHTML = groups.map(function(group) {
@@ -2668,6 +2760,7 @@ function renderCustomGroupEditor() {
   }).join("");
   bindCustomGroupEditor();
   renderItemCustomGroupPicker();
+  renderTemplateCustomGroupPicker();
 }
 
 function bindCustomGroupEditor() {
@@ -2701,16 +2794,21 @@ function saveCustomGroupFromCard(card, id) {
   if (!card || !id) return;
   var groupNameInput = card.querySelector('input[data-field="groupName"]');
   var groupTypeInput = card.querySelector('[data-field="groupType"]');
+  var selectionTypeInput = card.querySelector('[data-field="selectionType"]') || card.querySelector('[data-field="choiceType"]');
+  var descriptionInput = card.querySelector('[data-field="description"]');
+  var enabledInput = card.querySelector('input[data-field="enabled"]');
   var requiredInput = card.querySelector('input[data-field="required"]');
   var minSelectInput = card.querySelector('input[data-field="minSelect"]');
   var maxSelectInput = card.querySelector('input[data-field="maxSelect"]');
   var modules = {};
   var moduleInputs = card.querySelectorAll("input[data-module]");
   for (var m = 0; m < moduleInputs.length; m += 1) modules[moduleInputs[m].getAttribute("data-module")] = moduleInputs[m].checked === true;
+  var area = groupTypeInput ? groupTypeInput.value : (modules.qr === true ? "customer" : "posOnly");
   if (groupTypeInput && groupTypeInput.value === "posOnly") {
     modules.qr = false;
     modules.pos = true;
   }
+  if (area !== "posOnly" && moduleInputs.length === 0) modules = defaultCustomGroupModulesForArea(area);
   var rows = card.querySelectorAll(".custom-group-option-row");
   var options = [];
   var customItemsUpdates = {};
@@ -2719,18 +2817,23 @@ function saveCustomGroupFromCard(card, id) {
     var nameInput = rows[r].querySelector('input[data-field="name"]');
     var priceInput = rows[r].querySelector('input[data-field="price"]');
     var qtyInput = rows[r].querySelector('input[data-field="qtyEnabled"]');
+    var defaultQtyInput = rows[r].querySelector('input[data-field="defaultQuantity"]');
     var maxQtyInput = rows[r].querySelector('input[data-field="maxQty"]');
+    var optionEnabledInput = rows[r].querySelector('input[data-field="optionEnabled"]');
     var name = nameInput ? String(nameInput.value || "").trim() : "";
     if (!name) continue;
+    var maxQty = Math.max(1, Number(maxQtyInput && maxQtyInput.value || 1));
+    var defaultQty = Math.max(1, Math.min(maxQty, Number(defaultQtyInput && defaultQtyInput.value || 1)));
     var optionData = {
       id: optionId,
       name: name,
       price: Number(priceInput && priceInput.value || 0),
       allowQuantity: qtyInput && qtyInput.checked === true,
       qtyEnabled: qtyInput && qtyInput.checked === true,
-      defaultQuantity: 1,
-      maxQuantity: Math.max(1, Number(maxQtyInput && maxQtyInput.value || 1)),
-      maxQty: Math.max(1, Number(maxQtyInput && maxQtyInput.value || 1)),
+      defaultQuantity: defaultQty,
+      maxQuantity: maxQty,
+      maxQty: maxQty,
+      enabled: !optionEnabledInput || optionEnabledInput.checked === true,
       sortOrder: (r + 1) * 1000
     };
     options.push(optionData);
@@ -2738,14 +2841,21 @@ function saveCustomGroupFromCard(card, id) {
   }
   var nowTime = Date.now ? Date.now() : new Date().getTime();
   var name = groupNameInput ? groupNameInput.value : "";
+  var selectionType = normalizeSelectionType(selectionTypeInput ? selectionTypeInput.value : "single");
   var formalGroup = {
     id: id,
     name: name,
-    type: groupTypeInput ? groupTypeInput.value : (modules.qr === true ? "customer" : "posOnly"),
+    area: area,
+    type: area,
+    selectionType: selectionType,
+    choiceType: selectionType,
     visibility: modulesToVisibility(modules),
+    modules: modules,
     required: requiredInput && requiredInput.checked === true,
     minSelect: Math.max(0, Number(minSelectInput && minSelectInput.value || 0)),
     maxSelect: Math.max(0, Number(maxSelectInput && maxSelectInput.value || 0)),
+    description: descriptionInput ? String(descriptionInput.value || "").trim() : "",
+    enabled: !enabledInput || enabledInput.checked === true,
     allowQuantity: false,
     defaultQuantity: 1,
     maxQuantity: 1,
@@ -2756,13 +2866,20 @@ function saveCustomGroupFromCard(card, id) {
   var updates = {};
   updates["customGroups/" + id] = formalGroup;
   updates["customOptionGroups/" + id] = {
+    id: id,
     name: name,
+    area: formalGroup.area,
     type: formalGroup.type,
+    selectionType: formalGroup.selectionType,
+    choiceType: formalGroup.choiceType,
     modules: modules,
     visibility: formalGroup.visibility,
     required: formalGroup.required,
     minSelect: formalGroup.minSelect,
     maxSelect: formalGroup.maxSelect,
+    description: formalGroup.description,
+    enabled: formalGroup.enabled,
+    sortOrder: formalGroup.sortOrder,
     options: options,
     updatedAt: nowTime
   };
@@ -2779,10 +2896,10 @@ function addCustomGroup() {
   var newRef = push(customOptionGroupsRef);
   var id = newRef.key;
   var nowTime = Date.now ? Date.now() : new Date().getTime();
-  var modules = defaultCustomGroupModules();
+  var modules = defaultCustomGroupModulesForArea("customer");
   var updates = {};
-  updates["customOptionGroups/" + id] = { id: id, name: name, type: "customer", modules: modules, visibility: modulesToVisibility(modules), options: [], createdAt: nowTime, updatedAt: nowTime };
-  updates["customGroups/" + id] = { id: id, name: name, type: "customer", visibility: modulesToVisibility(modules), required: false, minSelect: 0, maxSelect: 0, allowQuantity: false, defaultQuantity: 1, maxQuantity: 1, sortOrder: nowTime, items: [], createdAt: nowTime, updatedAt: nowTime };
+  updates["customOptionGroups/" + id] = { id: id, name: name, area: "customer", type: "customer", selectionType: "single", choiceType: "single", modules: modules, visibility: modulesToVisibility(modules), required: false, minSelect: 0, maxSelect: 1, description: "", enabled: true, sortOrder: nowTime, options: [], createdAt: nowTime, updatedAt: nowTime };
+  updates["customGroups/" + id] = { id: id, name: name, area: "customer", type: "customer", selectionType: "single", choiceType: "single", modules: modules, visibility: modulesToVisibility(modules), required: false, minSelect: 0, maxSelect: 1, description: "", enabled: true, allowQuantity: false, defaultQuantity: 1, maxQuantity: 1, sortOrder: nowTime, items: [], createdAt: nowTime, updatedAt: nowTime };
   update(ref(db), updates);
   if (customGroupNameInput) customGroupNameInput.value = "";
 }
@@ -2790,7 +2907,7 @@ function addCustomGroup() {
 function addCustomGroupOption(id) {
   var group = customGroupsData[id] || customOptionGroupsData[id] || {};
   var options = Array.isArray(group.items) ? group.items.slice() : (Array.isArray(group.options) ? group.options.slice() : []);
-  options.push({ id: id + "-item-" + (Date.now ? Date.now() : new Date().getTime()), name: "", price: 0, allowQuantity: false, qtyEnabled: false, defaultQuantity: 1, maxQuantity: 1, maxQty: 1, sortOrder: (options.length + 1) * 1000 });
+  options.push({ id: id + "-item-" + (Date.now ? Date.now() : new Date().getTime()), name: "", price: 0, allowQuantity: false, qtyEnabled: false, defaultQuantity: 1, maxQuantity: 1, maxQty: 1, enabled: true, sortOrder: (options.length + 1) * 1000 });
   var updates = {};
   updates["customGroups/" + id + "/items"] = options;
   updates["customGroups/" + id + "/updatedAt"] = Date.now();
@@ -2815,16 +2932,18 @@ function renderCustomGroupEditorV649() {
   if (!groups.length) {
     customGroupEditorList.innerHTML = '<div class="empty small-empty">尚未建立客製分類</div>';
     renderItemCustomGroupPicker();
+    renderTemplateCustomGroupPicker();
     return;
   }
-  var customerGroups = groups.filter(function(group) { return group.type !== "posOnly"; });
-  var posOnlyGroups = groups.filter(function(group) { return group.type === "posOnly"; });
+  var customerGroups = groups.filter(function(group) { return group.area !== "posOnly"; });
+  var posOnlyGroups = groups.filter(function(group) { return group.area === "posOnly"; });
   customGroupEditorList.innerHTML =
-    '<div class="menu-studio-flow"><span>Step 1 名稱</span><span>Step 2 類型</span><span>Step 3 模組與選項</span></div>' +
-    renderCustomGroupSectionV649("客人可看到", "QR / POS / KDS / 出單 / 貼紙 / 線上訂餐", customerGroups) +
-    renderCustomGroupSectionV649("店員專用", "POS / KDS / 出單 / 貼紙", posOnlyGroups);
+    '<div class="menu-studio-flow"><span>群組名稱</span><span>選擇方式</span><span>模組適用</span><span>選項內容</span></div>' +
+    renderCustomGroupSectionV649("客人可選項", "QR / POS / KDS / 出單；貼紙與線上訂餐先預留欄位", customerGroups) +
+    renderCustomGroupSectionV649("POS 內部選項", "QR 不顯示；POS / KDS / 出單可使用", posOnlyGroups);
   bindCustomGroupEditorV649();
   renderItemCustomGroupPicker();
+  renderTemplateCustomGroupPicker();
 }
 
 function renderCustomGroupSectionV649(title, subtitle, groups) {
@@ -2836,7 +2955,8 @@ function renderCustomGroupSectionV649(title, subtitle, groups) {
 }
 
 function renderCustomGroupCardV649(group) {
-  var modules = group.modules || defaultCustomGroupModules();
+  var modules = group.modules || defaultCustomGroupModulesForArea(group.area);
+  if (group.area === "posOnly") modules.qr = false;
   var options = group.options || [];
   var optionHtml = "";
   for (var i = 0; i < options.length; i += 1) {
@@ -2844,28 +2964,35 @@ function renderCustomGroupCardV649(group) {
     optionHtml += '<div class="custom-group-option-row" data-option-id="' + escapeHtml(option.id || option.itemId || "") + '">' +
       '<input data-field="name" value="' + escapeHtml(option.name || option.label || "") + '" placeholder="選項名稱" />' +
       '<input data-field="price" type="number" value="' + Number(option.price || 0) + '" placeholder="加價" />' +
-      '<label><input data-field="qtyEnabled" type="checkbox" ' + (option.qtyEnabled || option.quantityEnabled || option.allowQuantity ? "checked" : "") + ' /> 數量</label>' +
-      '<input data-field="maxQty" type="number" min="1" max="99" value="' + Number(option.maxQty || option.maxQuantity || 1) + '" placeholder="上限" />' +
-      '<button type="button" data-action="deleteOption">刪除</button>' +
+      '<label><input data-field="qtyEnabled" type="checkbox" ' + (option.qtyEnabled || option.quantityEnabled || option.allowQuantity ? "checked" : "") + ' /> 可調數量</label>' +
+      '<input data-field="defaultQuantity" type="number" min="1" max="99" value="' + Number(option.defaultQuantity || 1) + '" placeholder="預設數量" />' +
+      '<input data-field="maxQty" type="number" min="1" max="99" value="' + Number(option.maxQty || option.maxQuantity || 1) + '" placeholder="最大數量" />' +
+      '<label><input data-field="optionEnabled" type="checkbox" ' + (option.enabled === false ? "" : "checked") + ' /> 啟用</label>' +
+      '<button type="button" data-action="moveOptionUp">上移</button><button type="button" data-action="moveOptionDown">下移</button><button type="button" data-action="deleteOption">刪除</button>' +
     '</div>';
   }
+  var summary = selectionTypeLabel(group.selectionType) + "｜" + (group.area === "posOnly" ? "POS 內部" : "客人可選") + "｜" + options.length + " 個選項";
   return '<article class="custom-group-card menu-studio-card" data-id="' + escapeHtml(group.id) + '">' +
+    '<button type="button" class="custom-group-summary" data-action="toggleCollapse"><span>▼ ' + escapeHtml(group.name || "未命名群組") + '</span><small>' + escapeHtml(summary) + '</small></button>' +
     '<div class="custom-group-head">' +
-      '<input data-field="groupName" value="' + escapeHtml(group.name || "") + '" placeholder="分類名稱" />' +
-      '<select data-field="groupType"><option value="customer" ' + (group.type !== "posOnly" ? "selected" : "") + '>客人可看到</option><option value="posOnly" ' + (group.type === "posOnly" ? "selected" : "") + '>店員專用</option></select>' +
+      '<input data-field="groupName" value="' + escapeHtml(group.name || "") + '" placeholder="群組名稱，例如：辣度、甜度、加急" />' +
+      '<select data-field="groupType"><option value="customer" ' + (group.area !== "posOnly" ? "selected" : "") + '>客人可選項</option><option value="posOnly" ' + (group.area === "posOnly" ? "selected" : "") + '>POS 內部選項</option></select>' +
+      '<select data-field="selectionType"><option value="single" ' + (group.selectionType === "single" ? "selected" : "") + '>單選</option><option value="multiple" ' + (group.selectionType === "multiple" ? "selected" : "") + '>多選</option><option value="toggle" ' + (group.selectionType === "toggle" ? "selected" : "") + '>開關</option><option value="quantity" ' + (group.selectionType === "quantity" ? "selected" : "") + '>可調數量</option></select>' +
     '</div>' +
     '<div class="custom-group-rules">' +
-      '<select data-field="choiceType"><option value="single">單選</option><option value="multi">多選</option><option value="quantity">數量</option><option value="toggle">開關</option></select>' +
-      '<label><input data-field="required" type="checkbox" ' + (group.required ? "checked" : "") + ' /> 必填</label>' +
+      '<label><input data-field="enabled" type="checkbox" ' + (group.enabled === false ? "" : "checked") + ' /> 啟用</label>' +
+      '<label><input data-field="required" type="checkbox" ' + (group.required ? "checked" : "") + ' /> 必選</label>' +
       '<input data-field="minSelect" type="number" min="0" max="99" value="' + Number(group.minSelect || 0) + '" placeholder="最少" />' +
       '<input data-field="maxSelect" type="number" min="0" max="99" value="' + Number(group.maxSelect || 0) + '" placeholder="最多" />' +
+      '<input data-field="description" value="' + escapeHtml(group.description || "") + '" placeholder="說明文字，可留空" />' +
     '</div>' +
     '<div class="custom-group-modules">' + ["qr","pos","kds","print","sticker","online"].map(function(name) {
       var label = { qr:"QR", pos:"POS", kds:"KDS", print:"出單", sticker:"貼紙", online:"線上訂餐" }[name];
-      return '<label><input data-module="' + name + '" type="checkbox" ' + (modules[name] === true ? "checked" : "") + ' /> ' + label + '</label>';
+      var disabled = group.area === "posOnly" && name === "qr" ? " disabled" : "";
+      return '<label><input data-module="' + name + '" type="checkbox" ' + (modules[name] === true ? "checked" : "") + disabled + ' /> ' + label + '</label>';
     }).join("") + '</div>' +
     '<div class="custom-group-options">' + optionHtml + '</div>' +
-    '<div class="menu-studio-card-actions"><button type="button" data-action="toggleCollapse">收合</button><button type="button" data-action="previewGroup">預覽</button><button type="button" data-action="copyGroup">複製</button><button type="button" data-action="moveGroupUp">上移</button><button type="button" data-action="moveGroupDown">下移</button><button type="button" data-action="addOption">新增選項</button><button type="button" data-action="deleteGroup">刪除</button></div>' +
+    '<div class="menu-studio-card-actions"><button type="button" data-action="previewGroup">查看套用/預覽</button><button type="button" data-action="copyGroup">複製</button><button type="button" data-action="moveGroupUp">上移</button><button type="button" data-action="moveGroupDown">下移</button><button type="button" data-action="addOption">新增選項</button><button type="button" data-action="deleteGroup">刪除</button></div>' +
   '</article>';
 }
 
@@ -2889,6 +3016,15 @@ function bindCustomGroupEditorV649() {
           if (action === "toggleCollapse") {
             card.className = (" " + card.className + " ").indexOf(" collapsed ") >= 0 ? card.className.replace(/\bcollapsed\b/g, "") : card.className + " collapsed";
           }
+          if (action === "moveOptionUp" || action === "moveOptionDown") {
+            var optionRow = this.parentNode;
+            var parent = optionRow && optionRow.parentNode;
+            if (parent) {
+              if (action === "moveOptionUp" && optionRow.previousElementSibling) parent.insertBefore(optionRow, optionRow.previousElementSibling);
+              if (action === "moveOptionDown" && optionRow.nextElementSibling) parent.insertBefore(optionRow.nextElementSibling, optionRow);
+              saveCustomGroupFromCard(card, id);
+            }
+          }
           if (action === "deleteOption") {
             var row = this.parentNode;
             if (row && row.parentNode) row.parentNode.removeChild(row);
@@ -2908,22 +3044,33 @@ function copyCustomGroup(id) {
   var copy = {
     id: newId,
     name: (source.name || "客製分類") + " 複製",
+    area: source.area,
     type: source.type,
+    selectionType: source.selectionType,
+    choiceType: source.selectionType,
+    modules: source.modules,
     visibility: source.visibility,
     required: source.required,
     minSelect: source.minSelect,
     maxSelect: source.maxSelect,
+    description: source.description,
+    enabled: source.enabled,
     allowQuantity: source.allowQuantity,
     defaultQuantity: source.defaultQuantity,
     maxQuantity: source.maxQuantity,
     sortOrder: nowTime,
-    items: source.options || [],
+    items: (source.options || []).map(function(option, index) {
+      var next = {};
+      Object.keys(option || {}).forEach(function(key) { next[key] = option[key]; });
+      next.id = newId + "-item-" + nowTime + "-" + index;
+      return next;
+    }),
     createdAt: nowTime,
     updatedAt: nowTime
   };
   var updates = {};
   updates["customGroups/" + newId] = copy;
-  updates["customOptionGroups/" + newId] = { id: newId, name: copy.name, type: copy.type, visibility: copy.visibility, modules: visibilityToModules(copy.visibility), options: copy.items, createdAt: nowTime, updatedAt: nowTime };
+  updates["customOptionGroups/" + newId] = { id: newId, name: copy.name, area: copy.area, type: copy.type, selectionType: copy.selectionType, choiceType: copy.choiceType, visibility: copy.visibility, modules: copy.modules || visibilityToModules(copy.visibility), required: copy.required, minSelect: copy.minSelect, maxSelect: copy.maxSelect, description: copy.description, enabled: copy.enabled, sortOrder: copy.sortOrder, options: copy.items, createdAt: nowTime, updatedAt: nowTime };
   update(ref(db), updates);
 }
 
@@ -2947,7 +3094,13 @@ function previewCustomGroup(id) {
   var group = normalizeCustomGroup(id, customGroupsData[id] || customOptionGroupsData[id]);
   var options = group.options || [];
   var names = options.map(function(option) { return (typeof option === "string" ? option : option.name || option.label || "選項"); }).join("、");
-  alert("QR / POS / KDS 預覽\n\n" + (group.name || "客製分類") + "\n" + (names || "尚未新增選項"));
+  var applied = [];
+  Object.keys(menuData || {}).forEach(function(itemId) {
+    var item = menuData[itemId] || {};
+    var ids = item.customGroupIds || item.customOptionGroupIds || item.optionGroupIds || [];
+    if (Array.isArray(ids) && ids.indexOf(id) >= 0) applied.push(item.name || "未命名餐點");
+  });
+  alert("QR / POS / KDS 預覽\n\n" + (group.name || "客製分類") + "\n" + (names || "尚未新增選項") + "\n\n目前套用餐點：\n" + (applied.length ? applied.join("、") : "尚未套用"));
 }
 
 renderCustomGroupEditor = renderCustomGroupEditorV649;

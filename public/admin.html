@@ -9,7 +9,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <title>恩點系統｜菜單後台</title>
   <link rel="manifest" href="./manifest.json" />
-  <link rel="stylesheet" href="./css/style.css?v=649" />
+  <link rel="stylesheet" href="./css/style.css?v=651" />
 </head>
 
 <body class="admin-page">
@@ -201,6 +201,12 @@
               <label>不要項目</label>
               <textarea id="templateRemoveOptionsInput" placeholder="可用逗號或換行分隔，例如：不要蔥,不要香菜"></textarea>
             </div>
+
+            <div class="admin-option-card">
+              <label>客製選項群組</label>
+              <div id="templateCustomGroupPicker" class="item-custom-group-picker"></div>
+              <p class="form-help">範本套用到餐點時，會直接套入這些客製群組，不切換頁面。</p>
+            </div>
           </div>
 
           <div class="admin-form-actions">
@@ -328,6 +334,6 @@
       if (el) el.className += " hidden";
     }, false);
   </script>
-  <script type="module" src="./js/admin.js?v=649"></script>
+  <script type="module" src="./js/admin.js?v=651"></script>
 </body>
 </html>

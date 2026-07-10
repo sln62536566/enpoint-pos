@@ -2573,11 +2573,19 @@ body.admin-modal-open .admin-v62-layout{
 .custom-group-card.collapsed .custom-group-rules,
 .custom-group-card.collapsed .custom-group-modules,
 .custom-group-card.collapsed .custom-group-options{display:none}
+.custom-group-summary{width:100%;border:0;background:#fff;display:flex;justify-content:space-between;gap:8px;align-items:center;text-align:left;border-radius:8px;padding:10px 12px;margin-bottom:10px;font-weight:900;color:#3b2a1c}
+.custom-group-summary small{font-weight:800;color:#7a6040}
+.custom-group-rules input[data-field="description"]{min-width:220px;flex:1}
+.custom-group-option-row button,.menu-studio-card-actions button{min-height:38px}
+.custom-group-option-row label{min-height:38px;display:inline-flex;align-items:center;gap:5px}
+.custom-group-card.collapsed .custom-group-summary{margin-bottom:0;background:#fff7ea}
 .item-editor-modal{position:fixed!important;left:0!important;top:0!important;right:0!important;bottom:0!important;z-index:9999!important;overflow:auto!important;-webkit-overflow-scrolling:touch!important;padding:16px!important;background:rgba(43,33,24,.42)!important}
 .item-editor-modal .admin-form-panel,.item-editor-modal.admin-form-panel{max-height:none!important}
 .item-editor-modal .admin-form-actions{position:sticky!important;bottom:0!important;background:#fffaf4!important}
 body.admin-modal-open{overflow:hidden!important}
 @media (max-width:760px){
   .custom-group-head,.custom-group-option-row{display:block}
-  .custom-group-head input,.custom-group-option-row input,.custom-group-option-row button{width:100%;margin-bottom:8px}
+  .custom-group-head input,.custom-group-head select,.custom-group-rules input,.custom-group-option-row input,.custom-group-option-row button{width:100%;margin-bottom:8px}
+  .custom-group-summary{display:block}
+  .custom-group-summary small{display:block;margin-top:4px}
 }

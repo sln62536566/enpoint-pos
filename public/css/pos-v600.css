@@ -4405,14 +4405,23 @@ body.hide-test-order-button #orderTab #submitTestOrderBtn{
 .app-loading-box{border:1px solid #f0ce91;background:#fffaf3;border-radius:8px;padding:18px 22px;text-align:center;box-shadow:0 10px 30px rgba(95,61,20,.12)}
 .app-loading-box strong{display:block;font-size:20px;margin-bottom:8px}
 .pos-menu-manage-layout{padding:16px}
+.pos-menu-manage-subtabs{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.pos-menu-manage-subtabs button{border:1px solid #d9bd93;background:#fffaf4;border-radius:8px;padding:10px 14px;font-weight:900;min-height:44px}
+.pos-menu-manage-subtabs button.active{background:#2f6f4e;color:#fff;border-color:#2f6f4e}
+.pos-menu-manage-pane{display:none}
+.pos-menu-manage-pane.active{display:block}
 .pos-menu-manage-tools{display:flex;gap:10px;align-items:center;margin:10px 0 14px;flex-wrap:wrap}
 .pos-menu-manage-tools input{max-width:320px}
 .pos-menu-manage-list{display:flex;flex-direction:column;gap:8px}
 .pos-menu-manage-row{display:grid;grid-template-columns:minmax(150px,1fr) minmax(260px,auto);gap:8px;align-items:center;border:1px solid #ead7bd;background:#fffaf4;border-radius:8px;padding:10px}
-.pos-menu-manage-main strong,.pos-menu-manage-main span,.pos-menu-manage-main em{display:block}
+.pos-menu-manage-main strong,.pos-menu-manage-main span,.pos-menu-manage-main b,.pos-menu-manage-main em{display:block}
 .pos-menu-manage-main em{font-style:normal;font-weight:800;color:#2e7d32}
 .pos-menu-manage-row.sale-paused .pos-menu-manage-main em{color:#9a6a00}
 .pos-menu-manage-row.sale-soldout .pos-menu-manage-main em{color:#b3261e}
+.pos-menu-studio-card{border:1px solid #ead7bd;background:#fffaf4;border-radius:8px;padding:16px;max-width:720px}
+.pos-menu-studio-card h3{margin:0 0 8px}
+.pos-menu-studio-card p{margin:0 0 14px;color:#6f5639;font-weight:700;line-height:1.5}
+.pos-menu-studio-link{display:inline-flex;text-decoration:none;align-items:center;justify-content:center;min-height:44px}
 .pos-menu-status-actions{display:flex;gap:6px;flex-wrap:wrap}
 .pos-menu-status-actions button{border:1px solid #d9bd93;background:#fff;border-radius:8px;padding:7px 9px;font-weight:800}
 .pos-food-btn.sale-paused{opacity:.78}
@@ -4428,4 +4437,5 @@ body.hide-test-order-button #orderTab #submitTestOrderBtn{
   .pos-menu-manage-row{grid-template-columns:1fr}
   .pos-menu-manage-tools{display:block}
   .pos-menu-manage-tools input,.pos-menu-manage-tools button{width:100%;margin-bottom:8px}
+  .pos-menu-manage-subtabs button{flex:1 1 160px}
 }

@@ -852,6 +852,9 @@ function getAppliedCustomGroups(item, moduleName) {
   for (var i = 0; i < ids.length; i += 1) {
     var group = (customGroupsData && customGroupsData[ids[i]]) || (customOptionGroupsData && customOptionGroupsData[ids[i]]);
     if (!group) continue;
+    if (group.enabled === false) continue;
+    var area = group.area || group.type || "";
+    if (moduleName === "qr" && area === "posOnly") continue;
     var visibility = group.visibility || {};
     var modules = group.modules || {
       qr: visibility.qr === true,
@@ -862,7 +865,12 @@ function getAppliedCustomGroups(item, moduleName) {
       online: visibility.onlineOrder === true
     };
     if (moduleName === "qr" && modules.qr !== true) continue;
-    groups.push({ id: ids[i], name: group.name || group.title || "選項", options: group.options || group.items || [] });
+    var selectionType = group.selectionType || group.choiceType || (group.allowQuantity ? "quantity" : "single");
+    if (selectionType === "multi") selectionType = "multiple";
+    var options = (group.options || group.items || []).filter(function(option) {
+      return !(option && typeof option === "object" && option.enabled === false);
+    });
+    groups.push({ id: ids[i], name: group.name || group.title || "選項", area: area, selectionType: selectionType, options: options });
   }
   return groups;
 }
@@ -892,7 +900,7 @@ function renderQrCustomOptionGroups() {
       var option = typeof group.options[o] === "string" ? { name: group.options[o] } : group.options[o];
       var name = option.name || option.label || option.value || "";
       var selected = findQrSelectedCustomOption(group.id, name);
-      html += '<button type="button" class="option-btn qr-v64-option ' + (selected ? "active" : "") + '" data-group-id="' + escapeHtml(group.id) + '" data-group-name="' + escapeHtml(group.name) + '" data-option-name="' + escapeHtml(name) + '" data-option-price="' + Number(option.price || 0) + '" data-qty-enabled="' + (option.qtyEnabled || option.quantityEnabled ? "true" : "false") + '" data-max-qty="' + Number(option.maxQty || option.maxQuantity || 1) + '">' + escapeHtml(name) + (Number(option.price || 0) ? " +" + Number(option.price || 0) : "") + (selected && Number(selected.qty || 1) > 1 ? " x" + Number(selected.qty || 1) : "") + '</button>';
+      html += '<button type="button" class="option-btn qr-v64-option ' + (selected ? "active" : "") + '" data-group-id="' + escapeHtml(group.id) + '" data-group-name="' + escapeHtml(group.name) + '" data-selection-type="' + escapeHtml(group.selectionType || "single") + '" data-option-name="' + escapeHtml(name) + '" data-option-price="' + Number(option.price || 0) + '" data-qty-enabled="' + (option.qtyEnabled || option.quantityEnabled || option.allowQuantity ? "true" : "false") + '" data-max-qty="' + Number(option.maxQty || option.maxQuantity || 1) + '">' + escapeHtml(name) + (Number(option.price || 0) ? " +" + Number(option.price || 0) : "") + (selected && Number(selected.qty || 1) > 1 ? " x" + Number(selected.qty || 1) : "") + '</button>';
     }
     html += '</div></div>';
   }
@@ -906,6 +914,7 @@ function toggleQrCustomOption(button) {
   var list = window.qrV64SelectedCustomOptions || [];
   var groupId = button.getAttribute("data-group-id");
   var name = button.getAttribute("data-option-name");
+  var selectionType = button.getAttribute("data-selection-type") || "single";
   var found = -1;
   for (var i = 0; i < list.length; i += 1) {
     if (String(list[i].groupId) === String(groupId) && String(list[i].name) === String(name)) found = i;
@@ -914,6 +923,9 @@ function toggleQrCustomOption(button) {
     if (list[found].qtyEnabled && Number(list[found].qty || 1) < Number(list[found].maxQty || 1)) list[found].qty = Number(list[found].qty || 1) + 1;
     else list.splice(found, 1);
   } else {
+    if (selectionType === "single" || selectionType === "toggle") {
+      list = list.filter(function(item) { return String(item.groupId) !== String(groupId); });
+    }
     list.push({ groupId: groupId, groupName: button.getAttribute("data-group-name"), name: name, price: Number(button.getAttribute("data-option-price") || 0), qty: 1, qtyEnabled: button.getAttribute("data-qty-enabled") === "true", maxQty: Number(button.getAttribute("data-max-qty") || 1) });
   }
   window.qrV64SelectedCustomOptions = list;
