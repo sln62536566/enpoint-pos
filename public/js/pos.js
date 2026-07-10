@@ -213,6 +213,8 @@ let editSelectedSatay = "不要";
 let editSelectedRequiredOption = "";
 let editQuantity = 1;
 
+const POS_LEGACY_SPICY_OPTIONS = ["不辣", "微辣", "小辣", "中辣", "大辣"];
+
 /* =========================
    v61-6 hotfix：module 內函式掛到 window
    修正 HTML onclick 找不到 toggleRemoveOption 的問題
@@ -2164,7 +2166,7 @@ function buildLegacyCustomGroups(item, moduleName) {
       return { id: "__legacy_remove_" + index, name: String(name || ""), price: 0, enabled: true, sortOrder: (index + 1) * 1000 };
     }) });
   }
-  if (allowSpicy(item)) groups.push({ id: "__legacy_spicy", name: "辣度", area: "customer", selectionType: "single", required: false, options: SPICY_OPTIONS.map(function(name, index) { return { id: "__legacy_spicy_" + index, name: name, price: 0, enabled: true, sortOrder: (index + 1) * 1000 }; }) });
+  if (allowSpicy(item)) groups.push({ id: "__legacy_spicy", name: "辣度", area: "customer", selectionType: "single", required: false, options: POS_LEGACY_SPICY_OPTIONS.map(function(name, index) { return { id: "__legacy_spicy_" + index, name: name, price: 0, enabled: true, sortOrder: (index + 1) * 1000 }; }) });
   if (allowSatay(item)) groups.push({ id: "__legacy_satay", name: "沙茶", area: "customer", selectionType: "single", required: false, options: ["要沙茶", "不要沙茶"].map(function(name, index) { return { id: "__legacy_satay_" + index, name: name, price: 0, enabled: true, sortOrder: (index + 1) * 1000 }; }) });
   if (moduleName === "qr") return groups.filter(function(group) { return group.area !== "posOnly"; });
   return groups;
