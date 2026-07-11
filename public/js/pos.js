@@ -10,6 +10,10 @@ import {
   generateDailyOrderNumber
 } from "./firebase.js";
 
+import {
+  getAppliedMenuOptionGroups
+} from "./menu-studio-core.js";
+
 
 /* =========================
    v59-5 EARLY POS LEGACY OPEN
@@ -184,6 +188,8 @@ let customOptionGroupsData = {};
 let customGroupsData = {};
 let currentCategory = "全部";
 let cart = [];
+const HELD_CARTS_KEY = "enpoint_pos_held_carts_v1";
+let heldCarts = loadHeldCarts();
 
 let currentOrderType = "內用";
 let selectedTable = "1";
@@ -331,6 +337,7 @@ onValue(ordersRef, snapshot => {
 });
 
 renderTableButtons();
+ensurePosMenuStudioUi();
 renderCart();
 renderStoreModeNotice();
 renderSettings();
@@ -867,6 +874,212 @@ function renderSettings() {
   setSwitchState(showTestOrdersToggle, posSettings.showTestOrders);
   setSwitchState(enableSoundToggle, posSettings.enableSound);
   setSwitchState(autoSwitchCartToggle, posSettings.autoSwitchCartAfterAdd);
+  renderFeatureModuleSettings();
+}
+
+function loadHeldCarts() {
+  try {
+    var raw = localStorage.getItem(HELD_CARTS_KEY);
+    var list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveHeldCarts() {
+  try {
+    localStorage.setItem(HELD_CARTS_KEY, JSON.stringify(heldCarts || []));
+  } catch (e) {}
+}
+
+function getCurrentCartLabel() {
+  if (currentOrderType === "內用") return String(selectedTable || "1") + "桌";
+  return "外帶 " + buildTakeoutHoldNumber();
+}
+
+function buildTakeoutHoldNumber() {
+  var count = (heldCarts || []).filter(function(entry) {
+    return String(entry.label || "").indexOf("外帶") === 0;
+  }).length + 1;
+  return "A" + String(count).padStart(3, "0");
+}
+
+function cloneCartItems(items) {
+  try {
+    return JSON.parse(JSON.stringify(items || []));
+  } catch (e) {
+    return [];
+  }
+}
+
+function ensurePosMenuStudioUi() {
+  var cartTab = document.querySelector('[data-order-subtab="cart"]');
+  if (cartTab && !cartTab.querySelector(".cart-count-badge")) {
+    cartTab.innerHTML = '<span class="cart-tab-label">購物車</span><span class="cart-count-badge">0</span>';
+  }
+
+  var cartTitle = document.querySelector('.cart-panel .panel-title h2');
+  if (cartTitle) cartTitle.textContent = "購物車";
+
+  var cartSubtitle = document.querySelector('.cart-panel .panel-title p');
+  if (cartSubtitle) cartSubtitle.textContent = "可保留桌號 / 外帶單，再快速恢復";
+
+  if (clearCartBtn && !document.getElementById("holdCartBtn")) {
+    var holdBtn = document.createElement("button");
+    holdBtn.id = "holdCartBtn";
+    holdBtn.className = "secondary-btn";
+    holdBtn.type = "button";
+    holdBtn.textContent = "保留";
+    clearCartBtn.parentNode.insertBefore(holdBtn, clearCartBtn);
+    holdBtn.addEventListener("click", holdCurrentCart, false);
+  }
+
+  if (!document.getElementById("heldCartList") && cartList && cartList.parentNode) {
+    var panel = document.createElement("section");
+    panel.className = "held-cart-panel";
+    panel.innerHTML = '<div class="held-cart-title"><strong>保留列表</strong><span>點一下立即恢復</span></div><div id="heldCartList" class="held-cart-list"></div>';
+    cartList.parentNode.insertBefore(panel, cartList.nextSibling);
+  }
+
+  ensureFeatureModuleSettings();
+  updateCartBadge();
+  renderHeldCarts();
+}
+
+function updateCartBadge() {
+  var badge = document.querySelector(".cart-count-badge");
+  var count = cart.reduce(function(sum, item) { return sum + itemQty(item); }, 0);
+  if (badge) badge.textContent = String(count);
+}
+
+function renderHeldCarts() {
+  var list = document.getElementById("heldCartList");
+  if (!list) return;
+  if (!heldCarts.length) {
+    list.innerHTML = '<div class="empty small-empty">尚未保留購物車</div>';
+    return;
+  }
+  list.innerHTML = heldCarts.map(function(entry) {
+    return '<button type="button" class="held-cart-card" data-id="' + escapeHtml(entry.id) + '">' +
+      '<strong>' + escapeHtml(entry.label || "保留單") + '</strong>' +
+      '<span>' + Number(entry.itemCount || 0) + ' 項餐點</span>' +
+      '<b>' + money(entry.total || 0) + '</b>' +
+    '</button>';
+  }).join("");
+  var buttons = list.querySelectorAll(".held-cart-card");
+  for (var i = 0; i < buttons.length; i += 1) {
+    buttons[i].onclick = function() {
+      restoreHeldCart(this.getAttribute("data-id"));
+    };
+  }
+}
+
+function holdCurrentCart() {
+  if (!cart.length) {
+    alert("購物車沒有餐點可保留");
+    return;
+  }
+  var label = getCurrentCartLabel();
+  var entry = {
+    id: "hold-" + (Date.now ? Date.now() : new Date().getTime()),
+    label: label,
+    orderType: currentOrderType,
+    table: currentOrderType === "內用" ? selectedTable : "",
+    items: cloneCartItems(cart),
+    note: posOrderNoteInput ? posOrderNoteInput.value.trim() : "",
+    itemCount: cart.reduce(function(sum, item) { return sum + itemQty(item); }, 0),
+    total: calculateTotal(cart),
+    createdAt: Date.now ? Date.now() : new Date().getTime()
+  };
+  heldCarts.unshift(entry);
+  saveHeldCarts();
+  cart = [];
+  if (posOrderNoteInput) posOrderNoteInput.value = "";
+  renderCart();
+  alert("已保留：" + label);
+}
+
+function restoreHeldCart(id) {
+  var index = -1;
+  for (var i = 0; i < heldCarts.length; i += 1) {
+    if (String(heldCarts[i].id) === String(id)) index = i;
+  }
+  if (index < 0) return;
+  var entry = heldCarts[index];
+
+  if (cart.length) {
+    var action = prompt("目前購物車已有餐點，禁止直接混單。\n\n輸入 1：返回\n輸入 2：保留目前購物車，再恢復指定保留單\n輸入 3：清空目前購物車後恢復");
+    if (action === "1" || action === null) return;
+    if (action === "2") {
+      holdCurrentCart();
+    } else if (action === "3") {
+      if (!confirm("確定清空目前購物車並恢復「" + (entry.label || "保留單") + "」？")) return;
+      cart = [];
+      if (posOrderNoteInput) posOrderNoteInput.value = "";
+    } else {
+      return;
+    }
+  }
+
+  cart = cloneCartItems(entry.items);
+  if (entry.orderType === "內用") {
+    currentOrderType = "內用";
+    selectedTable = entry.table || selectedTable;
+    renderTableButtons();
+  } else {
+    currentOrderType = "外帶";
+  }
+  if (posOrderNoteInput) posOrderNoteInput.value = entry.note || "";
+  heldCarts.splice(index, 1);
+  saveHeldCarts();
+  renderCart();
+  switchOrderSubtab("cart");
+}
+
+function ensureFeatureModuleSettings() {
+  var settingsGrid = document.querySelector("#settingsTab .settings-grid");
+  if (!settingsGrid || document.getElementById("featureModuleSettings")) return;
+  var section = document.createElement("section");
+  section.id = "featureModuleSettings";
+  section.className = "settings-card feature-module-card";
+  section.innerHTML = '<div class="settings-card-title"><span>功能模組</span><small>店家可自行開關流程模組</small></div><div id="featureModuleList" class="feature-module-list"></div>';
+  settingsGrid.appendChild(section);
+}
+
+function getFeatureModuleSettings() {
+  var defaults = { qr: true, kds: true, print: true, sticker: false, invoice: false, online: false, member: false };
+  try {
+    var saved = JSON.parse(localStorage.getItem("enpoint_feature_modules") || "{}");
+    return Object.assign(defaults, saved || {});
+  } catch (e) {
+    return defaults;
+  }
+}
+
+function saveFeatureModuleSettings(settings) {
+  try {
+    localStorage.setItem("enpoint_feature_modules", JSON.stringify(settings || {}));
+  } catch (e) {}
+}
+
+function renderFeatureModuleSettings() {
+  ensureFeatureModuleSettings();
+  var list = document.getElementById("featureModuleList");
+  if (!list) return;
+  var settings = getFeatureModuleSettings();
+  var labels = { qr: "QR 點餐", kds: "KDS", print: "出單", sticker: "貼紙（預留）", invoice: "電子發票（預留）", online: "線上訂餐（預留）", member: "會員（預留）" };
+  list.innerHTML = Object.keys(labels).map(function(key) {
+    return '<label class="feature-module-row"><span>' + labels[key] + '</span><input type="checkbox" data-module="' + key + '" ' + (settings[key] === true ? "checked" : "") + ' /></label>';
+  }).join("");
+  var inputs = list.querySelectorAll("input[data-module]");
+  for (var i = 0; i < inputs.length; i += 1) {
+    inputs[i].onchange = function() {
+      var next = getFeatureModuleSettings();
+      next[this.getAttribute("data-module")] = this.checked === true;
+      saveFeatureModuleSettings(next);
+    };
+  }
 }
 
 function updateTableCount(value) {
@@ -2088,36 +2301,13 @@ function toggleExtra(name, price) {
 }
 
 function getAppliedCustomGroups(item, moduleName) {
-  var groups = [];
-  var ids = item && (item.customGroupIds || item.customOptionGroupIds || item.optionGroupIds);
-  if (!ids || (Array.isArray(ids) && !ids.length)) return buildLegacyCustomGroups(item, moduleName);
-  if (!Array.isArray(ids) && !Object.keys(ids || {}).length) return buildLegacyCustomGroups(item, moduleName);
-  if (!Array.isArray(ids)) ids = Object.keys(ids || {}).filter(function(id) { return ids[id] !== false; });
-  for (var i = 0; i < ids.length; i += 1) {
-    var group = (customGroupsData && customGroupsData[ids[i]]) || (customOptionGroupsData && customOptionGroupsData[ids[i]]);
-    if (!group) continue;
-    if (group.enabled === false) continue;
-    var area = group.area || group.type || "";
-    var visibility = group.visibility || {};
-    var modules = group.modules || {
-      qr: visibility.qr === true,
-      pos: visibility.pos !== false,
-      kds: visibility.kds !== false,
-      print: visibility.print !== false,
-      sticker: visibility.sticker !== false,
-      online: visibility.onlineOrder === true
-    };
-    if (moduleName && modules[moduleName] === false) continue;
-    if (moduleName && moduleName === "qr" && modules.qr !== true) continue;
-    if (moduleName && moduleName === "pos" && modules.pos === false) continue;
-    var selectionType = group.selectionType || group.choiceType || (group.allowQuantity ? "quantity" : "single");
-    if (selectionType === "multi") selectionType = "multiple";
-    var options = (group.options || group.items || []).filter(function(option) {
-      return !(option && typeof option === "object" && option.enabled === false);
-    });
-    groups.push({ id: ids[i], name: group.name || group.title || "選項", area: area, selectionType: selectionType, allowQuantity: group.allowQuantity === true, required: group.required === true, minSelect: Number(group.minSelect || 0), maxSelect: Number(group.maxSelect || 0), options: options, modules: modules });
-  }
-  return groups;
+  return getAppliedMenuOptionGroups({
+    item: item,
+    moduleName: moduleName,
+    customGroupsData: customGroupsData,
+    customOptionGroupsData: customOptionGroupsData,
+    legacyBuilder: buildLegacyCustomGroups
+  });
 }
 
 function normalizeLegacyNamePriceList(source) {
@@ -3739,16 +3929,20 @@ function updateCartSubtabBadge() {
   var buttons = document.querySelectorAll ? document.querySelectorAll('.order-subtab-btn[data-order-subtab="cart"]') : [];
   var count = getCartItemCount();
   for (var i = 0; i < buttons.length; i += 1) {
-    buttons[i].innerHTML = count > 0 ? '目前訂單 <span class="cart-count-dot">●' + count + '</span>' : '目前訂單';
+    buttons[i].innerHTML = '購物車 <span class="cart-count-badge">' + count + '</span>';
   }
 }
 
 function renderCartV649() {
+  ensurePosMenuStudioUi();
   updateCartSubtabBadge();
+  renderHeldCarts();
   if (!cartList) return;
   if (!cart.length) {
     cartList.innerHTML = '<div class="empty">尚未加入餐點</div>';
     if (totalAmount) totalAmount.textContent = "$0";
+    updateCartSubtabBadge();
+    renderHeldCarts();
     return;
   }
   var html = "";
@@ -3773,6 +3967,8 @@ function renderCartV649() {
   }
   cartList.innerHTML = html;
   if (totalAmount) totalAmount.textContent = money(calculateTotal(cart));
+  updateCartSubtabBadge();
+  renderHeldCarts();
   bindCartCardActions();
 }
 

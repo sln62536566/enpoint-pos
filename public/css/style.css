@@ -1248,6 +1248,26 @@ textarea.input {
   cursor: grabbing;
 }
 
+.category-template-field{
+  display:grid !important;
+  grid-template-columns:88px minmax(0,1fr);
+  align-items:center;
+  gap:8px;
+  margin:0 !important;
+  color:#3a2b20;
+  font-weight:900;
+}
+
+.category-template-field select{
+  min-height:40px;
+  border:1px solid #d9bd93;
+  border-radius:8px;
+  background:#fffdf9;
+  color:#2b2118;
+  padding:8px 10px;
+  font-weight:800;
+}
+
 .category-manager-card.disabled {
   opacity: 0.55;
   background: #f1f1f1;

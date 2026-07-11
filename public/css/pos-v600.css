@@ -4431,6 +4431,96 @@ body.hide-test-order-button #orderTab #submitTestOrderBtn{
 .sale-paused .pos-sale-status{color:#9a6a00}
 .sale-soldout .pos-sale-status{color:#b3261e}
 .cart-count-dot{color:#d32f2f;font-weight:900;white-space:nowrap}
+.cart-count-badge{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:34px;
+  height:30px;
+  margin-left:8px;
+  border-radius:999px;
+  background:#d32f2f;
+  color:#fff;
+  font-size:18px;
+  font-weight:1000;
+  line-height:1;
+}
+.held-cart-panel{
+  margin:0 18px 16px;
+  border:1px solid #ead7bd;
+  border-radius:8px;
+  background:#fffaf4;
+  padding:12px;
+}
+.held-cart-title{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  color:#2b2118;
+  margin-bottom:10px;
+}
+.held-cart-title span{
+  color:#7a6040;
+  font-weight:800;
+}
+.held-cart-list{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+  gap:8px;
+}
+.held-cart-card{
+  border:1px solid #d9bd93;
+  border-radius:8px;
+  background:#fff;
+  color:#2b2118;
+  padding:10px;
+  text-align:left;
+  cursor:pointer;
+}
+.held-cart-card strong,
+.held-cart-card span,
+.held-cart-card b{
+  display:block;
+}
+.held-cart-card strong{
+  font-size:18px;
+}
+.held-cart-card span{
+  color:#6f5639;
+  margin-top:4px;
+  font-weight:800;
+}
+.held-cart-card b{
+  color:#2f6f4e;
+  margin-top:6px;
+  font-size:18px;
+}
+.feature-module-card{
+  grid-column:1 / -1;
+}
+.feature-module-list{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+  gap:10px;
+}
+.feature-module-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  min-height:46px;
+  border:1px solid #ead7bd;
+  border-radius:8px;
+  background:#fffaf4;
+  color:#2b2118;
+  padding:10px 12px;
+  font-weight:900;
+}
+.feature-module-row input{
+  width:22px;
+  height:22px;
+  flex:0 0 auto;
+}
 .v64-custom-groups{border-top:1px solid #ead7bd;margin-top:10px;padding-top:10px}
 .v64-custom-group{margin:8px 0}
 .v64-custom-group h3{font-size:16px;margin:0 0 8px}

@@ -15,6 +15,10 @@ import {
   generateDailyOrderNumber
 } from "./firebase.js";
 
+import {
+  getAppliedMenuOptionGroups
+} from "./menu-studio-core.js";
+
 
 /* =========================
    v59-5 EARLY QR HARD ADD
@@ -779,35 +783,13 @@ function buildLegacyCustomGroups(item, moduleName) {
 }
 
 function getAppliedCustomGroups(item, moduleName) {
-  var groups = [];
-  var ids = item && (item.customGroupIds || item.customOptionGroupIds || item.optionGroupIds);
-  if (!ids || (Array.isArray(ids) && !ids.length)) return buildLegacyCustomGroups(item, moduleName);
-  if (!Array.isArray(ids) && !Object.keys(ids || {}).length) return buildLegacyCustomGroups(item, moduleName);
-  if (!Array.isArray(ids)) ids = Object.keys(ids || {}).filter(function(id) { return ids[id] !== false; });
-  for (var i = 0; i < ids.length; i += 1) {
-    var group = (customGroupsData && customGroupsData[ids[i]]) || (customOptionGroupsData && customOptionGroupsData[ids[i]]);
-    if (!group) continue;
-    if (group.enabled === false) continue;
-    var area = group.area || group.type || "";
-    if (moduleName === "qr" && area === "posOnly") continue;
-    var visibility = group.visibility || {};
-    var modules = group.modules || {
-      qr: visibility.qr === true,
-      pos: visibility.pos !== false,
-      kds: visibility.kds !== false,
-      print: visibility.print !== false,
-      sticker: visibility.sticker !== false,
-      online: visibility.onlineOrder === true
-    };
-    if (moduleName === "qr" && modules.qr !== true) continue;
-    var selectionType = group.selectionType || group.choiceType || (group.allowQuantity ? "quantity" : "single");
-    if (selectionType === "multi") selectionType = "multiple";
-    var options = (group.options || group.items || []).filter(function(option) {
-      return !(option && typeof option === "object" && option.enabled === false);
-    });
-    groups.push({ id: ids[i], name: group.name || group.title || "選項", area: area, selectionType: selectionType, allowQuantity: group.allowQuantity === true, required: group.required === true, minSelect: Number(group.minSelect || 0), maxSelect: Number(group.maxSelect || 0), options: options });
-  }
-  return groups;
+  return getAppliedMenuOptionGroups({
+    item: item,
+    moduleName: moduleName,
+    customGroupsData: customGroupsData,
+    customOptionGroupsData: customOptionGroupsData,
+    legacyBuilder: buildLegacyCustomGroups
+  });
 }
 
 function findQrSelectedCustomOption(groupId, optionName) {
