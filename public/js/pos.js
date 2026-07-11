@@ -1589,6 +1589,8 @@ function buildPrintItemDetailHtml(item, includePrice) {
   if (item.satay) details.push("沙茶：" + item.satay);
   if (item.requiredOption) details.push((item.requiredOption.title || "選項") + "：" + item.requiredOption.value);
   if (item.note) details.push("備註：" + item.note);
+  var customLines = customOptionsToDetailLines(item, "print");
+  for (var c = 0; c < customLines.length; c += 1) details.push(customLines[c]);
   if (includePrice) details.push("單價：" + money(itemUnitPrice(item)));
 
   if (!details.length) return "";
@@ -2388,7 +2390,8 @@ function renderCustomOptionGroups() {
       var optionName = option.name || option.label || option.value || "";
       var selected = findSelectedCustomOption(group.id, optionName);
       var priceText = Number(option.price || 0) > 0 ? " +" + Number(option.price || 0) : (Number(option.price || 0) < 0 ? " " + Number(option.price || 0) : "");
-      html += '<button type="button" class="option-btn v64-custom-option-btn ' + (selected ? "active" : "") + '" data-group-id="' + escapeHtml(group.id) + '" data-group-name="' + escapeHtml(group.name) + '" data-selection-type="' + escapeHtml(group.selectionType || "single") + '" data-option-name="' + escapeHtml(optionName) + '" data-option-price="' + Number(option.price || 0) + '" data-qty-enabled="' + (group.allowQuantity || option.qtyEnabled || option.quantityEnabled || option.allowQuantity ? "true" : "false") + '" data-max-qty="' + Number(option.maxQty || option.maxQuantity || 1) + '">';
+      var modules = group.modules || {};
+      html += '<button type="button" class="option-btn v64-custom-option-btn ' + (selected ? "active" : "") + '" data-group-id="' + escapeHtml(group.id) + '" data-group-name="' + escapeHtml(group.name) + '" data-selection-type="' + escapeHtml(group.selectionType || "single") + '" data-option-name="' + escapeHtml(optionName) + '" data-option-price="' + Number(option.price || 0) + '" data-qty-enabled="' + (group.allowQuantity || option.qtyEnabled || option.quantityEnabled || option.allowQuantity ? "true" : "false") + '" data-max-qty="' + Number(option.maxQty || option.maxQuantity || 1) + '" data-module-qr="' + (modules.qr === true ? "true" : "false") + '" data-module-pos="' + (modules.pos !== false ? "true" : "false") + '" data-module-kds="' + (modules.kds !== false ? "true" : "false") + '" data-module-print="' + (modules.print !== false ? "true" : "false") + '">';
       html += escapeHtml(optionName) + priceText;
       if (selected && Number(selected.qty || 1) > 1) html += " x" + Number(selected.qty || 1);
       html += '</button>';
@@ -2438,7 +2441,7 @@ function toggleCustomOption(button) {
     if (selectionType === "single" || selectionType === "toggle") {
       list = list.filter(function(item) { return String(item.groupId) !== String(groupId); });
     }
-    list.push({ groupId: groupId, groupName: groupName, name: name, price: price, qty: 1, qtyEnabled: qtyEnabled, maxQty: maxQty });
+    list.push({ groupId: groupId, groupName: groupName, name: name, price: price, qty: 1, qtyEnabled: qtyEnabled, maxQty: maxQty, modules: { qr: button.getAttribute("data-module-qr") === "true", pos: button.getAttribute("data-module-pos") !== "false", kds: button.getAttribute("data-module-kds") !== "false", print: button.getAttribute("data-module-print") !== "false" } });
   }
   window.posV64SelectedCustomOptions = list;
   renderCustomOptionGroups();
@@ -2467,22 +2470,29 @@ function validatePosRequiredCustomGroups(item) {
 }
 
 function renderCustomOptionsDetail(item) {
+  var lines = customOptionsToDetailLines(item, "");
+  if (!lines.length) return "";
+  return lines.map(function(line) { return "<p>" + escapeHtml(line) + "</p>"; }).join("");
+}
+
+function customOptionsToDetailLines(item, moduleName) {
   var list = item && item.customOptions;
-  if (!list || !list.length) return "";
+  if (!list || !list.length) return [];
   var byGroup = {};
   for (var i = 0; i < list.length; i += 1) {
     var opt = list[i] || {};
+    if (moduleName && opt.modules && opt.modules[moduleName] === false) continue;
     var group = opt.groupName || "選項";
     if (!byGroup[group]) byGroup[group] = [];
     byGroup[group].push(optionLabelWithQty(opt, opt.qty));
   }
-  var html = "";
+  var lines = [];
   for (var name in byGroup) {
     if (Object.prototype.hasOwnProperty.call(byGroup, name)) {
-      html += "<p>" + escapeHtml(name) + "：" + escapeHtml(byGroup[name].join("、")) + "</p>";
+      lines.push(name + "：" + byGroup[name].join("、"));
     }
   }
-  return html;
+  return lines;
 }
 
 modalMinusBtn.addEventListener("click", () => {

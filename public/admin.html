@@ -9,7 +9,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <title>恩點系統｜菜單後台</title>
   <link rel="manifest" href="./manifest.json" />
-  <link rel="stylesheet" href="./css/style.css?v=654" />
+  <link rel="stylesheet" href="./css/style.css?v=656" />
 </head>
 
 <body class="admin-page">
@@ -21,13 +21,14 @@
   </div>
   <header class="topbar admin-topbar">
     <h1>恩點菜單後台</h1>
-    <p>分類、餐點、選項與圖片管理</p>
+    <p>餐點選項、範本、分類、新增餐點與菜單列表</p>
   </header>
 
   <nav class="admin-page-tabs" aria-label="菜單後台分頁">
     <button class="admin-tab-btn active" type="button" data-admin-tab="categoryAdminTab">分類管理</button>
-    <button class="admin-tab-btn" type="button" data-admin-tab="itemAdminTab">餐點管理</button>
-    <button class="admin-tab-btn" type="button" data-admin-tab="optionAdminTab">選項管理</button>
+    <button class="admin-tab-btn" type="button" data-admin-tab="itemAdminTab">菜單列表</button>
+    <button class="admin-tab-btn" type="button" data-admin-tab="addItemAdminTab">新增餐點</button>
+    <button class="admin-tab-btn" type="button" data-admin-tab="optionAdminTab">餐點選項</button>
     <button class="admin-tab-btn" type="button" data-admin-tab="templateAdminTab">選項範本</button>
     <button class="admin-tab-btn" type="button" data-admin-tab="mediaAdminTab">圖片/其他設定</button>
   </nav>
@@ -59,36 +60,7 @@
     </section>
 
     <section id="itemAdminTab" class="admin-tab-panel">
-      <div class="admin-v62-two-column">
-        <section class="admin-form-panel">
-          <div class="panel-title-row">
-            <div>
-              <h2 id="formTitle">新增餐點</h2>
-              <p>設定餐點名稱、分類與基礎價格。選項與圖片可到其他分頁補完。</p>
-            </div>
-          </div>
-
-          <label>餐點名稱</label>
-          <input id="itemName" type="text" placeholder="例如：鍋燒意麵" />
-
-          <label>分類</label>
-          <select id="itemCategory"></select>
-
-          <label>價格</label>
-          <input id="itemPrice" type="number" placeholder="例如：100" />
-
-          <label>套用選項範本</label>
-          <div class="admin-inline-form admin-template-apply-row">
-            <select id="itemTemplateSelect"></select>
-            <button id="applyTemplateBtn" class="secondary-btn" type="button">套用</button>
-          </div>
-          <p class="form-help">套用後會將範本內的客製群組套入目前餐點。</p>
-          <div class="admin-option-card v64-item-group-picker">
-            <label>套用客製選項群組</label>
-            <div id="itemCustomGroupPicker" class="item-custom-group-picker"></div>
-          </div>
-        </section>
-
+      <div class="admin-v62-single">
         <section class="admin-menu-panel">
           <div class="panel-title-row">
             <div>
@@ -111,29 +83,66 @@
       </div>
     </section>
 
+    <section id="addItemAdminTab" class="admin-tab-panel">
+      <div class="admin-v62-single">
+        <section class="admin-form-panel">
+          <div class="panel-title-row">
+            <div>
+              <h2 id="formTitle">新增餐點</h2>
+              <p>設定餐點名稱、分類、價格、圖片、範本與販售狀態。</p>
+            </div>
+          </div>
+
+          <label>餐點名稱</label>
+          <input id="itemName" type="text" placeholder="例如：鍋燒意麵" />
+
+          <label>分類</label>
+          <select id="itemCategory"></select>
+
+          <label>價格</label>
+          <input id="itemPrice" type="number" placeholder="例如：100" />
+
+          <label>套用選項範本</label>
+          <div class="admin-inline-form admin-template-apply-row">
+            <select id="itemTemplateSelect"></select>
+            <button id="applyTemplateBtn" class="secondary-btn" type="button">套用</button>
+          </div>
+          <p class="form-help">套用後會將範本內的餐點選項依順序套入目前餐點。</p>
+          <div class="admin-option-card v64-item-group-picker">
+            <label>目前餐點選項</label>
+            <div id="itemCustomGroupPicker" class="item-custom-group-picker"></div>
+          </div>
+
+          <label class="admin-check-row">
+            <input id="itemEnabled" type="checkbox" checked />
+            販售狀態：上架
+          </label>
+
+          <label>圖片網址</label>
+          <input id="itemImage" type="text" placeholder="可貼圖片網址，也可用下方上傳圖片" />
+
+          <label>上傳餐點圖片</label>
+          <input id="itemImageFile" type="file" accept="image/*" />
+          <div id="imagePreviewBox" class="admin-image-preview-box"></div>
+          <p class="form-help">上傳後會自動寫入圖片網址，QR / POS 會同步顯示。</p>
+
+          <label>餐點描述</label>
+          <textarea id="itemDescription" placeholder="例如：湯頭濃郁、份量充足，適合喜歡重口味的客人"></textarea>
+        </section>
+      </div>
+    </section>
+
     <section id="optionAdminTab" class="admin-tab-panel">
       <div class="admin-v62-single">
         <section class="admin-form-panel admin-option-panel">
           <div class="panel-title-row">
             <div>
-              <h2>選項管理</h2>
-              <p>建立店家自訂的客製選項群組，餐點只會顯示已套用的群組。</p>
+              <h2>餐點選項</h2>
+              <p>先建立可重複使用的餐點選項，例如份量、辣度、加料、不要項目，再加入範本並套用到餐點。</p>
             </div>
           </div>
 
-          <div class="admin-option-card v64-custom-group-card">
-            <label>新增客製群組</label>
-            <div class="admin-inline-form">
-              <input id="customGroupNameInput" type="text" placeholder="群組名稱，例如：辣度、甜度、冰量、加急" />
-              <select id="customGroupAreaInput">
-                <option value="customer">客人可選項</option>
-                <option value="posOnly">POS 內部選項</option>
-              </select>
-              <button id="addCustomGroupBtn" class="secondary-btn" type="button">＋ 新增客製群組</button>
-            </div>
-            <div id="customGroupEditorList" class="custom-group-editor-list"></div>
-            <p class="form-help">必選、加料、不要、辣度、沙茶、份量都只是群組名稱；新增與編輯一律走客製群組。</p>
-          </div>
+          <div id="customGroupEditorList" class="custom-group-editor-list"></div>
         </section>
       </div>
     </section>
@@ -153,9 +162,9 @@
 
           <div class="admin-option-grid">
             <div class="admin-option-card">
-              <label>客製選項群組</label>
+              <label>餐點選項</label>
               <div id="templateCustomGroupPicker" class="item-custom-group-picker"></div>
-              <p class="form-help">範本套用到餐點時，會直接套入這些客製群組，不切換頁面。</p>
+              <p class="form-help">範本只負責選擇與排序餐點選項，不在範本內重新建立內容。</p>
             </div>
           </div>
 
@@ -188,16 +197,7 @@
             </div>
           </div>
 
-          <label>圖片網址</label>
-          <input id="itemImage" type="text" placeholder="可貼圖片網址，也可用下方上傳圖片" />
-
-          <label>上傳餐點圖片</label>
-          <input id="itemImageFile" type="file" accept="image/*" />
-          <div id="imagePreviewBox" class="admin-image-preview-box"></div>
-          <p class="form-help">上傳後會自動寫入圖片網址，QR / POS 會同步顯示。</p>
-
-          <label>餐點描述</label>
-          <textarea id="itemDescription" placeholder="例如：湯頭濃郁、份量充足，適合喜歡重口味的客人"></textarea>
+          <p class="form-help">圖片與描述已整合到「新增餐點」分頁。</p>
         </section>
       </div>
     </section>
@@ -257,7 +257,7 @@
         }
         var actions = document.getElementById("adminSharedActions");
         if (actions) {
-          setClass(actions, "hidden", tabId === "categoryAdminTab" || tabId === "templateAdminTab");
+          setClass(actions, "hidden", tabId !== "addItemAdminTab");
         }
       }
       function init() {
@@ -284,6 +284,6 @@
       if (el) el.className += " hidden";
     }, false);
   </script>
-  <script type="module" src="./js/admin.js?v=654"></script>
+  <script type="module" src="./js/admin.js?v=656"></script>
 </body>
 </html>

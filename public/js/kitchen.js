@@ -73,9 +73,26 @@ function getItemRemoves(item) {
   return item.removes || item.removeOptionsSelected || item.noOptionsSelected || [];
 }
 
+function getKitchenCustomOptionLines(item) {
+  const list = item && item.customOptions;
+  if (!Array.isArray(list) || !list.length) return [];
+  const byGroup = {};
+  list.forEach(option => {
+    if (option && option.modules && option.modules.kds === false) return;
+    const groupName = option.groupName || "選項";
+    const qty = Number(option.qty || 1);
+    const label = (option.name || "") + (qty > 1 ? ` x${qty}` : "");
+    if (!label) return;
+    if (!byGroup[groupName]) byGroup[groupName] = [];
+    byGroup[groupName].push(label);
+  });
+  return Object.keys(byGroup).map(groupName => `${groupName}：${byGroup[groupName].join("、")}`);
+}
+
 function renderItem(item) {
   const addons = getItemAddons(item);
   const removes = getItemRemoves(item);
+  const customLines = getKitchenCustomOptionLines(item);
 
   return `
     <li class="kitchen-item">
@@ -88,6 +105,7 @@ function renderItem(item) {
         ${item.requiredOption ? `<p>${item.requiredOption.title}：${item.requiredOption.value}</p>` : ""}
         ${item.spicy ? `<p>辣度：${item.spicy}</p>` : ""}
         ${item.satay ? `<p>沙茶：${item.satay}</p>` : ""}
+        ${customLines.map(line => `<p>${line}</p>`).join("")}
         ${addons.length ? `<p>加料：${addons.map(a => a.name).join("、")}</p>` : ""}
         ${removes.length ? `<p>不要：${removes.join("、")}</p>` : ""}
         ${item.note ? `<p>備註：${item.note}</p>` : ""}
@@ -102,12 +120,14 @@ function buildOrderConfirmText(order) {
   const itemLines = items.map((item, index) => {
     const addons = getItemAddons(item);
     const removes = getItemRemoves(item);
+    const customLines = getKitchenCustomOptionLines(item);
 
     const details = [
       item.size && item.size !== "一般" ? `份量：${item.size}` : "",
       item.requiredOption ? `${item.requiredOption.title}：${item.requiredOption.value}` : "",
       item.spicy ? `辣度：${item.spicy}` : "",
       item.satay ? `沙茶：${item.satay}` : "",
+      ...customLines,
       addons.length ? `加料：${addons.map(a => a.name).join("、")}` : "",
       removes.length ? `不要：${removes.join("、")}` : "",
       item.note ? `備註：${item.note}` : ""
