@@ -3390,7 +3390,9 @@ function openCustomGroupModal(mode, id, addBlankContent) {
     Object.keys(option || {}).forEach(function(key) { next[key] = option[key]; });
     return next;
   });
-  if (addBlankContent) customGroupDraftOptions.push(createBlankCustomOption(id));
+  if (addBlankContent || (customGroupModalMode !== "edit" && !customGroupDraftOptions.length)) {
+    customGroupDraftOptions.push(createBlankCustomOption(id));
+  }
   renderCustomGroupModal(group);
   var modal = ensureCustomGroupModal();
   modal.classList.remove("hidden");
@@ -3414,7 +3416,7 @@ function renderCustomGroupModal(group) {
     '<header class="menu-studio-modal-header"><div><h2>' + (isEdit ? '編輯餐點選項｜' + escapeHtml(group.name || "") : '新增餐點選項') + '</h2><p>' + (isEdit ? '修改共用餐點選項，不會建立新群組。' : '第一步只填基本資料，建立後再新增內容。') + '</p></div><button type="button" class="item-editor-close-btn" data-action="cancelModal">×</button></header>' +
     '<div class="menu-studio-modal-body">' +
       renderCustomGroupBasicFields(group) +
-      (isEdit ? renderCustomGroupContentEditor(group, usage) : '') +
+      renderCustomGroupContentEditor(group, usage) +
     '</div>' +
     '<footer class="menu-studio-modal-actions"><button type="button" class="secondary-btn" data-action="cancelModal">取消</button><button type="button" class="primary-btn" data-action="saveModal">' + (isEdit ? '儲存修改' : '建立餐點選項') + '</button></footer>';
   bindCustomGroupModalEvents(group);
