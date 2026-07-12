@@ -3256,7 +3256,25 @@ function renderMenuStudioCardOptionRow(groupId, option, index) {
 
 function bindMenuStudioOptionCards() {
   var createBtn = customGroupEditorList ? customGroupEditorList.querySelector('[data-action="openCreateOption"]') : null;
-  if (createBtn) createBtn.onclick = function() { openCustomGroupModal("create", ""); return false; };
+  if (createBtn) {
+    var createLastTouchAt = 0;
+    function openCreateOption(event) {
+      var now = Date.now ? Date.now() : new Date().getTime();
+      if (event && event.type === "touchend") createLastTouchAt = now;
+      if (event && event.type === "click" && now - createLastTouchAt < 500) return false;
+      if (event && event.preventDefault) event.preventDefault();
+      try {
+        openCustomGroupModal("create", "");
+      } catch (error) {
+        closeCustomGroupModal();
+        console.error("餐點選項新增視窗開啟失敗：", error);
+        alert("餐點選項新增視窗開啟失敗，請重新點一次。");
+      }
+      return false;
+    }
+    createBtn.onclick = openCreateOption;
+    createBtn.ontouchend = openCreateOption;
+  }
   var cards = customGroupEditorList ? customGroupEditorList.querySelectorAll(".custom-group-card") : [];
   for (var c = 0; c < cards.length; c += 1) {
     (function(card) {
@@ -3355,16 +3373,12 @@ function ensureCustomGroupModal() {
   modal.innerHTML = '<div class="menu-studio-modal-backdrop"></div><section class="menu-studio-modal-card" role="dialog" aria-modal="true"><div id="customGroupModalContent"></div></section>';
   document.body.appendChild(modal);
   var backdrop = modal.querySelector(".menu-studio-modal-backdrop");
-  var card = modal.querySelector(".menu-studio-modal-card");
   if (backdrop) {
-    backdrop.addEventListener("touchmove", function(event) {
+    backdrop.onclick = function(event) {
       if (event && event.preventDefault) event.preventDefault();
-    }, { passive: false });
-  }
-  if (card) {
-    card.addEventListener("touchmove", function(event) {
-      if (event && event.stopPropagation) event.stopPropagation();
-    }, { passive: true });
+      closeCustomGroupModal();
+      return false;
+    };
   }
   return modal;
 }
@@ -3396,7 +3410,7 @@ function openCustomGroupModal(mode, id, addBlankContent) {
   renderCustomGroupModal(group);
   var modal = ensureCustomGroupModal();
   modal.classList.remove("hidden");
-  if (document.body && document.body.className.indexOf("admin-modal-open") < 0) document.body.className += " admin-modal-open";
+  if (document.body && document.body.className.indexOf("menu-studio-modal-open") < 0) document.body.className += " menu-studio-modal-open";
 }
 
 function closeCustomGroupModal() {
@@ -3404,7 +3418,7 @@ function closeCustomGroupModal() {
   modal.classList.add("hidden");
   customGroupModalId = "";
   customGroupDraftOptions = [];
-  if (document.body) document.body.className = document.body.className.replace(/\badmin-modal-open\b/g, "").replace(/\s+/g, " ");
+  if (document.body) document.body.className = document.body.className.replace(/\bmenu-studio-modal-open\b/g, "").replace(/\s+/g, " ");
 }
 
 function renderCustomGroupModal(group) {

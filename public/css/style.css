@@ -2647,9 +2647,9 @@ body.admin-modal-open .admin-v62-layout{
 .studio-available-list{display:flex;flex-wrap:wrap;gap:8px}
 .studio-template-picker{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .menu-studio-modal.hidden{display:none!important}
-.menu-studio-modal{position:fixed;inset:0;z-index:10020;display:flex;align-items:center;justify-content:center;padding:18px;touch-action:none}
-.menu-studio-modal-backdrop{position:absolute;inset:0;background:rgba(43,33,24,.46);touch-action:none}
-.menu-studio-modal-card{position:relative;z-index:1;width:min(960px,100%);max-height:calc(100vh - 36px);overflow:auto;-webkit-overflow-scrolling:touch;background:#fff;border:1px solid #ead7bd;border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.28);touch-action:pan-y}
+.menu-studio-modal{position:fixed;inset:0;z-index:10020;display:flex;align-items:center;justify-content:center;padding:18px;pointer-events:auto}
+.menu-studio-modal-backdrop{position:absolute;inset:0;background:rgba(43,33,24,.46)}
+.menu-studio-modal-card{position:relative;z-index:1;width:min(960px,100%);max-height:calc(100vh - 36px);overflow:auto;-webkit-overflow-scrolling:touch;background:#fff;border:1px solid #ead7bd;border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.28);pointer-events:auto}
 .menu-studio-modal-header{position:sticky;top:0;z-index:3;display:flex;justify-content:space-between;gap:12px;padding:18px 20px;background:#fff;border-bottom:1px solid #ead7bd}
 .menu-studio-modal-header h2{margin:0 0 4px}
 .menu-studio-modal-header p{margin:0;color:#7a6040;font-weight:800}
@@ -2671,6 +2671,7 @@ body.admin-modal-open .admin-v62-layout{
 .item-editor-modal .admin-form-panel,.item-editor-modal.admin-form-panel{max-height:none!important}
 .item-editor-modal .admin-form-actions{position:sticky!important;bottom:0!important;background:#fffaf4!important}
 body.admin-modal-open{overflow:hidden!important}
+body.menu-studio-modal-open{overflow:hidden!important}
 @media (max-width:760px){
   .custom-group-head,.custom-group-option-row{display:block}
   .custom-group-head input,.custom-group-head select,.custom-group-rules input,.custom-group-option-row input,.custom-group-option-row button{width:100%;margin-bottom:8px}
