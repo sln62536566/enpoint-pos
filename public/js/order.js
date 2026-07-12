@@ -3,8 +3,9 @@ import {
   ref,
   push,
   set,
-  get,
-  onValue
+  onValue,
+  getBusinessDate,
+  createOrderNumber
 } from "./firebase.js";
 
 const STORE_ID = new URLSearchParams(location.search).get("storeId") || "mainStore";
@@ -530,12 +531,16 @@ async function submitOrder() {
   submitOrderBtn.textContent = "送出中...";
 
   try {
-    const orderNumber = await generateDailyOrderNumber();
-
     const now = Date.now();
+    const businessDate = getBusinessDate();
+    const orderNumber = await generateDailyOrderNumber();
     const order = {
       storeId: STORE_ID,
       orderNumber,
+      businessDate,
+      businessDay: businessDate,
+      orderSource: "QR",
+      deviceType: "qr",
       source: "QR",
       type: TABLE === "現場客人" ? "外帶" : "內用",
       table: TABLE,
@@ -556,6 +561,7 @@ async function submitOrder() {
       note: orderNoteInput.value.trim(),
       status: "pending",
       statusText: "等待櫃檯確認",
+      paymentStatus: "unpaid",
       paid: false,
       confirmed: false,
       estimatedWaitText: "15～20 分鐘",
@@ -592,24 +598,7 @@ async function submitOrder() {
 }
 
 async function generateDailyOrderNumber() {
-  const today = getTodayKey();
-  const counterRef = ref(db, `dailyCounters/${STORE_ID}/${today}/order`);
-
-  const snapshot = await get(counterRef);
-  const current = Number(snapshot.val() || 0);
-  const next = current + 1;
-
-  await set(counterRef, next);
-
-  return `A${String(next).padStart(3, "0")}`;
-}
-
-function getTodayKey() {
-  const date = new Date();
-  const yyyy = date.getFullYear();
-  const mm = String(date.getMonth() + 1).padStart(2, "0");
-  const dd = String(date.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
+  return createOrderNumber("qr", { storeId: STORE_ID, businessDate: getBusinessDate() });
 }
 
 function showDonePage(order) {

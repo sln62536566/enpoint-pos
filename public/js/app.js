@@ -12,7 +12,7 @@ import {
   push,
   set,
   getBusinessDate,
-  generateDailyOrderNumber
+  createOrderNumber
 } from "./firebase.js";
 
 import {
@@ -1284,13 +1284,16 @@ function submitConfirmedQrOrder(event) {
   var businessDate = getBusinessDate();
   var meta = getOrderMeta();
 
-  generateDailyOrderNumber()
+  createOrderNumber("qr", { storeId: STORE_ID, businessDate: businessDate })
     .then(function (orderNumber) {
       var order = {
         id: orderRef.key,
         orderNumber: orderNumber,
         businessDate: businessDate,
+        businessDay: businessDate,
         storeId: STORE_ID,
+        orderSource: "QR",
+        deviceType: "qr",
         source: "QR",
         type: meta.type,
         table: meta.table,
@@ -2944,7 +2947,7 @@ window.qrLegacyDirectSubmitOrder = function (event) {
     var businessDate = getBusinessDate();
     var meta = getOrderMeta();
 
-    generateDailyOrderNumber()
+    createOrderNumber("qr", { storeId: STORE_ID, businessDate: businessDate })
       .then(function (orderNumber) {
         var safeCustomerName = customerNameInput ? customerNameInput.value.trim() : "";
         var safeOrderNote = orderNoteInput ? orderNoteInput.value.trim() : "";
@@ -2953,7 +2956,10 @@ window.qrLegacyDirectSubmitOrder = function (event) {
           id: orderRef.key,
           orderNumber: orderNumber,
           businessDate: businessDate,
+          businessDay: businessDate,
           storeId: STORE_ID,
+          orderSource: "QR",
+          deviceType: "qr",
           source: "QR",
           type: meta.type,
           table: meta.table,

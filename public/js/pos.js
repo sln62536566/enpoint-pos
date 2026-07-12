@@ -7,7 +7,8 @@ import {
   remove,
   onValue,
   getBusinessDate,
-  generateDailyOrderNumber
+  getCompactBusinessDate,
+  createOrderNumber
 } from "./firebase.js";
 
 import {
@@ -263,6 +264,8 @@ let posSoundUnlocked = false;
 let pendingNewOrderAlert = false;
 let orderAlertIntervalId = null;
 let submittingPosOrder = false;
+let AudioManager = null;
+let PaymentStatusManager = null;
 
 function renderPosFoodButton(item) {
   return renderPosFoodButtonV64(item);
@@ -758,6 +761,17 @@ function playNewQrOrderBeep(forcePlay) {
   }
 }
 
+AudioManager = {
+  unlock: unlockPosOrderSound,
+  playNewOrder: function(forcePlay) {
+    return playNewQrOrderBeep(forcePlay);
+  },
+  stop: stopOrderAlertSound,
+  test: function() {
+    return playNewQrOrderBeep(true);
+  }
+};
+
 function isQrOrderForSound(order) {
   if (!order) return false;
   return String(order.source || "").toLowerCase() === "qr";
@@ -906,6 +920,17 @@ function buildTakeoutHoldNumber() {
   return "A" + String(count).padStart(3, "0");
 }
 
+function getLocalHoldCounterKey() {
+  return "enpoint_hold_counter_" + getBusinessDate();
+}
+
+function createLocalHoldNumber() {
+  var key = getLocalHoldCounterKey();
+  var next = Number(localStorage.getItem(key) || 0) + 1;
+  localStorage.setItem(key, String(next));
+  return "H-" + getCompactBusinessDate() + "-" + String(next).padStart(4, "0");
+}
+
 function cloneCartItems(items) {
   try {
     return JSON.parse(JSON.stringify(items || []));
@@ -981,9 +1006,11 @@ function holdCurrentCart() {
     alert("購物車沒有餐點可保留");
     return;
   }
-  var label = getCurrentCartLabel();
+  var holdNumber = createLocalHoldNumber();
+  var label = holdNumber + "｜" + getCurrentCartLabel();
   var entry = {
     id: "hold-" + (Date.now ? Date.now() : new Date().getTime()),
+    holdNumber: holdNumber,
     label: label,
     orderType: currentOrderType,
     table: currentOrderType === "內用" ? selectedTable : "",
@@ -1500,6 +1527,20 @@ function isUnpaid(order) {
 function getPaymentStatusText(order) {
   return isPaid(order) ? "已付款" : "未結帳";
 }
+
+PaymentStatusManager = {
+  isPaid: isPaid,
+  isUnpaid: isUnpaid,
+  getText: getPaymentStatusText,
+  buildFields: function(isPaidMode, paidAt) {
+    return {
+      paymentStatus: isPaidMode ? "paid" : "unpaid",
+      paymentStatusText: isPaidMode ? "已付款" : "未結帳",
+      paid: isPaidMode,
+      paidAt: isPaidMode ? paidAt : null
+    };
+  }
+};
 
 function isTestOrder(order) {
   return order.isTestOrder === true || order.testOrder === true;
@@ -2864,7 +2905,8 @@ async function submitOrderCore(isTestMode, paymentMode) {
     const newOrderRef = push(ordersRef);
     const now = Date.now();
     const businessDate = getBusinessDate();
-    const orderNumber = await generateDailyOrderNumber();
+    const orderNumber = await createOrderNumber("pos", { storeId: STORE_ID, businessDate });
+    const paymentFields = PaymentStatusManager.buildFields(isPaidMode, now);
 
     const customerLabel =
       currentOrderType === "內用"
@@ -2875,8 +2917,12 @@ async function submitOrderCore(isTestMode, paymentMode) {
       id: newOrderRef.key,
       orderNumber,
       businessDate,
+      businessDay: businessDate,
       storeId: STORE_ID,
+      storeName: getStoreDisplayName(),
       storeMode: STORE_MODE,
+      orderSource: "POS",
+      deviceType: "pos",
       source: isTestMode ? "店員POS測試" : "店員POS",
       type: currentOrderType,
       table: currentOrderType === "內用" ? selectedTable : "",
@@ -2890,14 +2936,14 @@ async function submitOrderCore(isTestMode, paymentMode) {
       total,
       status: getOrderStatusForSubmission(),
       statusText: isTestMode ? "測試訂單：已送廚房，不計營收" : (isUnpaidMode ? "未結帳，已送廚房" : (STORE_MODE === "pro" ? "已結帳，餐點製作中" : "已結帳，已送廚房")),
-      paymentStatus: isPaidMode ? "paid" : "unpaid",
-      paymentStatusText: isPaidMode ? "已付款" : "未結帳",
+      paymentStatus: paymentFields.paymentStatus,
+      paymentStatusText: paymentFields.paymentStatusText,
       kitchenStatus: getKitchenStatusForSubmission(),
       confirmed: true,
-      paid: isPaidMode,
+      paid: paymentFields.paid,
       closed: false,
       cancelled: false,
-      paidAt: isPaidMode ? now : null,
+      paidAt: paymentFields.paidAt,
       sentToKitchenAt: getSentToKitchenAtForSubmission(now),
       createdAt: now,
       updatedAt: now

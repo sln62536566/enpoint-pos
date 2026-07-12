@@ -3354,6 +3354,18 @@ function ensureCustomGroupModal() {
   modal.className = "menu-studio-modal hidden";
   modal.innerHTML = '<div class="menu-studio-modal-backdrop"></div><section class="menu-studio-modal-card" role="dialog" aria-modal="true"><div id="customGroupModalContent"></div></section>';
   document.body.appendChild(modal);
+  var backdrop = modal.querySelector(".menu-studio-modal-backdrop");
+  var card = modal.querySelector(".menu-studio-modal-card");
+  if (backdrop) {
+    backdrop.addEventListener("touchmove", function(event) {
+      if (event && event.preventDefault) event.preventDefault();
+    }, { passive: false });
+  }
+  if (card) {
+    card.addEventListener("touchmove", function(event) {
+      if (event && event.stopPropagation) event.stopPropagation();
+    }, { passive: true });
+  }
   return modal;
 }
 

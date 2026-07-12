@@ -47,11 +47,26 @@ function getBusinessDate() {
   return `${year}-${month}-${day}`;
 }
 
-// ===== 訂單號 =====
-async function generateDailyOrderNumber() {
-  const businessDate = getBusinessDate();
+function getCompactBusinessDate() {
+  return getBusinessDate().replace(/-/g, "");
+}
 
-  const counterRef = ref(db, `dailyCounters/${businessDate}`);
+function normalizeOrderNumberSource(source) {
+  const value = String(source || "pos").toLowerCase();
+  if (value === "q" || value === "qr") return { key: "qr", prefix: "Q" };
+  if (value === "o" || value === "online" || value === "line") return { key: "online", prefix: "O" };
+  if (value === "h" || value === "hold" || value === "held") return { key: "hold", prefix: "H" };
+  return { key: "pos", prefix: "P" };
+}
+
+// ===== OrderNumberService =====
+async function createOrderNumber(source, options = {}) {
+  const businessDate = options.businessDate || getBusinessDate();
+  const compactDate = businessDate.replace(/-/g, "");
+  const storeId = options.storeId || "defaultStore";
+  const sourceMeta = normalizeOrderNumberSource(source);
+
+  const counterRef = ref(db, `orderNumberCounters/${storeId}/${businessDate}/${sourceMeta.key}`);
 
   const snapshot = await get(counterRef);
 
@@ -65,7 +80,11 @@ async function generateDailyOrderNumber() {
 
   await set(counterRef, current);
 
-  return `A${String(current).padStart(3, "0")}`;
+  return `${sourceMeta.prefix}-${compactDate}-${String(current).padStart(4, "0")}`;
+}
+
+async function generateDailyOrderNumber(source = "pos") {
+  return createOrderNumber(source);
 }
 
 export {
@@ -82,5 +101,7 @@ export {
   uploadBytes,
   getDownloadURL,
   getBusinessDate,
+  getCompactBusinessDate,
+  createOrderNumber,
   generateDailyOrderNumber
 };

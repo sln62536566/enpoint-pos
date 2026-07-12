@@ -3,7 +3,9 @@ import {
   ref,
   push,
   set,
-  onValue
+  onValue,
+  getBusinessDate,
+  createOrderNumber
 } from "./firebase.js";
 
 const menuContainer = document.getElementById("menuContainer");
@@ -381,7 +383,8 @@ async function submitOrder() {
   try {
     const newOrderRef = push(ordersRef);
     const orderId = newOrderRef.key;
-    const orderNumber = Date.now().toString().slice(-6);
+    const businessDate = getBusinessDate();
+    const orderNumber = await createOrderNumber("qr", { businessDate });
 
     const tableNumber = tableNumberInput.value.trim();
     const customerName = customerNameInput.value.trim();
@@ -393,6 +396,11 @@ async function submitOrder() {
 
     const order = {
       orderNumber,
+      businessDate,
+      businessDay: businessDate,
+      storeId: "defaultStore",
+      orderSource: qrTable ? "QR" : "CUSTOMER",
+      deviceType: "qr",
       source: qrTable ? "QR點餐" : "客人點餐",
       type: currentOrderType,
       table: currentOrderType === "內用" ? tableNumber : "",
