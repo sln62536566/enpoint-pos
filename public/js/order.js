@@ -540,6 +540,7 @@ async function submitOrder() {
       businessDate,
       businessDay: businessDate,
       orderSource: "QR",
+      sourcePrefix: "Q",
       deviceType: "qr",
       source: "QR",
       type: TABLE === "現場客人" ? "外帶" : "內用",

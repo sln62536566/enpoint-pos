@@ -7,7 +7,6 @@ import {
   remove,
   onValue,
   getBusinessDate,
-  getCompactBusinessDate,
   createOrderNumber
 } from "./firebase.js";
 
@@ -910,25 +909,7 @@ function saveHeldCarts() {
 
 function getCurrentCartLabel() {
   if (currentOrderType === "內用") return String(selectedTable || "1") + "桌";
-  return "外帶 " + buildTakeoutHoldNumber();
-}
-
-function buildTakeoutHoldNumber() {
-  var count = (heldCarts || []).filter(function(entry) {
-    return String(entry.label || "").indexOf("外帶") === 0;
-  }).length + 1;
-  return "A" + String(count).padStart(3, "0");
-}
-
-function getLocalHoldCounterKey() {
-  return "enpoint_hold_counter_" + getBusinessDate();
-}
-
-function createLocalHoldNumber() {
-  var key = getLocalHoldCounterKey();
-  var next = Number(localStorage.getItem(key) || 0) + 1;
-  localStorage.setItem(key, String(next));
-  return "H-" + getCompactBusinessDate() + "-" + String(next).padStart(4, "0");
+  return "外帶";
 }
 
 function cloneCartItems(items) {
@@ -987,8 +968,11 @@ function renderHeldCarts() {
     return;
   }
   list.innerHTML = heldCarts.map(function(entry) {
+    var holdNumber = entry.holdNumber || entry.heldOrderNumber || entry.label || "保留單";
+    var meta = entry.orderType === "內用" ? "內用 " + (entry.table || "-") + "桌" : (entry.orderType || "外帶");
     return '<button type="button" class="held-cart-card" data-id="' + escapeHtml(entry.id) + '">' +
-      '<strong>' + escapeHtml(entry.label || "保留單") + '</strong>' +
+      '<strong>' + escapeHtml(holdNumber) + '</strong>' +
+      '<span>' + escapeHtml(meta) + '</span>' +
       '<span>' + Number(entry.itemCount || 0) + ' 項餐點</span>' +
       '<b>' + money(entry.total || 0) + '</b>' +
     '</button>';
@@ -1001,34 +985,50 @@ function renderHeldCarts() {
   }
 }
 
-function holdCurrentCart() {
+async function holdCurrentCart(options) {
+  options = options || {};
   if (!cart.length) {
-    alert("購物車沒有餐點可保留");
-    return;
+    if (!options.silent) alert("購物車沒有餐點可保留");
+    return false;
   }
-  var holdNumber = createLocalHoldNumber();
-  var label = holdNumber + "｜" + getCurrentCartLabel();
+  var businessDate = getBusinessDate();
+  var holdNumber = "";
+  try {
+    holdNumber = await createOrderNumber("hold", { storeId: STORE_ID, businessDate: businessDate });
+  } catch (error) {
+    console.error("保留單編號建立失敗：", error);
+    alert("保留單編號建立失敗，請確認網路後再試一次。");
+    return false;
+  }
+  var label = getCurrentCartLabel();
+  var now = Date.now ? Date.now() : new Date().getTime();
   var entry = {
-    id: "hold-" + (Date.now ? Date.now() : new Date().getTime()),
+    id: "hold-" + now,
     holdNumber: holdNumber,
+    heldOrderNumber: holdNumber,
     label: label,
+    originalCartOrderNumber: "",
+    businessDate: businessDate,
+    businessDay: businessDate,
     orderType: currentOrderType,
     table: currentOrderType === "內用" ? selectedTable : "",
     items: cloneCartItems(cart),
     note: posOrderNoteInput ? posOrderNoteInput.value.trim() : "",
     itemCount: cart.reduce(function(sum, item) { return sum + itemQty(item); }, 0),
     total: calculateTotal(cart),
-    createdAt: Date.now ? Date.now() : new Date().getTime()
+    heldAt: now,
+    createdAt: now
   };
   heldCarts.unshift(entry);
   saveHeldCarts();
   cart = [];
   if (posOrderNoteInput) posOrderNoteInput.value = "";
   renderCart();
-  alert("已保留：" + label);
+  if (!options.silent) alert("已保留：" + holdNumber);
+  return true;
 }
 
-function restoreHeldCart(id) {
+async function restoreHeldCart(id) {
   var index = -1;
   for (var i = 0; i < heldCarts.length; i += 1) {
     if (String(heldCarts[i].id) === String(id)) index = i;
@@ -1041,7 +1041,8 @@ function restoreHeldCart(id) {
     if (!shouldHold) {
       return;
     }
-    holdCurrentCart();
+    var held = await holdCurrentCart({ silent: true });
+    if (!held) return;
   }
 
   cart = cloneCartItems(entry.items);
@@ -2922,6 +2923,7 @@ async function submitOrderCore(isTestMode, paymentMode) {
       storeName: getStoreDisplayName(),
       storeMode: STORE_MODE,
       orderSource: "POS",
+      sourcePrefix: "P",
       deviceType: "pos",
       source: isTestMode ? "店員POS測試" : "店員POS",
       type: currentOrderType,

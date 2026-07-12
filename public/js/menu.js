@@ -400,6 +400,7 @@ async function submitOrder() {
       businessDay: businessDate,
       storeId: "defaultStore",
       orderSource: qrTable ? "QR" : "CUSTOMER",
+      sourcePrefix: "Q",
       deviceType: "qr",
       source: qrTable ? "QR點餐" : "客人點餐",
       type: currentOrderType,

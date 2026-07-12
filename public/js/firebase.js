@@ -10,7 +10,8 @@ import {
   update,
   remove,
   onValue,
-  get
+  get,
+  runTransaction
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
 import {
@@ -47,8 +48,8 @@ function getBusinessDate() {
   return `${year}-${month}-${day}`;
 }
 
-function getCompactBusinessDate() {
-  return getBusinessDate().replace(/-/g, "");
+function getCompactBusinessDate(businessDate = getBusinessDate()) {
+  return String(businessDate || getBusinessDate()).replace(/-/g, "");
 }
 
 function normalizeOrderNumberSource(source) {
@@ -61,24 +62,24 @@ function normalizeOrderNumberSource(source) {
 
 // ===== OrderNumberService =====
 async function createOrderNumber(source, options = {}) {
-  const businessDate = options.businessDate || getBusinessDate();
-  const compactDate = businessDate.replace(/-/g, "");
+  if (typeof options === "string") {
+    options = { businessDate: options };
+  }
+  const businessDate = options.businessDate || options.businessDay || getBusinessDate();
+  const compactDate = getCompactBusinessDate(businessDate);
   const storeId = options.storeId || "defaultStore";
   const sourceMeta = normalizeOrderNumberSource(source);
 
   const counterRef = ref(db, `orderNumberCounters/${storeId}/${businessDate}/${sourceMeta.key}`);
+  const result = await runTransaction(counterRef, current => {
+    return Number(current || 0) + 1;
+  });
 
-  const snapshot = await get(counterRef);
-
-  let current = 0;
-
-  if (snapshot.exists()) {
-    current = snapshot.val();
+  if (!result.committed) {
+    throw new Error("Order number transaction was not committed");
   }
 
-  current++;
-
-  await set(counterRef, current);
+  const current = Number(result.snapshot.val() || 0);
 
   return `${sourceMeta.prefix}-${compactDate}-${String(current).padStart(4, "0")}`;
 }
@@ -97,6 +98,7 @@ export {
   remove,
   onValue,
   get,
+  runTransaction,
   storageRef,
   uploadBytes,
   getDownloadURL,
