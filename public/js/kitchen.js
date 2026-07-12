@@ -27,8 +27,22 @@ function isCancelled(order) {
   return order.status === "cancelled" || order.kitchenStatus === "cancelled" || order.cancelled === true;
 }
 
+function isPaid(order) {
+  return order.paymentStatus === "paid" || order.paid === true;
+}
+
+function isUnpaid(order) {
+  if (!order || isCancelled(order) || isPaid(order)) return false;
+  return order.paymentStatus === "unpaid" || order.paid === false;
+}
+
+function money(value) {
+  return `NT$${Number(value || 0)}`;
+}
+
 function getKitchenFlags(order) {
   const flags = [];
+  if (isUnpaid(order)) flags.push(`<span class="kitchen-flag unpaid">🔴 未結帳</span>`);
   if (isTestOrder(order)) flags.push(`<span class="kitchen-flag test">測試單</span>`);
   if (isCancelled(order)) flags.push(`<span class="kitchen-flag cancelled">已作廢</span>`);
   return flags.length ? `<div class="kitchen-flags">${flags.join("")}</div>` : "";
@@ -172,6 +186,7 @@ function renderOrders(orders) {
             <p>來源：${order.source || "未知"}｜${order.type || "未分類"}</p>
             ${order.type === "內用" ? `<p>桌號：${getTableText(order)}</p>` : ""}
             <p>時間：${formatTime(order.createdAt)}</p>
+            ${isUnpaid(order) ? `<p class="kitchen-payment-due">應收：${money(order.total)}</p>` : ""}
             ${getKitchenFlags(order)}
           </div>
 

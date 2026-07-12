@@ -87,6 +87,7 @@ const tableButtons = document.getElementById("tableButtons");
 const takeOutInfo = document.getElementById("takeOutInfo");
 
 const submitOrderBtn = document.getElementById("submitOrderBtn");
+const submitUnpaidOrderBtn = document.getElementById("submitUnpaidOrderBtn");
 const submitTestOrderBtn = document.getElementById("submitTestOrderBtn");
 const clearCartBtn = document.getElementById("clearCartBtn");
 
@@ -1009,17 +1010,11 @@ function restoreHeldCart(id) {
   var entry = heldCarts[index];
 
   if (cart.length) {
-    var action = prompt("目前購物車已有餐點，禁止直接混單。\n\n輸入 1：返回\n輸入 2：保留目前購物車，再恢復指定保留單\n輸入 3：清空目前購物車後恢復");
-    if (action === "1" || action === null) return;
-    if (action === "2") {
-      holdCurrentCart();
-    } else if (action === "3") {
-      if (!confirm("確定清空目前購物車並恢復「" + (entry.label || "保留單") + "」？")) return;
-      cart = [];
-      if (posOrderNoteInput) posOrderNoteInput.value = "";
-    } else {
+    var shouldHold = confirm("目前購物車已有餐點，為避免混單，不能直接切換保留訂單。\n\n請先完成送單，或按「確定」先保留目前購物車後再切換。");
+    if (!shouldHold) {
       return;
     }
+    holdCurrentCart();
   }
 
   cart = cloneCartItems(entry.items);
@@ -1057,6 +1052,25 @@ function getFeatureModuleSettings() {
   }
 }
 
+function isKdsEnabled() {
+  var settings = getFeatureModuleSettings();
+  return settings.kds !== false;
+}
+
+function getKitchenStatusForSubmission() {
+  if (!isKdsEnabled() || STORE_MODE === "pro") return "not_required";
+  return "confirmed";
+}
+
+function getOrderStatusForSubmission() {
+  if (!isKdsEnabled() && STORE_MODE !== "pro") return "cooking";
+  return STORE_MODE === "pro" ? "cooking" : "confirmed";
+}
+
+function getSentToKitchenAtForSubmission(now) {
+  return getKitchenStatusForSubmission() === "confirmed" ? now : null;
+}
+
 function saveFeatureModuleSettings(settings) {
   try {
     localStorage.setItem("enpoint_feature_modules", JSON.stringify(settings || {}));
@@ -1068,7 +1082,7 @@ function renderFeatureModuleSettings() {
   var list = document.getElementById("featureModuleList");
   if (!list) return;
   var settings = getFeatureModuleSettings();
-  var labels = { qr: "QR 點餐", kds: "KDS", print: "出單", sticker: "貼紙（預留）", invoice: "電子發票（預留）", online: "線上訂餐（預留）", member: "會員（預留）" };
+  var labels = { qr: "QR 點餐", kds: "使用廚房系統", print: "出單", sticker: "貼紙（預留）", invoice: "電子發票（預留）", online: "線上訂餐（預留）", member: "會員（預留）" };
   list.innerHTML = Object.keys(labels).map(function(key) {
     return '<label class="feature-module-row"><span>' + labels[key] + '</span><input type="checkbox" data-module="' + key + '" ' + (settings[key] === true ? "checked" : "") + ' /></label>';
   }).join("");
@@ -1477,6 +1491,16 @@ function isPaid(order) {
   return order.paymentStatus === "paid" || order.paid === true;
 }
 
+function isUnpaid(order) {
+  if (!order) return false;
+  if (isPaid(order) || isCancelled(order)) return false;
+  return order.paymentStatus === "unpaid" || order.paid === false;
+}
+
+function getPaymentStatusText(order) {
+  return isPaid(order) ? "已付款" : "未結帳";
+}
+
 function isTestOrder(order) {
   return order.isTestOrder === true || order.testOrder === true;
 }
@@ -1487,6 +1511,7 @@ function isRevenueExcluded(order) {
 
 function getOrderFlagHtml(order) {
   const flags = [];
+  if (isUnpaid(order)) flags.push(`<span class="order-flag unpaid">\u{1F534} \u672a\u7d50\u5e33</span>`);
   if (isTestOrder(order)) flags.push(`<span class="order-flag test">測試單</span>`);
   if (isCancelled(order)) flags.push(`<span class="order-flag cancelled">已作廢</span>`);
   if (order.revenueExcluded === true && !isCancelled(order) && !isTestOrder(order)) flags.push(`<span class="order-flag excluded">不計營收</span>`);
@@ -1607,6 +1632,8 @@ function buildKitchenTicketHtml(order) {
     '<div class="ticket-row"><span>類型</span><b>' + escapeHtml(order.type || "") + '</b></div>' +
     '<div class="ticket-row"><span>桌號</span><b>' + escapeHtml(order.table || (order.type === "外帶" ? "外帶" : "-")) + '</b></div>' +
     '<div class="ticket-row"><span>時間</span><b>' + escapeHtml(formatTime(order.createdAt || Date.now())) + '</b></div>' +
+    '<div class="ticket-row ticket-payment ' + (isUnpaid(order) ? 'unpaid' : 'paid') + '"><span>付款狀態</span><b>' + escapeHtml(getPaymentStatusText(order)) + '</b></div>' +
+    '<div class="ticket-row ticket-payment ' + (isUnpaid(order) ? 'unpaid' : 'paid') + '"><span>應收</span><b>' + money(order.total || calculateTotal(items)) + '</b></div>' +
     '<hr>' +
     items.map(function(item) {
       return '<div class="ticket-item">' +
@@ -1627,6 +1654,8 @@ function buildCustomerTicketHtml(order) {
     '<div class="ticket-meta"><strong>#' + escapeHtml(order.orderNumber || order.id || "") + '</strong></div>' +
     '<div class="ticket-row"><span>時間</span><b>' + escapeHtml(formatTime(order.createdAt || Date.now())) + '</b></div>' +
     '<div class="ticket-row"><span>類型</span><b>' + escapeHtml(order.type || "") + (order.table ? "｜" + escapeHtml(order.table) + "桌" : "") + '</b></div>' +
+    '<div class="ticket-row ticket-payment ' + (isUnpaid(order) ? 'unpaid' : 'paid') + '"><span>付款狀態</span><b>' + escapeHtml(getPaymentStatusText(order)) + '</b></div>' +
+    '<div class="ticket-row ticket-payment ' + (isUnpaid(order) ? 'unpaid' : 'paid') + '"><span>應收</span><b>' + money(order.total || calculateTotal(items)) + '</b></div>' +
     '<hr>' +
     items.map(function(item) {
       return '<div class="ticket-item">' +
@@ -1650,6 +1679,8 @@ function buildPrintWindowHtml(title, bodyHtml) {
     '.ticket-meta{text-align:center;font-size:22px;margin-bottom:12px;}' +
     '.ticket-row,.ticket-item-main,.ticket-total{display:flex;justify-content:space-between;gap:12px;margin:8px 0;}' +
     '.ticket-row span{color:#555;}.ticket-row b{text-align:right;}' +
+    '.ticket-payment{padding:8px;border:1px solid #ddd;border-radius:6px;background:#f8f8f8;}' +
+    '.ticket-payment.unpaid{border-color:#b42318;background:#fff1f2;color:#b42318;font-weight:800;}' +
     'hr{border:none;border-top:1px dashed #999;margin:12px 0;}' +
     '.ticket-item{padding:10px 0;border-bottom:1px dashed #ccc;}' +
     '.ticket-item-main strong{font-size:18px;}.ticket-item-main b{font-size:18px;white-space:nowrap;}' +
@@ -2766,16 +2797,21 @@ function clearCart() {
 ========================= */
 
 async function submitOrder() {
-  return submitOrderCore(false);
+  return submitOrderCore(false, "paid");
+}
+
+async function submitUnpaidOrder() {
+  return submitOrderCore(false, "unpaid");
 }
 
 async function submitTestOrder() {
-  return submitOrderCore(true);
+  return submitOrderCore(true, "paid");
 }
 
-async function submitOrderCore(isTestMode) {
+async function submitOrderCore(isTestMode, paymentMode) {
   if (submittingPosOrder) return;
   if (!isTestMode && submitOrderBtn && submitOrderBtn.disabled) return;
+  if (!isTestMode && paymentMode === "unpaid" && submitUnpaidOrderBtn && submitUnpaidOrderBtn.disabled) return;
   if (isTestMode && (!posSettings.showTestOrders || (submitTestOrderBtn && submitTestOrderBtn.disabled))) return;
   if (cart.length === 0) {
     alert("請先加入餐點");
@@ -2788,6 +2824,8 @@ async function submitOrderCore(isTestMode) {
   }
 
   const total = calculateTotal(cart);
+  const isUnpaidMode = paymentMode === "unpaid" && !isTestMode;
+  const isPaidMode = !isUnpaidMode;
   const orderNote = posOrderNoteInput ? posOrderNoteInput.value.trim() : "";
   const orderNumberPreview = "系統送出後產生";
   const itemsText = cart.map((item, index) => {
@@ -2814,10 +2852,12 @@ async function submitOrderCore(isTestMode) {
   submittingPosOrder = true;
   if (isTestMode) {
     if (submitTestOrderBtn) submitTestOrderBtn.disabled = true;
-  } else if (submitOrderBtn) {
-    submitOrderBtn.disabled = true;
+  } else {
+    if (submitOrderBtn) submitOrderBtn.disabled = true;
+    if (submitUnpaidOrderBtn) submitUnpaidOrderBtn.disabled = true;
   }
-  if (!isTestMode && submitOrderBtn) submitOrderBtn.textContent = "送出中...";
+  if (!isTestMode && isPaidMode && submitOrderBtn) submitOrderBtn.textContent = "送出中...";
+  if (!isTestMode && isUnpaidMode && submitUnpaidOrderBtn) submitUnpaidOrderBtn.textContent = "未結帳送單中...";
   if (isTestMode && submitTestOrderBtn) submitTestOrderBtn.textContent = "測試送出中...";
 
   try {
@@ -2848,23 +2888,24 @@ async function submitOrderCore(isTestMode) {
       note: orderNote,
       items: cart,
       total,
-      status: STORE_MODE === "pro" ? "cooking" : "confirmed",
-      statusText: isTestMode ? "測試訂單：已送廚房，不計營收" : (STORE_MODE === "pro" ? "已結帳，餐點製作中" : "已結帳，已送廚房"),
-      paymentStatus: "paid",
-      kitchenStatus: STORE_MODE === "pro" ? "not_required" : "confirmed",
+      status: getOrderStatusForSubmission(),
+      statusText: isTestMode ? "測試訂單：已送廚房，不計營收" : (isUnpaidMode ? "未結帳，已送廚房" : (STORE_MODE === "pro" ? "已結帳，餐點製作中" : "已結帳，已送廚房")),
+      paymentStatus: isPaidMode ? "paid" : "unpaid",
+      paymentStatusText: isPaidMode ? "已付款" : "未結帳",
+      kitchenStatus: getKitchenStatusForSubmission(),
       confirmed: true,
-      paid: true,
+      paid: isPaidMode,
       closed: false,
       cancelled: false,
-      paidAt: now,
-      sentToKitchenAt: STORE_MODE === "pro" ? null : now,
+      paidAt: isPaidMode ? now : null,
+      sentToKitchenAt: getSentToKitchenAtForSubmission(now),
       createdAt: now,
       updatedAt: now
     };
 
     await set(newOrderRef, order);
 
-    alert(`${isTestMode ? "測試訂單已送出" : "結帳完成，已送出"}：${order.customerLabel}\n單號：${orderNumber}`);
+    alert(`${isTestMode ? "測試訂單已送出" : (isUnpaidMode ? "未結帳訂單已送出" : "結帳完成，已送出")}：${order.customerLabel}\n單號：${orderNumber}`);
 
     cart = [];
     if (posOrderNoteInput) posOrderNoteInput.value = "";
@@ -2876,8 +2917,10 @@ async function submitOrderCore(isTestMode) {
 
   submittingPosOrder = false;
   if (submitOrderBtn) submitOrderBtn.disabled = false;
+  if (submitUnpaidOrderBtn) submitUnpaidOrderBtn.disabled = false;
   if (submitTestOrderBtn) submitTestOrderBtn.disabled = posSettings.showTestOrders !== true;
-  if (submitOrderBtn) submitOrderBtn.textContent = "結帳";
+  if (submitOrderBtn) submitOrderBtn.textContent = "結帳並送單";
+  if (submitUnpaidOrderBtn) submitUnpaidOrderBtn.textContent = "未結帳送單";
   if (submitTestOrderBtn) submitTestOrderBtn.textContent = "測試訂單";
   applyShowTestOrdersSetting();
 }
@@ -2929,6 +2972,10 @@ function renderOrderCard(order) {
       ${order.note ? `<div class="order-note">整單備註：${order.note}</div>` : ""}
 
       <div class="order-total">總金額：${money(order.total)}</div>
+      <div class="order-payment-status ${isUnpaid(order) ? "unpaid" : "paid"}">
+        <span>${isUnpaid(order) ? "🔴 未結帳" : "已付款"}</span>
+        <strong>應收：${money(order.total)}</strong>
+      </div>
 
       <div class="order-actions">
         <div class="reprint-actions">
@@ -2939,7 +2986,7 @@ function renderOrderCard(order) {
 
         ${editable ? `<button class="secondary-btn" onclick="openEditOrderModal('${order.id}')">編輯 / 改單</button>` : ""}
 
-        ${canConfirm ? `<button class="primary-btn" onclick="confirmPaidAndProcess('${order.id}')">${STORE_MODE === "pro" ? "確認結帳並開始製作" : "確認結帳並送廚房"}</button>` : ""}
+        ${canConfirm ? `<button class="primary-btn" onclick="confirmPaidAndProcess('${order.id}')">確認收款</button>` : ""}
 
         ${STORE_MODE === "pro" && order.status === "cooking" ? `<button class="primary-btn" onclick="markOrderDoneByPOS('${order.id}')">POS 標記完成</button>` : ""}
 
@@ -3486,6 +3533,7 @@ async function confirmPaidAndProcess(orderId) {
         status: "cooking",
         statusText: "已確認付款，餐點製作中",
         paymentStatus: "paid",
+        paymentStatusText: "已付款",
         kitchenStatus: "not_required",
         confirmed: true,
         paid: true,
@@ -3503,11 +3551,12 @@ async function confirmPaidAndProcess(orderId) {
       status: "confirmed",
       statusText: "已確認付款，等待廚房製作",
       paymentStatus: "paid",
-      kitchenStatus: "confirmed",
+      paymentStatusText: "已付款",
+      kitchenStatus: getKitchenStatusForSubmission(),
       confirmed: true,
       paid: true,
       paidAt: now,
-      sentToKitchenAt: now,
+      sentToKitchenAt: getSentToKitchenAtForSubmission(now),
       updatedAt: now
     });
 
@@ -3727,11 +3776,13 @@ function renderStats() {
 
   const cancelledOrders = orders.filter(order => isCancelled(order));
 
-  const revenue = doneOrders.reduce((sum, order) => {
+  const paidRevenueOrders = doneOrders.filter(order => isPaid(order));
+
+  const revenue = paidRevenueOrders.reduce((sum, order) => {
     return sum + Number(order.total || 0);
   }, 0);
 
-  const average = effectiveOrders.length > 0 ? revenue / effectiveOrders.length : 0;
+  const average = paidRevenueOrders.length > 0 ? revenue / paidRevenueOrders.length : 0;
 
   if (currentReportRange === "day") {
     statRevenueLabel.textContent = "今日營收";
@@ -3777,6 +3828,7 @@ function renderClosingStatus() {
     closeBusinessDayBtn.disabled = false;
     closeBusinessDayBtn.textContent = "確認今日收班";
     submitOrderBtn.disabled = false;
+    if (submitUnpaidOrderBtn) submitUnpaidOrderBtn.disabled = false;
     return;
   }
 
@@ -3785,6 +3837,7 @@ function renderClosingStatus() {
   closeBusinessDayBtn.disabled = false;
   closeBusinessDayBtn.textContent = "重新開班";
   submitOrderBtn.disabled = true;
+  if (submitUnpaidOrderBtn) submitUnpaidOrderBtn.disabled = true;
 }
 
 function watchBusinessDayClose() {
@@ -3815,7 +3868,7 @@ async function closeBusinessDay() {
   const cancelledOrders = orders.filter(order => isCancelled(order));
   const doneOrders = effectiveOrders.filter(order => isDone(order) || isClosed(order));
 
-  const revenue = doneOrders.reduce((sum, order) => {
+  const revenue = doneOrders.filter(order => isPaid(order)).reduce((sum, order) => {
     return sum + Number(order.total || 0);
   }, 0);
 
@@ -4102,6 +4155,13 @@ submitOrderBtn.addEventListener("click", function(event) {
   if (event && event.stopPropagation) event.stopPropagation();
   submitOrder();
 }, true);
+if (submitUnpaidOrderBtn) {
+  submitUnpaidOrderBtn.addEventListener("click", function(event) {
+    if (event && event.preventDefault) event.preventDefault();
+    if (event && event.stopPropagation) event.stopPropagation();
+    submitUnpaidOrder();
+  }, true);
+}
 clearCartBtn.addEventListener("click", clearCart);
 if (submitTestOrderBtn) submitTestOrderBtn.addEventListener("click", submitTestOrder);
 
@@ -4347,6 +4407,13 @@ window.selectTable = selectTable;
       return false;
     }
 
+    if (id === "submitUnpaidOrderBtn" && typeof window.submitUnpaidOrder === "function") {
+      if (button.disabled) return false;
+      event.preventDefault && event.preventDefault();
+      window.submitUnpaidOrder();
+      return false;
+    }
+
     if (id === "submitTestOrderBtn" && typeof window.submitTestOrder === "function") {
       if (posSettings && posSettings.showTestOrders !== true) return false;
       if (button.hidden || button.style.display === "none") return false;
@@ -4368,6 +4435,7 @@ window.selectTable = selectTable;
 })();
 
 window.submitOrder = submitOrder;
+window.submitUnpaidOrder = submitUnpaidOrder;
 window.submitTestOrder = submitTestOrder;
 window.clearCart = clearCart;
 window.printOrderTicket = printOrderTicket;

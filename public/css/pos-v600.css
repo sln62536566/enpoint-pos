@@ -3586,6 +3586,35 @@ html body .pos-tabs .tab-btn.active,
   border:1px solid rgba(255,120,120,0.35);
 }
 
+.order-flag.unpaid{
+  background:#fff1f2;
+  color:#b42318;
+  border:1px solid rgba(180,35,24,0.35);
+}
+
+.order-payment-status{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin:10px 0 0;
+  padding:10px 12px;
+  border-radius:8px;
+  border:1px solid #ead7bd;
+  background:#fffaf4;
+  font-weight:900;
+}
+
+.order-payment-status.unpaid{
+  border-color:rgba(180,35,24,0.35);
+  background:#fff1f2;
+  color:#b42318;
+}
+
+.order-payment-status.paid{
+  color:#276749;
+}
+
 .order-card:has(.order-flag.test){
   border:1px solid rgba(245,197,66,0.35);
 }

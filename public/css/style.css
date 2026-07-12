@@ -1893,6 +1893,8 @@ textarea.input {
 .kitchen-flag{display:inline-flex;align-items:center;width:fit-content;border-radius:999px;padding:6px 10px;font-size:14px;font-weight:900;}
 .kitchen-flag.test{background:#fff3cd;color:#6b4700;border:1px solid rgba(255,193,7,0.55);}
 .kitchen-flag.cancelled{background:#ffebee;color:#9f1d1d;border:1px solid rgba(211,47,47,0.35);}
+.kitchen-flag.unpaid{background:#fff1f2;color:#b42318;border:1px solid rgba(180,35,24,0.35);}
+.kitchen-payment-due{display:inline-block;margin:6px 0 0;padding:6px 10px;border-radius:8px;background:#fff1f2;color:#b42318;border:1px solid rgba(180,35,24,0.35);font-weight:900;}
 /* v63 admin UX */
 .item-editor-modal.hidden{
   display:none !important;
@@ -2647,8 +2649,8 @@ body.admin-modal-open .admin-v62-layout{
 .menu-studio-modal.hidden{display:none!important}
 .menu-studio-modal{position:fixed;inset:0;z-index:10020;display:flex;align-items:center;justify-content:center;padding:18px}
 .menu-studio-modal-backdrop{position:absolute;inset:0;background:rgba(43,33,24,.46)}
-.menu-studio-modal-card{position:relative;z-index:1;width:min(960px,100%);max-height:calc(100vh - 36px);overflow:auto;-webkit-overflow-scrolling:touch;background:#fffaf2;border:1px solid #ead7bd;border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.28)}
-.menu-studio-modal-header{position:sticky;top:0;z-index:3;display:flex;justify-content:space-between;gap:12px;padding:18px 20px;background:#fffaf2;border-bottom:1px solid #ead7bd}
+.menu-studio-modal-card{position:relative;z-index:1;width:min(960px,100%);max-height:calc(100vh - 36px);overflow:auto;-webkit-overflow-scrolling:touch;background:#fff;border:1px solid #ead7bd;border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.28)}
+.menu-studio-modal-header{position:sticky;top:0;z-index:3;display:flex;justify-content:space-between;gap:12px;padding:18px 20px;background:#fff;border-bottom:1px solid #ead7bd}
 .menu-studio-modal-header h2{margin:0 0 4px}
 .menu-studio-modal-header p{margin:0;color:#7a6040;font-weight:800}
 .menu-studio-modal-body{padding:18px 20px 96px}
@@ -2663,7 +2665,7 @@ body.admin-modal-open .admin-v62-layout{
 .menu-studio-inline-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
 .studio-modal-option-row{display:grid;grid-template-columns:minmax(120px,1fr) 90px 110px 90px 90px 90px auto auto auto;gap:8px;align-items:center;border:1px solid #ead7bd;border-radius:8px;background:#fff;padding:8px;margin-bottom:8px}
 .studio-modal-option-row button{border:1px solid #d9bd93;background:#fff;border-radius:8px;min-height:38px;padding:7px 9px;font-weight:900}
-.menu-studio-modal-actions{position:sticky;bottom:0;z-index:4;display:flex;justify-content:flex-end;gap:12px;padding:14px 20px;background:#fffaf2;border-top:1px solid #ead7bd}
+.menu-studio-modal-actions{position:sticky;bottom:0;z-index:4;display:flex;justify-content:flex-end;gap:12px;padding:14px 20px;background:#fff;border-top:1px solid #ead7bd}
 .menu-studio-modal-actions button{width:auto;min-width:130px}
 .item-editor-modal{position:fixed!important;left:0!important;top:0!important;right:0!important;bottom:0!important;z-index:9999!important;overflow:auto!important;-webkit-overflow-scrolling:touch!important;padding:16px!important;background:rgba(43,33,24,.42)!important}
 .item-editor-modal .admin-form-panel,.item-editor-modal.admin-form-panel{max-height:none!important}
