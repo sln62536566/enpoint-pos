@@ -8,6 +8,42 @@
   <meta name="apple-mobile-web-app-title" content="恩點系統" />
   <meta name="mobile-web-app-capable" content="yes" />
   <title>恩點系統｜菜單後台</title>
+  <script>
+    (function() {
+      var path = window.location.pathname || "";
+      if (path.indexOf("admin-legacy.html") >= 0) return;
+
+      function supportsAsyncFunction() {
+        try {
+          new Function("async function test(){return 1;}");
+          return true;
+        } catch (error) {
+          return false;
+        }
+      }
+
+      function getIosMajorVersion() {
+        var ua = window.navigator ? window.navigator.userAgent || "" : "";
+        var match = ua.match(/OS (\d+)_/);
+        if (!match) return 0;
+        return Number(match[1] || 0);
+      }
+
+      var probe = document.createElement("script");
+      var supportsModernAdmin =
+        ("noModule" in probe) &&
+        !!window.Promise &&
+        !!window.fetch &&
+        !!Object.entries &&
+        supportsAsyncFunction();
+      var iosMajor = getIosMajorVersion();
+      var oldIpadSafari = iosMajor > 0 && iosMajor <= 12;
+
+      if (!supportsModernAdmin || oldIpadSafari) {
+        window.location.replace("./admin-legacy.html" + (window.location.search || "") + (window.location.hash || ""));
+      }
+    })();
+  </script>
   <link rel="manifest" href="./manifest.json" />
   <link rel="stylesheet" href="./css/style.css?v=656" />
 </head>

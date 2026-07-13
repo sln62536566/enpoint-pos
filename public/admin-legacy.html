@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>恩點系統 Admin Legacy</title>
+  <link rel="stylesheet" href="./css/admin-legacy.css?v=650" />
+</head>
+<body class="legacy-admin-page">
+  <header class="legacy-topbar">
+    <div>
+      <h1>恩點系統管理</h1>
+      <p>目前使用舊平板相容模式</p>
+    </div>
+    <a href="./admin.html" class="legacy-modern-link">現代版</a>
+  </header>
+
+  <nav class="legacy-tabs" id="legacyTabs">
+    <button type="button" data-tab="menu" class="active">菜單列表</button>
+    <button type="button" data-tab="item">新增餐點</button>
+    <button type="button" data-tab="options">餐點選項</button>
+    <button type="button" data-tab="templates">範本管理</button>
+    <button type="button" data-tab="categories">分類管理</button>
+  </nav>
+
+  <main class="legacy-main">
+    <section id="legacyStatus" class="legacy-status">正在啟動舊平板相容模式……</section>
+
+    <section id="menuPanel" class="legacy-panel active">
+      <div class="legacy-panel-head">
+        <h2>菜單列表</h2>
+        <input id="legacyMenuSearch" type="search" placeholder="搜尋餐點或分類" />
+      </div>
+      <div id="legacyCategoryFilters" class="legacy-chip-row"></div>
+      <div id="legacyMenuList" class="legacy-list-state">正在讀取菜單資料……</div>
+    </section>
+
+    <section id="itemPanel" class="legacy-panel">
+      <div class="legacy-panel-head">
+        <h2 id="legacyItemTitle">新增餐點</h2>
+      </div>
+      <form id="legacyItemForm" class="legacy-form">
+        <label>餐點名稱<input id="legacyItemName" type="text" /></label>
+        <label>分類<select id="legacyItemCategory"></select></label>
+        <div class="legacy-inline-form">
+          <select id="legacyItemTemplateSelect"></select>
+          <button id="legacyApplyTemplateBtn" type="button">套用範本</button>
+        </div>
+        <label>價格<input id="legacyItemPrice" type="number" min="0" /></label>
+        <label>圖片網址<input id="legacyItemImage" type="text" placeholder="https://..." /></label>
+        <label>描述<textarea id="legacyItemDescription"></textarea></label>
+        <label class="legacy-check"><input id="legacyItemEnabled" type="checkbox" checked /> 上架</label>
+        <label class="legacy-check"><input id="legacyItemSoldOut" type="checkbox" /> 今日售完／暫停販售</label>
+        <div class="legacy-card">
+          <strong>餐點選項</strong>
+          <div id="legacyItemOptionPicker" class="legacy-checkbox-list"></div>
+        </div>
+        <div class="legacy-actions">
+          <button id="legacySaveItemBtn" type="submit" class="primary">儲存餐點</button>
+          <button id="legacyResetItemBtn" type="button">取消</button>
+        </div>
+      </form>
+    </section>
+
+    <section id="optionsPanel" class="legacy-panel">
+      <div class="legacy-panel-head">
+        <h2>餐點選項</h2>
+        <button id="legacyAddGroupBtn" type="button" class="primary">＋ 新增餐點選項</button>
+      </div>
+      <div id="legacyOptionList" class="legacy-list-state">正在讀取餐點選項……</div>
+    </section>
+
+    <section id="templatesPanel" class="legacy-panel">
+      <div class="legacy-panel-head">
+        <h2>範本管理</h2>
+        <button id="legacyAddTemplateBtn" type="button" class="primary">＋ 新增範本</button>
+      </div>
+      <div id="legacyTemplateList" class="legacy-list-state">正在讀取範本……</div>
+    </section>
+
+    <section id="categoriesPanel" class="legacy-panel">
+      <div class="legacy-panel-head">
+        <h2>分類管理</h2>
+      </div>
+      <div class="legacy-inline-form">
+        <input id="legacyNewCategoryName" type="text" placeholder="新增分類名稱" />
+        <button id="legacyAddCategoryBtn" type="button" class="primary">新增</button>
+      </div>
+      <div id="legacyCategoryList" class="legacy-list-state">正在讀取分類……</div>
+    </section>
+  </main>
+
+  <div id="legacyModal" class="legacy-modal hidden">
+    <div class="legacy-modal-card">
+      <header class="legacy-modal-head">
+        <h2 id="legacyModalTitle">編輯</h2>
+        <button id="legacyModalCloseBtn" type="button" aria-label="關閉">×</button>
+      </header>
+      <div id="legacyModalBody" class="legacy-modal-body"></div>
+      <footer id="legacyModalActions" class="legacy-modal-actions"></footer>
+    </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script src="./js/admin-legacy.js?v=650"></script>
+</body>
+</html>
