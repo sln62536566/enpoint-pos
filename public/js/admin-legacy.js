@@ -1186,15 +1186,30 @@
 
   function moveCategories(id, direction) {
     var cats = getCategories();
+    var items = getMenuItems();
     var index = -1;
     var target;
     var updates = {};
     var i;
+    var j;
+    var order;
     for (i = 0; i < cats.length; i += 1) if (cats[i].id === id) index = i;
     target = index + direction;
     if (index < 0 || target < 0 || target >= cats.length) return;
     cats.splice(target, 0, cats.splice(index, 1)[0]);
-    for (i = 0; i < cats.length; i += 1) if (String(cats[i].id).indexOf("legacy-") !== 0) updates["categories/" + cats[i].id + "/sortOrder"] = (i + 1) * 1000;
+    for (i = 0; i < cats.length; i += 1) {
+      order = (i + 1) * 1000;
+      if (String(cats[i].id).indexOf("legacy-") !== 0) {
+        updates["categories/" + cats[i].id + "/sortOrder"] = order;
+        updates["categories/" + cats[i].id + "/updatedAt"] = now();
+      }
+      for (j = 0; j < items.length; j += 1) {
+        if ((items[j].category || "未分類") === cats[i].name) {
+          updates["menu/" + items[j].id + "/categoryOrder"] = order;
+          updates["menu/" + items[j].id + "/updatedAt"] = now();
+        }
+      }
+    }
     db.ref().update(updates, function(error) { if (error) showSaveError("分類排序失敗", error); });
   }
 

@@ -1827,7 +1827,7 @@ function getCategorySortOrderValue(name) {
   return maxOrder ? maxOrder + 1000 : Date.now();
 }
 
-async function syncKnownCategorySortOrders() {
+async function backfillMissingCategorySortOrders() {
   const updates = {};
   const now = Date.now();
   let changed = false;
@@ -1835,7 +1835,7 @@ async function syncKnownCategorySortOrders() {
   Object.entries(categoriesData).forEach(([id, category]) => {
     if (!category || CATEGORY_SORT_ORDER[category.name] === undefined) return;
     const order = CATEGORY_SORT_ORDER[category.name];
-    if (Number(category.sortOrder) !== order) {
+    if (category.sortOrder === undefined || category.sortOrder === null || category.sortOrder === "") {
       updates[`categories/${id}/sortOrder`] = order;
       updates[`categories/${id}/updatedAt`] = now;
       changed = true;
@@ -1845,7 +1845,7 @@ async function syncKnownCategorySortOrders() {
   getMenuItems().forEach(item => {
     const order = CATEGORY_SORT_ORDER[item.category || "未分類"];
     if (order === undefined) return;
-    if (Number(item.categoryOrder) !== order) {
+    if (item.categoryOrder === undefined || item.categoryOrder === null || item.categoryOrder === "") {
       updates[`menu/${item.id}/categoryOrder`] = order;
       updates[`menu/${item.id}/updatedAt`] = now;
       changed = true;
@@ -1857,7 +1857,7 @@ async function syncKnownCategorySortOrders() {
   try {
     await update(ref(db), updates);
   } catch (error) {
-    console.error("分類排序同步失敗：", error);
+    console.error("分類排序補值失敗：", error);
   }
 }
 
@@ -3635,7 +3635,7 @@ const optionGroupRenderTasks = [
 
 bindDataNode("menu", menuRef, value => {
   menuData = value || {};
-  syncKnownCategorySortOrders();
+  backfillMissingCategorySortOrders();
 }, menuRenderTasks);
 
 bindDataNode("menuItems", menuItemsRef, value => {
@@ -3644,7 +3644,7 @@ bindDataNode("menuItems", menuItemsRef, value => {
 
 bindDataNode("categories", categoriesRef, value => {
   categoriesData = value || {};
-  syncKnownCategorySortOrders();
+  backfillMissingCategorySortOrders();
 }, categoryRenderTasks);
 
 bindDataNode("optionTemplates", optionTemplatesRef, value => {
