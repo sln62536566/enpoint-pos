@@ -139,6 +139,16 @@ let customGroupModalMode = "create";
 let customGroupModalId = "";
 let customGroupDraftOptions = [];
 
+const CATEGORY_SORT_ORDER = {
+  "鍋燒類": 1000,
+  "炒麵類": 2000,
+  "炒飯類": 3000,
+  "咖哩類": 4000,
+  "湯類": 5000,
+  "飲料": 6000,
+  "其他類": 7000
+};
+
 /* =========================
    Helpers
 ========================= */
@@ -1763,12 +1773,13 @@ function getMenuItems() {
 }
 
 function getCategoryItems() {
-  const fromCategories = Object.entries(categoriesData).map(([id, category]) => ({
+  const fromCategories = Object.entries(categoriesData).map(([id, category], index) => ({
     id,
     name: category.name || "未命名分類",
     enabled: category.enabled !== false,
     sortOrder: Number(category.sortOrder !== undefined ? category.sortOrder : 999999999),
-    createdAt: category.createdAt || 0
+    createdAt: category.createdAt || 0,
+    sourceIndex: index
   }));
 
   const existingNames = new Set(fromCategories.map(category => category.name));
@@ -1787,6 +1798,7 @@ function getCategoryItems() {
         enabled: true,
         sortOrder: Number(item.categoryOrder !== undefined ? item.categoryOrder : 999999999),
         createdAt: 0,
+        sourceIndex: fromCategories.length + fromMenu.length,
         legacy: true
       });
     }
@@ -1794,8 +1806,59 @@ function getCategoryItems() {
 
   return [...fromCategories, ...fromMenu].sort((a, b) => {
     if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
-    return a.name.localeCompare(b.name, "zh-Hant");
+    const priorityA = CATEGORY_SORT_ORDER[a.name] || 999999999;
+    const priorityB = CATEGORY_SORT_ORDER[b.name] || 999999999;
+    if (priorityA !== priorityB) return priorityA - priorityB;
+    return Number(a.sourceIndex || 0) - Number(b.sourceIndex || 0);
   });
+}
+
+function getCategorySortOrderValue(name) {
+  if (CATEGORY_SORT_ORDER[name] !== undefined) return CATEGORY_SORT_ORDER[name];
+  const categories = getCategoryItems().filter(category => category.name !== "其他類");
+  const otherCategory = getCategoryItems().find(category => category.name === "其他類");
+  const maxOrder = categories.reduce((max, category) => {
+    const value = Number(category.sortOrder || 0);
+    return value > max && value < 999999999 ? value : max;
+  }, 0);
+  if (otherCategory && Number(otherCategory.sortOrder) > maxOrder) {
+    return maxOrder + Math.max(1, Math.floor((Number(otherCategory.sortOrder) - maxOrder) / 2));
+  }
+  return maxOrder ? maxOrder + 1000 : Date.now();
+}
+
+async function syncKnownCategorySortOrders() {
+  const updates = {};
+  const now = Date.now();
+  let changed = false;
+
+  Object.entries(categoriesData).forEach(([id, category]) => {
+    if (!category || CATEGORY_SORT_ORDER[category.name] === undefined) return;
+    const order = CATEGORY_SORT_ORDER[category.name];
+    if (Number(category.sortOrder) !== order) {
+      updates[`categories/${id}/sortOrder`] = order;
+      updates[`categories/${id}/updatedAt`] = now;
+      changed = true;
+    }
+  });
+
+  getMenuItems().forEach(item => {
+    const order = CATEGORY_SORT_ORDER[item.category || "未分類"];
+    if (order === undefined) return;
+    if (Number(item.categoryOrder) !== order) {
+      updates[`menu/${item.id}/categoryOrder`] = order;
+      updates[`menu/${item.id}/updatedAt`] = now;
+      changed = true;
+    }
+  });
+
+  if (!changed) return;
+
+  try {
+    await update(ref(db), updates);
+  } catch (error) {
+    console.error("分類排序同步失敗：", error);
+  }
 }
 
 function findCategoryByName(name) {
@@ -1853,6 +1916,41 @@ function getFilteredItems(items) {
   });
 }
 
+function getItemGroupIds(item) {
+  const ids = item && (item.customGroupIds || item.customOptionGroupIds || item.optionGroupIds);
+  if (Array.isArray(ids)) return ids.map(id => String(id));
+  if (ids && typeof ids === "object") {
+    return Object.keys(ids).filter(id => ids[id] !== false).map(id => String(id));
+  }
+  return [];
+}
+
+function sameGroupOrder(a, b) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (String(a[i]) !== String(b[i])) return false;
+  }
+  return true;
+}
+
+function getItemTemplateName(item) {
+  const directId = item.templateId || item.optionTemplateId || item.defaultTemplateId;
+  const templateMap = mergeById(optionTemplatesData, templatesData);
+  const itemGroupIds = getItemGroupIds(item);
+
+  if (directId && templateMap[directId]) return templateMap[directId].name || "未命名範本";
+
+  const templates = getOptionTemplates();
+  for (let i = 0; i < templates.length; i += 1) {
+    const templateIds = getItemGroupIds(templates[i]);
+    if (templateIds.length && sameGroupOrder(itemGroupIds, templateIds)) {
+      return templates[i].name || "未命名範本";
+    }
+  }
+
+  return "未套用";
+}
+
 /* =========================
    Category Manager
 ========================= */
@@ -1879,7 +1977,7 @@ async function addCategory() {
     await set(newRef, {
       name,
       enabled: true,
-      sortOrder: now,
+      sortOrder: getCategorySortOrderValue(name),
       createdAt: now,
       updatedAt: now
     });
@@ -2177,7 +2275,7 @@ async function saveItem() {
       updates[`categories/${newCategoryRef.key}`] = {
         name: category,
         enabled: true,
-        sortOrder: Date.now(),
+        sortOrder: getCategorySortOrderValue(category),
         createdAt: now,
         updatedAt: now
       };
@@ -2271,12 +2369,31 @@ async function toggleItem(id) {
   }
 }
 
+async function toggleItemSoldOut(id) {
+  const item = menuData[id];
+
+  if (!item) return;
+
+  const nextSoldOut = !(item.soldOut === true || item.paused === true);
+
+  try {
+    await update(ref(db, `menu/${id}`), {
+      soldOut: nextSoldOut,
+      paused: nextSoldOut,
+      updatedAt: Date.now()
+    });
+  } catch (err) {
+    console.error("今日售完狀態更新失敗：", err);
+    alert("今日售完狀態更新失敗");
+  }
+}
+
 async function deleteItem(id) {
   const item = menuData[id];
 
   if (!item) return;
 
-  const ok = confirm(`確定要刪除「${item.name}」嗎？`);
+  const ok = confirm(`是否確定刪除此餐點？\n\n餐點：${item.name || "未命名餐點"}\n\n刪除後將同步從：\n✓ POS\n✓ QR\n✓ KDS\n✓ Menu\n\n移除。`);
   if (!ok) return;
 
   try {
@@ -2492,6 +2609,8 @@ function renderMenu() {
 
 function renderMenuCard(item, category) {
   const image = item.image || item.imageUrl || "";
+  const templateName = getItemTemplateName(item);
+  const isSoldOut = item.soldOut === true || item.paused === true;
 
   const descriptionText = item.description || "尚未填寫餐點描述";
 
@@ -2534,13 +2653,15 @@ function renderMenuCard(item, category) {
             <strong>${escapeHtml(item.name || "未命名餐點")}</strong>
           </div>
           <span class="admin-status ${item.enabled === false ? "off" : "on"}">
-            ${item.enabled === false ? "下架" : "上架"}
+            ${item.enabled === false ? "下架" : (isSoldOut ? "今日售完" : "上架")}
           </span>
         </div>
 
         <div class="admin-price">${money(item.price)}</div>
 
         <div class="admin-list-category">${escapeHtml(category)}</div>
+
+        <div class="admin-template-name">使用範本：${escapeHtml(templateName)}</div>
 
         <div class="admin-description">
           ${escapeHtml(descriptionText)}
@@ -2562,17 +2683,25 @@ function renderMenuCard(item, category) {
           不要：${escapeHtml(removeOptionsText)}
         </div>
 
-        <div class="admin-move-actions">
-          <button data-action="moveUp" data-id="${escapeHtml(item.id)}" data-category="${escapeHtml(category)}">上移</button>
-          <button data-action="moveDown" data-id="${escapeHtml(item.id)}" data-category="${escapeHtml(category)}">下移</button>
-        </div>
-
         <div class="admin-actions">
-          <button data-action="edit" data-id="${escapeHtml(item.id)}">編輯</button>
-          <button data-action="toggle" data-id="${escapeHtml(item.id)}">
-            ${item.enabled === false ? "上架" : "下架"}
-          </button>
-          <button class="danger-btn" data-action="delete" data-id="${escapeHtml(item.id)}">刪除</button>
+          <div class="admin-card-action-row">
+            <button data-action="edit" data-id="${escapeHtml(item.id)}">編輯</button>
+            <button data-action="toggle" data-id="${escapeHtml(item.id)}">
+              ${item.enabled === false ? "上架" : "下架"}
+            </button>
+          </div>
+          <div class="admin-card-action-row single">
+            <button data-action="soldOut" data-id="${escapeHtml(item.id)}">
+              ${isSoldOut ? "恢復販售" : "今日售完"}
+            </button>
+          </div>
+          <div class="admin-card-action-row">
+            <button data-action="moveUp" data-id="${escapeHtml(item.id)}" data-category="${escapeHtml(category)}">上移</button>
+            <button data-action="moveDown" data-id="${escapeHtml(item.id)}" data-category="${escapeHtml(category)}">下移</button>
+          </div>
+          <div class="admin-card-action-row single">
+            <button class="danger-btn" data-action="delete" data-id="${escapeHtml(item.id)}">刪除</button>
+          </div>
         </div>
       </div>
     </article>
@@ -2609,7 +2738,7 @@ function bindMenuCardDragEvents() {
     });
   });
 
-  menuList.querySelectorAll(".admin-actions button, .admin-move-actions button").forEach(button => {
+  menuList.querySelectorAll(".admin-actions button").forEach(button => {
     button.onclick = function(event) {
       if (event && event.preventDefault) event.preventDefault();
       if (event && event.stopPropagation) event.stopPropagation();
@@ -2621,6 +2750,7 @@ function bindMenuCardDragEvents() {
       if (action === "moveDown") moveMenuItemByButton(id, category, 1);
       if (action === "edit") editItem(id);
       if (action === "toggle") toggleItem(id);
+      if (action === "soldOut") toggleItemSoldOut(id);
       if (action === "delete") deleteItem(id);
       return false;
     };
@@ -3505,6 +3635,7 @@ const optionGroupRenderTasks = [
 
 bindDataNode("menu", menuRef, value => {
   menuData = value || {};
+  syncKnownCategorySortOrders();
 }, menuRenderTasks);
 
 bindDataNode("menuItems", menuItemsRef, value => {
@@ -3513,6 +3644,7 @@ bindDataNode("menuItems", menuItemsRef, value => {
 
 bindDataNode("categories", categoriesRef, value => {
   categoriesData = value || {};
+  syncKnownCategorySortOrders();
 }, categoryRenderTasks);
 
 bindDataNode("optionTemplates", optionTemplatesRef, value => {

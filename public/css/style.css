@@ -2143,11 +2143,11 @@ textarea.input {
 #itemAdminTab .admin-menu-card-v57{
   width:100% !important;
   display:grid !important;
-  grid-template-columns:56px minmax(150px,1.5fr) minmax(90px,.8fr) minmax(80px,.6fr) minmax(80px,.6fr) auto !important;
-  align-items:center !important;
+  grid-template-columns:56px minmax(150px,1fr) 96px 112px 150px 210px !important;
+  align-items:stretch !important;
   gap:10px !important;
   padding:9px 10px !important;
-  min-height:76px !important;
+  min-height:178px !important;
   box-shadow:none !important;
 }
 
@@ -2180,18 +2180,40 @@ textarea.input {
   white-space:nowrap !important;
 }
 
-#itemAdminTab .admin-move-actions,
+#itemAdminTab .admin-template-name{
+  color:#5f4730 !important;
+  font-size:13px !important;
+  font-weight:800 !important;
+  line-height:1.35 !important;
+  align-self:center !important;
+}
+
 #itemAdminTab .admin-actions{
   margin:0 !important;
-  justify-content:flex-end !important;
+  display:grid !important;
+  grid-template-rows:repeat(4,34px) !important;
+  gap:7px !important;
+  align-self:center !important;
+  min-width:0 !important;
 }
 
-#itemAdminTab .admin-move-actions{
-  grid-column:auto !important;
+#itemAdminTab .admin-card-action-row{
+  display:grid !important;
+  grid-template-columns:1fr 1fr !important;
+  gap:7px !important;
 }
 
-#itemAdminTab .admin-actions{
-  grid-column:auto !important;
+#itemAdminTab .admin-card-action-row.single{
+  grid-template-columns:1fr !important;
+}
+
+#itemAdminTab .admin-card-action-row button{
+  width:100% !important;
+  min-height:34px !important;
+  padding:6px 10px !important;
+  border-radius:9px !important;
+  font-size:13px !important;
+  white-space:nowrap !important;
 }
 
 .item-editor-modal{
@@ -2390,16 +2412,21 @@ body.admin-modal-open{
 @media (max-width: 900px){
   #itemAdminTab .admin-menu-card-v57{
     grid-template-columns:52px minmax(0,1fr) !important;
+    align-items:start !important;
   }
 
   #itemAdminTab .admin-card-body{
     display:block !important;
   }
 
-  #itemAdminTab .admin-move-actions,
+  #itemAdminTab .admin-template-name,
   #itemAdminTab .admin-actions{
     grid-column:1 / -1 !important;
-    justify-content:flex-start !important;
+  }
+
+  #itemAdminTab .admin-actions{
+    margin-top:10px !important;
+    max-width:260px !important;
   }
 }
 
