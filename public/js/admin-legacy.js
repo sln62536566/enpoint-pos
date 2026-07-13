@@ -407,36 +407,58 @@
     var el = $("legacyMenuList");
     var search = $("legacyMenuSearch") ? ($("legacyMenuSearch").value || "").toLowerCase() : "";
     var items = getMenuItems();
+    var categories = getCategories();
     var html = "";
     var i;
+    var j;
     var item;
+    var matched;
     if (!el) return;
     if (!items.length) {
       setBox("legacyMenuList", "尚未建立餐點。", false);
       return;
     }
-    html = '<div class="legacy-grid">';
-    for (i = 0; i < items.length; i += 1) {
-      item = items[i];
-      if (state.categoryFilter !== "全部" && (item.category || "未分類") !== state.categoryFilter) continue;
-      if (search && ((item.name || "").toLowerCase().indexOf(search) < 0) && ((item.category || "").toLowerCase().indexOf(search) < 0)) continue;
-      html += '<article class="legacy-row-card ' + (item.enabled === false ? "disabled" : "") + '">' +
-        '<h3>' + escapeHtml(item.name || "未命名餐點") + '</h3>' +
-        '<p>' + escapeHtml(item.category || "未分類") + '｜NT$' + Number(item.price || 0) + '</p>' +
-        '<p>' + (item.enabled === false ? "下架" : "上架") + (item.soldOut === true || item.paused === true ? "｜今日售完" : "") + '</p>' +
-        '<div class="legacy-card-actions">' +
-        '<button type="button" data-action="editItem" data-id="' + escapeHtml(item.id) + '">編輯</button>' +
-        '<button type="button" data-action="toggleItem" data-id="' + escapeHtml(item.id) + '">' + (item.enabled === false ? "上架" : "下架") + '</button>' +
-        '<button type="button" data-action="soldOutItem" data-id="' + escapeHtml(item.id) + '">' + (item.soldOut === true || item.paused === true ? "恢復販售" : "今日售完") + '</button>' +
-        '</div><div class="legacy-card-actions secondary">' +
-        '<button type="button" data-action="moveItemUp" data-id="' + escapeHtml(item.id) + '">上移</button>' +
-        '<button type="button" data-action="moveItemDown" data-id="' + escapeHtml(item.id) + '">下移</button>' +
-        '<button type="button" class="danger" data-action="deleteItem" data-id="' + escapeHtml(item.id) + '">刪除</button>' +
-        '</div></article>';
+    if (state.categoryFilter === "全部") {
+      for (i = 0; i < categories.length; i += 1) {
+        matched = "";
+        for (j = 0; j < items.length; j += 1) {
+          item = items[j];
+          if ((item.category || "未分類") !== categories[i].name) continue;
+          if (search && ((item.name || "").toLowerCase().indexOf(search) < 0) && ((item.category || "").toLowerCase().indexOf(search) < 0)) continue;
+          matched += renderMenuItemCard(item);
+        }
+        if (matched) {
+          html += '<section class="legacy-category-section"><h3>' + escapeHtml(categories[i].name) + '</h3><div class="legacy-grid">' + matched + '</div></section>';
+        }
+      }
+    } else {
+      html = '<div class="legacy-grid">';
+      for (i = 0; i < items.length; i += 1) {
+        item = items[i];
+        if ((item.category || "未分類") !== state.categoryFilter) continue;
+        if (search && ((item.name || "").toLowerCase().indexOf(search) < 0) && ((item.category || "").toLowerCase().indexOf(search) < 0)) continue;
+        html += renderMenuItemCard(item);
+      }
+      html += '</div>';
     }
-    html += '</div>';
     el.className = "legacy-list-state";
-    el.innerHTML = html === '<div class="legacy-grid"></div>' ? '<div class="legacy-empty">沒有符合條件的餐點。</div>' : html;
+    el.innerHTML = html === '<div class="legacy-grid"></div>' || html === "" ? '<div class="legacy-empty">沒有符合條件的餐點。</div>' : html;
+  }
+
+  function renderMenuItemCard(item) {
+    return '<article class="legacy-row-card ' + (item.enabled === false ? "disabled" : "") + '">' +
+      '<h3>' + escapeHtml(item.name || "未命名餐點") + '</h3>' +
+      '<p>' + escapeHtml(item.category || "未分類") + '｜NT$' + Number(item.price || 0) + '</p>' +
+      '<p>' + (item.enabled === false ? "下架" : "上架") + (item.soldOut === true || item.paused === true ? "｜今日售完" : "") + '</p>' +
+      '<div class="legacy-card-actions">' +
+      '<button type="button" data-action="editItem" data-id="' + escapeHtml(item.id) + '">編輯</button>' +
+      '<button type="button" data-action="toggleItem" data-id="' + escapeHtml(item.id) + '">' + (item.enabled === false ? "上架" : "下架") + '</button>' +
+      '<button type="button" data-action="soldOutItem" data-id="' + escapeHtml(item.id) + '">' + (item.soldOut === true || item.paused === true ? "恢復販售" : "今日售完") + '</button>' +
+      '</div><div class="legacy-card-actions secondary">' +
+      '<button type="button" data-action="moveItemUp" data-id="' + escapeHtml(item.id) + '">上移</button>' +
+      '<button type="button" data-action="moveItemDown" data-id="' + escapeHtml(item.id) + '">下移</button>' +
+      '<button type="button" class="danger" data-action="deleteItem" data-id="' + escapeHtml(item.id) + '">刪除</button>' +
+      '</div></article>';
   }
 
   function renderOptionPickers() {
