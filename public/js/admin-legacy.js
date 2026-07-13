@@ -35,6 +35,15 @@
     modalScrollY: 0,
     lastTouchAt: 0
   };
+  var CATEGORY_SORT_ORDER = {
+    "鍋燒類": 1000,
+    "炒麵類": 2000,
+    "炒飯類": 3000,
+    "咖哩類": 4000,
+    "湯類": 5000,
+    "飲料": 6000,
+    "其他類": 7000
+  };
 
   function $(id) {
     return document.getElementById(id);
@@ -288,17 +297,28 @@
       cat.id = keys[i];
       cat.name = cat.name || "未分類";
       cat.enabled = cat.enabled !== false;
-      cat.sortOrder = Number(cat.sortOrder || 999999999);
+      cat.sortOrder = Number(cat.sortOrder || CATEGORY_SORT_ORDER[cat.name] || 999999999);
+      cat.sourceIndex = i;
       names[cat.name] = true;
       list.push(cat);
     }
     for (i = 0; i < items.length; i += 1) {
       if (!names[items[i].category || "未分類"]) {
         names[items[i].category || "未分類"] = true;
-        list.push({ id: "legacy-" + (items[i].category || "未分類"), name: items[i].category || "未分類", enabled: true, sortOrder: 999999999 });
+        list.push({ id: "legacy-" + (items[i].category || "未分類"), name: items[i].category || "未分類", enabled: true, sortOrder: Number(items[i].categoryOrder || CATEGORY_SORT_ORDER[items[i].category || "未分類"] || 999999999), sourceIndex: list.length });
       }
     }
-    list.sort(function(a, b) { return Number(a.sortOrder || 0) - Number(b.sortOrder || 0); });
+    list.sort(function(a, b) {
+      var orderA = Number(a.sortOrder || 999999999);
+      var orderB = Number(b.sortOrder || 999999999);
+      var priorityA;
+      var priorityB;
+      if (orderA !== orderB) return orderA - orderB;
+      priorityA = CATEGORY_SORT_ORDER[a.name] || 999999999;
+      priorityB = CATEGORY_SORT_ORDER[b.name] || 999999999;
+      if (priorityA !== priorityB) return priorityA - priorityB;
+      return Number(a.sourceIndex || 0) - Number(b.sourceIndex || 0);
+    });
     return list;
   }
 
@@ -411,6 +431,7 @@
         '</div><div class="legacy-card-actions secondary">' +
         '<button type="button" data-action="moveItemUp" data-id="' + escapeHtml(item.id) + '">上移</button>' +
         '<button type="button" data-action="moveItemDown" data-id="' + escapeHtml(item.id) + '">下移</button>' +
+        '<button type="button" class="danger" data-action="deleteItem" data-id="' + escapeHtml(item.id) + '">刪除</button>' +
         '</div></article>';
     }
     html += '</div>';
@@ -730,6 +751,19 @@
     if (action === "soldOutItem") updatePath("menu/" + id, { soldOut: !(item.soldOut === true || item.paused === true), paused: !(item.soldOut === true || item.paused === true), updatedAt: now() }, "販售狀態更新失敗");
     if (action === "moveItemUp") moveMenuItem(id, -1);
     if (action === "moveItemDown") moveMenuItem(id, 1);
+    if (action === "deleteItem") deleteMenuItem(id);
+  }
+
+  function deleteMenuItem(id) {
+    var item = getMenuMap()[id];
+    var ok;
+    if (!item) return;
+    ok = confirm("是否確定刪除此餐點？\n\n餐點：" + (item.name || "未命名餐點") + "\n\n刪除後將同步從：\n✓ POS\n✓ QR\n✓ KDS\n✓ Menu\n\n移除。");
+    if (!ok) return;
+    db.ref("menu/" + id).remove(function(error) {
+      if (error) return showSaveError("餐點刪除失敗", error);
+      if (state.editingItemId === id) resetItemForm();
+    });
   }
 
   function moveMenuItem(id, direction) {
@@ -1255,7 +1289,7 @@
     if (btn.id === "legacyAddTemplateGroupBtn") return addTemplateGroupFromSelect();
     if (btn.id === "legacySaveTemplateBtn") return saveTemplateFromModal();
     if (btn.id === "legacySaveCategoryBtn") return saveCategoryFromModal();
-    if (action === "editItem" || action === "toggleItem" || action === "soldOutItem" || action === "moveItemUp" || action === "moveItemDown") return handleMenuAction(btn);
+    if (action === "editItem" || action === "toggleItem" || action === "soldOutItem" || action === "moveItemUp" || action === "moveItemDown" || action === "deleteItem") return handleMenuAction(btn);
     if (action === "editGroup" || action === "toggleGroup" || action === "moveGroupUp" || action === "moveGroupDown" || action === "copyGroup" || action === "deleteGroup") return handleOptionAction(btn);
     if (action === "deleteOption" || action === "moveOptionUp" || action === "moveOptionDown") return handleGroupOptionAction(btn);
     if (action === "editTemplate" || action === "copyTemplate" || action === "deleteTemplate") return handleTemplateAction(btn);
