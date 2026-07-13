@@ -2143,13 +2143,13 @@ textarea.input {
 #itemAdminTab .admin-menu-card-v57{
   width:100% !important;
   display:grid !important;
-  grid-template-columns:56px minmax(120px,1fr) 76px 76px minmax(92px,.8fr) minmax(148px,168px) !important;
-  align-items:stretch !important;
+  grid-template-columns:56px minmax(0,1fr) !important;
+  align-items:start !important;
   gap:10px !important;
   padding:9px 10px !important;
-  min-height:202px !important;
+  min-height:0 !important;
   box-shadow:none !important;
-  overflow:visible !important;
+  overflow:hidden !important;
 }
 
 #itemAdminTab .admin-card-image{
@@ -2158,11 +2158,23 @@ textarea.input {
 }
 
 #itemAdminTab .admin-card-body{
-  display:contents !important;
+  display:grid !important;
+  grid-template-columns:minmax(0,1fr) auto auto minmax(120px,.8fr) !important;
+  gap:8px 10px !important;
+  align-items:center !important;
+  min-width:0 !important;
 }
 
 #itemAdminTab .admin-card-title-row{
   display:block !important;
+  min-width:0 !important;
+}
+
+#itemAdminTab .admin-card-title-row strong{
+  display:block !important;
+  overflow:hidden !important;
+  text-overflow:ellipsis !important;
+  white-space:nowrap !important;
 }
 
 #itemAdminTab .admin-status{
@@ -2187,6 +2199,7 @@ textarea.input {
   font-weight:800 !important;
   line-height:1.35 !important;
   align-self:center !important;
+  min-width:0 !important;
 }
 
 #itemAdminTab .admin-actions{
@@ -2196,6 +2209,9 @@ textarea.input {
   gap:7px !important;
   align-self:center !important;
   min-width:0 !important;
+  width:100% !important;
+  max-width:320px !important;
+  grid-column:1 / -1 !important;
 }
 
 #itemAdminTab .admin-card-action-row{
@@ -2411,13 +2427,8 @@ body.admin-modal-open{
 }
 
 @media (max-width: 1100px){
-  #itemAdminTab .admin-menu-card-v57{
-    grid-template-columns:52px minmax(0,1fr) !important;
-    align-items:start !important;
-  }
-
   #itemAdminTab .admin-card-body{
-    display:block !important;
+    grid-template-columns:minmax(0,1fr) auto !important;
   }
 
   #itemAdminTab .admin-template-name,
