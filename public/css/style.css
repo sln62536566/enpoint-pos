@@ -2587,6 +2587,7 @@ body.admin-modal-open .admin-v62-layout{
 .app-loading-screen.hidden{display:none}
 .app-loading-box{border:1px solid #f0ce91;background:#fffaf3;border-radius:8px;padding:18px 22px;text-align:center;box-shadow:0 10px 30px rgba(95,61,20,.12)}
 .app-loading-box strong{display:block;font-size:20px;margin-bottom:8px}
+.error-empty{border-color:#f4b4a8!important;background:#fff1f0!important;color:#9f1d12!important}
 .custom-group-editor-list{display:flex;flex-direction:column;gap:10px;margin-top:10px}
 .custom-group-card{border:1px solid #ead7bd;border-radius:8px;background:#fffaf4;padding:10px}
 .custom-group-head,.custom-group-option-row,.admin-inline-form{display:flex;gap:8px;align-items:center;flex-wrap:wrap}

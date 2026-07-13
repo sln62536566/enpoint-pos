@@ -100,15 +100,21 @@ let itemEditorHomeNext = null;
 let itemEditorMode = "hidden";
 
 const menuRef = ref(db, "menu");
+const menuItemsRef = ref(db, "menuItems");
 const categoriesRef = ref(db, "categories");
 const optionTemplatesRef = ref(db, "optionTemplates");
+const templatesRef = ref(db, "templates");
+const optionGroupsRef = ref(db, "optionGroups");
 const customOptionGroupsRef = ref(db, "customOptionGroups");
 const customGroupsRef = ref(db, "customGroups");
 const customItemsRef = ref(db, "customItems");
 
 let menuData = {};
+let menuItemsData = {};
 let categoriesData = {};
 let optionTemplatesData = {};
+let templatesData = {};
+let optionGroupsData = {};
 let customOptionGroupsData = {};
 let customGroupsData = {};
 let customItemsData = {};
@@ -226,6 +232,59 @@ function addAdminTapListener(element, handler) {
 
   element.addEventListener("click", handleTap, false);
   element.addEventListener("touchend", handleTap, false);
+}
+
+function mergeById(primary, fallback) {
+  const merged = {};
+  Object.entries(fallback || {}).forEach(([id, value]) => {
+    merged[id] = value;
+  });
+  Object.entries(primary || {}).forEach(([id, value]) => {
+    merged[id] = value;
+  });
+  return merged;
+}
+
+function setModuleError(container, message) {
+  if (!container) return;
+  container.innerHTML = '<div class="empty error-empty">' + escapeHtml(message) + '</div>';
+}
+
+function safeRender(moduleName, renderFn, container) {
+  try {
+    renderFn();
+  } catch (error) {
+    console.error(moduleName + " render failed", error);
+    setModuleError(container, moduleName + " 載入失敗，請重新整理或查看 Console。");
+  }
+}
+
+function bindDataNode(nodeName, dataRef, assignFn, renderTasks) {
+  onValue(dataRef, snapshot => {
+    try {
+      assignFn(snapshot.exists() ? snapshot.val() : {});
+      (renderTasks || []).forEach(task => {
+        safeRender(task.name, task.render, task.container);
+      });
+    } catch (error) {
+      console.error("Firebase node failed: " + nodeName, error);
+      (renderTasks || []).forEach(task => {
+        setModuleError(task.container, task.name + " 讀取失敗，請重新整理或查看 Console。");
+      });
+    }
+  }, error => {
+    console.error("Firebase read failed: " + nodeName, error);
+    (renderTasks || []).forEach(task => {
+      setModuleError(task.container, task.name + " 讀取失敗，請重新整理或查看 Console。");
+    });
+  });
+}
+
+function showInitialLoadingStates() {
+  if (menuList) menuList.innerHTML = '<div class="empty">正在讀取菜單列表……</div>';
+  if (categoryManagerList) categoryManagerList.innerHTML = '<div class="empty">正在讀取分類……</div>';
+  if (customGroupEditorList) customGroupEditorList.innerHTML = '<div class="empty">正在讀取餐點選項……</div>';
+  if (optionTemplateList) optionTemplateList.innerHTML = '<div class="empty">正在讀取餐點範本……</div>';
 }
 
 function initAdminV63Ux() {
@@ -934,7 +993,7 @@ function getTemplateDataFromForm() {
 }
 
 function getOptionTemplates() {
-  return Object.entries(optionTemplatesData || {})
+  return Object.entries(mergeById(optionTemplatesData, templatesData))
     .map(([id, template]) => ({ id, ...template }))
     .sort((a, b) => {
       const orderA = Number(a.updatedAt || a.createdAt || 0);
@@ -1697,7 +1756,7 @@ function setAddonRowsFromOptions(options = {}) {
 ========================= */
 
 function getMenuItems() {
-  return Object.entries(menuData).map(([id, item]) => ({
+  return Object.entries(mergeById(menuData, menuItemsData)).map(([id, item]) => ({
     id,
     ...item
   }));
@@ -2601,7 +2660,7 @@ function normalizeCustomGroup(id, group) {
 }
 
 function getCustomGroupItems() {
-  return getMenuOptionGroupItems(customGroupsData, customOptionGroupsData);
+  return getMenuOptionGroupItems(customGroupsData, mergeById(customOptionGroupsData, optionGroupsData));
 }
 
 function renderItemCustomGroupPicker() {
@@ -2950,12 +3009,13 @@ function moveCustomGroup(id, direction) {
 }
 
 function previewCustomGroup(id) {
-  var group = normalizeCustomGroup(id, customGroupsData[id] || customOptionGroupsData[id]);
+  var group = normalizeCustomGroup(id, customGroupsData[id] || customOptionGroupsData[id] || optionGroupsData[id]);
   var options = group.options || [];
   var names = options.map(function(option) { return (typeof option === "string" ? option : option.name || option.label || "選項"); }).join("、");
   var applied = [];
-  Object.keys(menuData || {}).forEach(function(itemId) {
-    var item = menuData[itemId] || {};
+  var mergedMenu = mergeById(menuData, menuItemsData);
+  Object.keys(mergedMenu || {}).forEach(function(itemId) {
+    var item = mergedMenu[itemId] || {};
     var ids = item.customGroupIds || item.customOptionGroupIds || item.optionGroupIds || [];
     if (Array.isArray(ids) && ids.indexOf(id) >= 0) applied.push(item.name || "未命名餐點");
   });
@@ -2965,13 +3025,15 @@ function previewCustomGroup(id) {
 function getCustomGroupUsage(id) {
   var items = [];
   var templates = [];
-  Object.keys(menuData || {}).forEach(function(itemId) {
-    var item = menuData[itemId] || {};
+  var mergedMenu = mergeById(menuData, menuItemsData);
+  Object.keys(mergedMenu || {}).forEach(function(itemId) {
+    var item = mergedMenu[itemId] || {};
     var ids = item.customGroupIds || item.customOptionGroupIds || item.optionGroupIds || [];
     if (Array.isArray(ids) && ids.indexOf(id) >= 0) items.push(item.name || "未命名餐點");
   });
-  Object.keys(optionTemplatesData || {}).forEach(function(templateId) {
-    var template = optionTemplatesData[templateId] || {};
+  var mergedTemplates = mergeById(optionTemplatesData, templatesData);
+  Object.keys(mergedTemplates || {}).forEach(function(templateId) {
+    var template = mergedTemplates[templateId] || {};
     var ids = template.customGroupIds || template.customOptionGroupIds || [];
     if (Array.isArray(ids) && ids.indexOf(id) >= 0) templates.push(template.name || "未命名範本");
   });
@@ -2979,7 +3041,7 @@ function getCustomGroupUsage(id) {
 }
 
 function getCustomGroupById(id) {
-  return normalizeCustomGroup(id, (customGroupsData && customGroupsData[id]) || (customOptionGroupsData && customOptionGroupsData[id]) || {});
+  return normalizeCustomGroup(id, (customGroupsData && customGroupsData[id]) || (customOptionGroupsData && customOptionGroupsData[id]) || (optionGroupsData && optionGroupsData[id]) || {});
 }
 
 var menuStudioBodyScrollY = 0;
@@ -3412,7 +3474,10 @@ function copyCustomGroupV650(id) {
   update(ref(db), updates);
 }
 
-renderCustomGroupEditor = renderCustomGroupEditorV649;
+function renderCustomGroupEditor() {
+  return renderCustomGroupEditorV649();
+}
+
 addCustomGroup = addCustomGroupV650;
 deleteCustomGroup = deleteCustomGroupV650;
 copyCustomGroup = copyCustomGroupV650;
@@ -3421,34 +3486,58 @@ copyCustomGroup = copyCustomGroupV650;
    Firebase
 ========================= */
 
-onValue(menuRef, snapshot => {
-  menuData = snapshot.exists() ? snapshot.val() : {};
-  renderMenu();
-});
+showInitialLoadingStates();
 
-onValue(categoriesRef, snapshot => {
-  categoriesData = snapshot.exists() ? snapshot.val() : {};
-  renderMenu();
-});
+const menuRenderTasks = [
+  { name: "菜單列表", render: renderMenu, container: menuList }
+];
+const categoryRenderTasks = [
+  { name: "菜單列表", render: renderMenu, container: menuList },
+  { name: "分類管理", render: renderCategoryManager, container: categoryManagerList }
+];
+const templateRenderTasks = [
+  { name: "範本管理", render: renderOptionTemplates, container: optionTemplateList }
+];
+const optionGroupRenderTasks = [
+  { name: "餐點選項", render: renderCustomGroupEditor, container: customGroupEditorList },
+  { name: "範本管理", render: renderOptionTemplates, container: optionTemplateList }
+];
 
-onValue(optionTemplatesRef, snapshot => {
-  optionTemplatesData = snapshot.exists() ? snapshot.val() : {};
-  renderOptionTemplates();
-});
+bindDataNode("menu", menuRef, value => {
+  menuData = value || {};
+}, menuRenderTasks);
 
-onValue(customOptionGroupsRef, snapshot => {
-  customOptionGroupsData = snapshot.exists() ? snapshot.val() : {};
-  renderCustomGroupEditor();
-});
+bindDataNode("menuItems", menuItemsRef, value => {
+  menuItemsData = value || {};
+}, menuRenderTasks);
 
-onValue(customGroupsRef, snapshot => {
-  customGroupsData = snapshot.exists() ? snapshot.val() : {};
-  renderCustomGroupEditor();
-});
+bindDataNode("categories", categoriesRef, value => {
+  categoriesData = value || {};
+}, categoryRenderTasks);
 
-onValue(customItemsRef, snapshot => {
-  customItemsData = snapshot.exists() ? snapshot.val() : {};
-});
+bindDataNode("optionTemplates", optionTemplatesRef, value => {
+  optionTemplatesData = value || {};
+}, templateRenderTasks);
+
+bindDataNode("templates", templatesRef, value => {
+  templatesData = value || {};
+}, templateRenderTasks);
+
+bindDataNode("customOptionGroups", customOptionGroupsRef, value => {
+  customOptionGroupsData = value || {};
+}, optionGroupRenderTasks);
+
+bindDataNode("optionGroups", optionGroupsRef, value => {
+  optionGroupsData = value || {};
+}, optionGroupRenderTasks);
+
+bindDataNode("customGroups", customGroupsRef, value => {
+  customGroupsData = value || {};
+}, optionGroupRenderTasks);
+
+bindDataNode("customItems", customItemsRef, value => {
+  customItemsData = value || {};
+}, []);
 
 /* =========================
    Events
