@@ -5,16 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <title>恩點系統 Admin Legacy</title>
-  <link rel="stylesheet" href="./css/admin-legacy.css?v=650" />
+  <title>恩點菜單後台</title>
+  <link rel="stylesheet" href="./css/admin-legacy.css?v=651" />
 </head>
 <body class="legacy-admin-page">
   <header class="legacy-topbar">
     <div>
-      <h1>恩點系統管理</h1>
-      <p>目前使用舊平板相容模式</p>
+      <h1>Menu Studio</h1>
+      <p>恩點菜單後台</p>
     </div>
-    <a href="./admin.html" class="legacy-modern-link">現代版</a>
   </header>
 
   <nav class="legacy-tabs" id="legacyTabs">
@@ -26,7 +25,7 @@
   </nav>
 
   <main class="legacy-main">
-    <section id="legacyStatus" class="legacy-status">正在啟動舊平板相容模式……</section>
+    <section id="legacyStatus" class="legacy-status" aria-live="polite">正在讀取 Firebase 資料……</section>
 
     <section id="menuPanel" class="legacy-panel active">
       <div class="legacy-panel-head">
@@ -83,10 +82,7 @@
     <section id="categoriesPanel" class="legacy-panel">
       <div class="legacy-panel-head">
         <h2>分類管理</h2>
-      </div>
-      <div class="legacy-inline-form">
-        <input id="legacyNewCategoryName" type="text" placeholder="新增分類名稱" />
-        <button id="legacyAddCategoryBtn" type="button" class="primary">新增</button>
+        <button id="legacyAddCategoryBtn" type="button" class="primary">＋ 新增分類</button>
       </div>
       <div id="legacyCategoryList" class="legacy-list-state">正在讀取分類……</div>
     </section>
@@ -105,6 +101,6 @@
 
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-  <script src="./js/admin-legacy.js?v=650"></script>
+  <script src="./js/admin-legacy.js?v=651"></script>
 </body>
 </html>

@@ -29,8 +29,11 @@
     editingItemId: "",
     editingGroupId: "",
     editingTemplateId: "",
+    editingCategoryId: "",
     selectedItemGroupIds: [],
-    modalScrollY: 0
+    templateGroupIds: [],
+    modalScrollY: 0,
+    lastTouchAt: 0
   };
 
   function $(id) {
@@ -78,20 +81,6 @@
     el.className = (" " + (el.className || "") + " ").replace(" " + name + " ", " ").replace(/^\s+|\s+$/g, "");
   }
 
-  function bindTap(el, handler) {
-    if (!el || !handler) return;
-    var lastTouchAt = 0;
-    function run(event) {
-      var t = now();
-      event = event || window.event;
-      if (event.type === "touchend") lastTouchAt = t;
-      if (event.type === "click" && t - lastTouchAt < 500) return;
-      handler(event);
-    }
-    el.addEventListener("click", run, false);
-    el.addEventListener("touchend", run, false);
-  }
-
   function getKeys(obj) {
     return Object.keys(obj || {});
   }
@@ -131,6 +120,16 @@
     if (value === "quantity") return "數量";
     if (value === "toggle") return "開關";
     return "單選";
+  }
+
+  function modulesLabel(modules) {
+    var out = [];
+    modules = modules || defaultModules("customer");
+    if (modules.qr !== false) out.push("QR");
+    if (modules.pos !== false) out.push("POS");
+    if (modules.kds !== false) out.push("KDS");
+    if (modules.print !== false) out.push("印單");
+    return out.join("、") || "未設定";
   }
 
   function defaultModules(area) {
@@ -345,7 +344,7 @@
     renderCategories();
     renderOptions();
     renderTemplates();
-    setStatus("舊平板相容模式已連線。", false);
+    setStatus("資料已連線。", false);
   }
 
   function renderCategorySelect() {
@@ -382,11 +381,6 @@
       html += '<button type="button" data-category="' + escapeHtml(list[i].name) + '" class="' + (state.categoryFilter === list[i].name ? "active" : "") + '">' + escapeHtml(list[i].name) + '</button>';
     }
     el.innerHTML = html;
-    bindButtons(el, function(btn) {
-      state.categoryFilter = btn.getAttribute("data-category") || "全部";
-      renderCategoryFilters();
-      renderMenu();
-    });
   }
 
   function renderMenu() {
@@ -414,6 +408,7 @@
         '<button type="button" data-action="editItem" data-id="' + escapeHtml(item.id) + '">編輯</button>' +
         '<button type="button" data-action="toggleItem" data-id="' + escapeHtml(item.id) + '">' + (item.enabled === false ? "上架" : "下架") + '</button>' +
         '<button type="button" data-action="soldOutItem" data-id="' + escapeHtml(item.id) + '">' + (item.soldOut === true || item.paused === true ? "恢復販售" : "今日售完") + '</button>' +
+        '</div><div class="legacy-card-actions secondary">' +
         '<button type="button" data-action="moveItemUp" data-id="' + escapeHtml(item.id) + '">上移</button>' +
         '<button type="button" data-action="moveItemDown" data-id="' + escapeHtml(item.id) + '">下移</button>' +
         '</div></article>';
@@ -421,7 +416,6 @@
     html += '</div>';
     el.className = "legacy-list-state";
     el.innerHTML = html === '<div class="legacy-grid"></div>' ? '<div class="legacy-empty">沒有符合條件的餐點。</div>' : html;
-    bindButtons(el, handleMenuAction);
   }
 
   function renderOptionPickers() {
@@ -451,18 +445,21 @@
       html += '<article class="legacy-row-card ' + (groups[i].enabled === false ? "disabled" : "") + '">' +
         '<h3>' + escapeHtml(groups[i].name) + '</h3>' +
         '<p>' + selectionLabel(groups[i].selectionType) + '｜內容 ' + groups[i].options.length + ' 個</p>' +
-        '<p>' + (groups[i].enabled === false ? "停用" : "啟用") + '</p>' +
+        '<p>使用中餐點 ' + countItemsUsingGroup(groups[i].id) + ' 個｜範本 ' + countTemplatesUsingGroup(groups[i].id) + ' 個</p>' +
+        '<p>' + modulesLabel(groups[i].modules) + '｜' + (groups[i].enabled === false ? "停用" : "啟用") + '</p>' +
         '<div class="legacy-card-actions">' +
         '<button type="button" data-action="editGroup" data-id="' + escapeHtml(groups[i].id) + '">編輯</button>' +
+        '<button type="button" data-action="copyGroup" data-id="' + escapeHtml(groups[i].id) + '">複製</button>' +
         '<button type="button" data-action="toggleGroup" data-id="' + escapeHtml(groups[i].id) + '">' + (groups[i].enabled === false ? "啟用" : "停用") + '</button>' +
+        '</div><div class="legacy-card-actions secondary">' +
         '<button type="button" data-action="moveGroupUp" data-id="' + escapeHtml(groups[i].id) + '">上移</button>' +
         '<button type="button" data-action="moveGroupDown" data-id="' + escapeHtml(groups[i].id) + '">下移</button>' +
+        '<button type="button" data-action="deleteGroup" data-id="' + escapeHtml(groups[i].id) + '" class="danger">刪除</button>' +
         '</div></article>';
     }
     html += '</div>';
     el.className = "legacy-list-state";
     el.innerHTML = html;
-    bindButtons(el, handleOptionAction);
   }
 
   function renderTemplates() {
@@ -484,6 +481,7 @@
       names = groupNames(ids, groups);
       html += '<article class="legacy-row-card"><h3>' + escapeHtml(templates[i].name || "未命名範本") + '</h3>' +
         '<p>餐點選項：' + escapeHtml(names || "尚未加入") + '</p>' +
+        '<p>使用中分類 ' + countCategoriesUsingTemplate(templates[i].id) + ' 個｜餐點 ' + countItemsUsingTemplate(templates[i].id) + ' 個</p>' +
         '<div class="legacy-card-actions">' +
         '<button type="button" data-action="editTemplate" data-id="' + escapeHtml(templates[i].id) + '">編輯</button>' +
         '<button type="button" data-action="copyTemplate" data-id="' + escapeHtml(templates[i].id) + '">複製</button>' +
@@ -493,7 +491,6 @@
     html += '</div>';
     el.className = "legacy-list-state";
     el.innerHTML = html;
-    bindButtons(el, handleTemplateAction);
   }
 
   function renderCategories() {
@@ -510,11 +507,12 @@
     for (i = 0; i < categories.length; i += 1) {
       html += '<article class="legacy-row-card ' + (categories[i].enabled === false ? "disabled" : "") + '">' +
         '<h3>' + escapeHtml(categories[i].name) + '</h3>' +
-        '<p>' + (categories[i].enabled === false ? "停用" : "啟用") + '</p>' +
-        '<label>預設範本' + categoryTemplateSelect(categories[i]) + '</label>' +
+        '<p>' + (categories[i].enabled === false ? "停用" : "啟用") + '｜餐點 ' + countItemsInCategory(categories[i].name) + ' 個</p>' +
+        '<p>預設範本：' + escapeHtml(templateName(categories[i].defaultTemplateId || "")) + '</p>' +
         '<div class="legacy-card-actions">' +
-        '<button type="button" data-action="renameCategory" data-id="' + escapeHtml(categories[i].id) + '" data-name="' + escapeHtml(categories[i].name) + '">改名</button>' +
+        '<button type="button" data-action="editCategory" data-id="' + escapeHtml(categories[i].id) + '">編輯</button>' +
         '<button type="button" data-action="toggleCategory" data-id="' + escapeHtml(categories[i].id) + '">' + (categories[i].enabled === false ? "啟用" : "停用") + '</button>' +
+        '</div><div class="legacy-card-actions secondary">' +
         '<button type="button" data-action="moveCategoryUp" data-id="' + escapeHtml(categories[i].id) + '">上移</button>' +
         '<button type="button" data-action="moveCategoryDown" data-id="' + escapeHtml(categories[i].id) + '">下移</button>' +
         '</div></article>';
@@ -522,36 +520,6 @@
     html += '</div>';
     el.className = "legacy-list-state";
     el.innerHTML = html;
-    bindButtons(el, handleCategoryAction);
-    bindCategoryTemplateSelects();
-  }
-
-  function categoryTemplateSelect(category) {
-    var templates = getTemplates();
-    var html = '<select data-action="defaultTemplate" data-id="' + escapeHtml(category.id) + '"><option value="">不套用</option>';
-    var i;
-    for (i = 0; i < templates.length; i += 1) {
-      html += '<option value="' + escapeHtml(templates[i].id) + '"' + (category.defaultTemplateId === templates[i].id ? " selected" : "") + '>' + escapeHtml(templates[i].name || "未命名範本") + '</option>';
-    }
-    html += '</select>';
-    return html;
-  }
-
-  function bindCategoryTemplateSelects() {
-    var list = $("legacyCategoryList");
-    var selects = list ? list.querySelectorAll('select[data-action="defaultTemplate"]') : [];
-    var i;
-    for (i = 0; i < selects.length; i += 1) {
-      selects[i].onchange = function() {
-        var id = this.getAttribute("data-id");
-        if (String(id).indexOf("legacy-") === 0) {
-          alert("請先建立正式分類後再設定預設範本。");
-          this.value = "";
-          return;
-        }
-        updatePath("categories/" + id, { defaultTemplateId: this.value || "", updatedAt: now() }, "預設範本更新失敗");
-      };
-    }
   }
 
   function groupNames(ids, groupMap) {
@@ -565,14 +533,69 @@
     return out.join("、");
   }
 
-  function bindButtons(root, handler) {
-    var buttons = root ? root.querySelectorAll("button") : [];
+  function templateName(templateId) {
+    var template = getTemplateMap()[templateId];
+    return template ? (template.name || "未命名範本") : "不套用";
+  }
+
+  function countItemsUsingGroup(groupId) {
+    var items = getMenuItems();
+    var count = 0;
     var i;
-    for (i = 0; i < buttons.length; i += 1) {
-      bindTap(buttons[i], function(event) {
-        handler(event.currentTarget || event.srcElement);
-      });
+    for (i = 0; i < items.length; i += 1) {
+      if (indexOf(groupIdsFromItem(items[i]), groupId) >= 0) count += 1;
     }
+    return count;
+  }
+
+  function countTemplatesUsingGroup(groupId) {
+    var templates = getTemplates();
+    var count = 0;
+    var i;
+    for (i = 0; i < templates.length; i += 1) {
+      if (indexOf(groupIdsFromTemplate(templates[i]), groupId) >= 0) count += 1;
+    }
+    return count;
+  }
+
+  function countItemsUsingTemplate(templateId) {
+    var items = getMenuItems();
+    var template = getTemplateMap()[templateId] || {};
+    var ids = groupIdsFromTemplate(template);
+    var count = 0;
+    var itemIds;
+    var i;
+    var j;
+    for (i = 0; i < items.length; i += 1) {
+      itemIds = groupIdsFromItem(items[i]);
+      for (j = 0; j < ids.length; j += 1) {
+        if (indexOf(itemIds, ids[j]) >= 0) {
+          count += 1;
+          break;
+        }
+      }
+    }
+    return count;
+  }
+
+  function countCategoriesUsingTemplate(templateId) {
+    var categories = getCategories();
+    var count = 0;
+    var i;
+    for (i = 0; i < categories.length; i += 1) {
+      if (categories[i].defaultTemplateId === templateId) count += 1;
+    }
+    return count;
+  }
+
+  function countItemsInCategory(categoryName) {
+    var items = getMenuItems();
+    var count = 0;
+    var i;
+    for (i = 0; i < items.length; i += 1) {
+      if ((items[i].category || "未分類") === categoryName) count += 1;
+    }
+    return count;
   }
 
   function indexOf(list, value) {
@@ -588,6 +611,27 @@
     var i;
     for (i = 0; i < inputs.length; i += 1) if (inputs[i].checked) out.push(inputs[i].value);
     return out;
+  }
+
+  function moduleChecks(modules) {
+    modules = modules || defaultModules("customer");
+    return '<div class="legacy-module-row">' +
+      '<label class="legacy-check"><input id="legacyModuleQr" type="checkbox"' + (modules.qr !== false ? " checked" : "") + ' /> QR</label>' +
+      '<label class="legacy-check"><input id="legacyModulePos" type="checkbox"' + (modules.pos !== false ? " checked" : "") + ' /> POS</label>' +
+      '<label class="legacy-check"><input id="legacyModuleKds" type="checkbox"' + (modules.kds !== false ? " checked" : "") + ' /> KDS</label>' +
+      '<label class="legacy-check"><input id="legacyModulePrint" type="checkbox"' + (modules.print !== false ? " checked" : "") + ' /> 印單</label>' +
+      '</div>';
+  }
+
+  function readGroupModules() {
+    return {
+      qr: $("legacyModuleQr") ? $("legacyModuleQr").checked === true : true,
+      pos: $("legacyModulePos") ? $("legacyModulePos").checked === true : true,
+      kds: $("legacyModuleKds") ? $("legacyModuleKds").checked === true : true,
+      print: $("legacyModulePrint") ? $("legacyModulePrint").checked === true : true,
+      sticker: false,
+      online: false
+    };
   }
 
   function resetItemForm() {
@@ -708,29 +752,22 @@
     var i;
     state.editingGroupId = id || "";
     body += '<form id="legacyGroupForm" class="legacy-form">';
+    body += '<section class="legacy-form-section"><h3>基本設定</h3><div class="legacy-form-grid">';
     body += '<label>餐點選項名稱<input id="legacyGroupName" type="text" value="' + escapeHtml(id ? group.name : "") + '" /></label>';
-    body += '<label>選擇方式<select id="legacyGroupType"><option value="single">單選</option><option value="multiple">多選</option><option value="toggle">開關</option><option value="quantity">數量</option></select></label>';
+    body += '<label>選擇方式<select id="legacyGroupType"><option value="single">一次只能選一個</option><option value="multiple">可以選很多個</option><option value="toggle">開關</option><option value="quantity">數量</option></select></label>';
     body += '<label class="legacy-check"><input id="legacyGroupRequired" type="checkbox"' + (group.required ? " checked" : "") + ' /> 必選</label>';
     body += '<label>最少選擇數<input id="legacyGroupMin" type="number" min="0" value="' + Number(group.minSelect || 0) + '" /></label>';
     body += '<label>最多選擇數<input id="legacyGroupMax" type="number" min="0" value="' + Number(group.maxSelect || 0) + '" /></label>';
-    body += '<label class="legacy-check"><input id="legacyGroupEnabled" type="checkbox"' + (group.enabled !== false ? " checked" : "") + ' /> 啟用</label>';
-    body += '<label>說明文字<textarea id="legacyGroupDescription">' + escapeHtml(group.description || "") + '</textarea></label>';
-    body += '<div class="legacy-card"><strong>選項內容</strong><div id="legacyGroupOptions">';
+    body += '<label class="legacy-check"><input id="legacyGroupEnabled" type="checkbox"' + (group.enabled !== false ? " checked" : "") + ' /> 啟用狀態</label>';
+    body += '</div><p><strong>顯示位置</strong></p>' + moduleChecks(group.modules);
+    body += '<label>說明文字<textarea id="legacyGroupDescription">' + escapeHtml(group.description || "") + '</textarea></label></section>';
+    body += '<section class="legacy-form-section"><h3>選項內容</h3><div id="legacyGroupOptions">';
     if (!group.options.length) group.options.push({ name: "", price: 0, enabled: true, defaultQuantity: 1, maxQty: 1 });
     for (i = 0; i < group.options.length; i += 1) body += groupOptionRow(group.options[i], i);
-    body += '</div><button id="legacyAddGroupOptionBtn" type="button">＋ 新增內容</button></div></form>';
+    body += '</div><button id="legacyAddGroupOptionBtn" type="button">＋ 新增內容</button></section>';
+    body += '<section class="legacy-form-section"><h3>使用狀況</h3><p>使用中的餐點數：' + countItemsUsingGroup(id) + '</p><p>使用中的範本數：' + countTemplatesUsingGroup(id) + '</p></section></form>';
     openModal(id ? "編輯餐點選項" : "新增餐點選項", body, '<button id="legacyCancelModalBtn" type="button">取消</button><button id="legacySaveGroupBtn" type="button" class="primary">儲存餐點選項</button>');
     $("legacyGroupType").value = group.selectionType || "single";
-    bindTap($("legacyAddGroupOptionBtn"), function() {
-      var box = $("legacyGroupOptions");
-      var div = document.createElement("div");
-      div.innerHTML = groupOptionRow({ name: "", price: 0, enabled: true, defaultQuantity: 1, maxQty: 1 }, box.querySelectorAll(".legacy-option-row").length);
-      box.appendChild(div.firstChild);
-      bindGroupOptionButtons();
-    });
-    bindTap($("legacySaveGroupBtn"), saveGroupFromModal);
-    bindTap($("legacyCancelModalBtn"), closeModal);
-    bindGroupOptionButtons();
   }
 
   function groupOptionRow(option, index) {
@@ -740,15 +777,8 @@
       '<label class="legacy-check"><input data-field="qtyEnabled" type="checkbox"' + (option.qtyEnabled || option.allowQuantity ? " checked" : "") + ' /> 可調</label>' +
       '<label>預設<input data-field="defaultQuantity" type="number" min="1" value="' + Number(option.defaultQuantity || 1) + '" /></label>' +
       '<label>最大<input data-field="maxQty" type="number" min="1" value="' + Number(option.maxQty || option.maxQuantity || 1) + '" /></label>' +
-      '<button type="button" data-action="deleteOption">刪除</button></div>';
-  }
-
-  function bindGroupOptionButtons() {
-    var box = $("legacyGroupOptions");
-    bindButtons(box, function(btn) {
-      var row = findParent(btn, "legacy-option-row");
-      if (row && row.parentNode) row.parentNode.removeChild(row);
-    });
+      '<label class="legacy-check"><input data-field="enabled" type="checkbox"' + (option.enabled !== false ? " checked" : "") + ' /> 啟用</label>' +
+      '<div><button type="button" data-action="moveOptionUp">上移</button><button type="button" data-action="moveOptionDown">下移</button><button type="button" data-action="deleteOption" class="danger">刪除</button></div></div>';
   }
 
   function saveGroupFromModal() {
@@ -760,16 +790,19 @@
     var nameInput;
     var priceInput;
     var qtyInput;
+    var enabledInput;
     var defaultInput;
     var maxInput;
     var maxQty;
     var group;
+    var modules;
     for (i = 0; i < rows.length; i += 1) {
       row = rows[i];
       nameInput = row.querySelector('[data-field="name"]');
       if (!nameInput || !nameInput.value.replace(/^\s+|\s+$/g, "")) continue;
       priceInput = row.querySelector('[data-field="price"]');
       qtyInput = row.querySelector('[data-field="qtyEnabled"]');
+      enabledInput = row.querySelector('[data-field="enabled"]');
       defaultInput = row.querySelector('[data-field="defaultQuantity"]');
       maxInput = row.querySelector('[data-field="maxQty"]');
       maxQty = Math.max(1, Number(maxInput ? maxInput.value : 1));
@@ -782,10 +815,11 @@
         defaultQuantity: Math.max(1, Number(defaultInput ? defaultInput.value : 1)),
         maxQuantity: maxQty,
         maxQty: maxQty,
-        enabled: true,
+        enabled: !enabledInput || enabledInput.checked === true,
         sortOrder: (i + 1) * 1000
       });
     }
+    modules = readGroupModules();
     group = {
       id: id,
       name: $("legacyGroupName").value.replace(/^\s+|\s+$/g, ""),
@@ -798,8 +832,8 @@
       maxSelect: Number($("legacyGroupMax").value || 0),
       description: $("legacyGroupDescription").value,
       enabled: $("legacyGroupEnabled").checked === true,
-      modules: defaultModules("customer"),
-      visibility: modulesToVisibility(defaultModules("customer")),
+      modules: modules,
+      visibility: modulesToVisibility(modules),
       options: options,
       items: options,
       sortOrder: (getGroupMap()[id] && getGroupMap()[id].sortOrder) || now(),
@@ -816,14 +850,72 @@
     });
   }
 
+  function addGroupOptionRow() {
+    var box = $("legacyGroupOptions");
+    var div;
+    if (!box) return;
+    div = document.createElement("div");
+    div.innerHTML = groupOptionRow({ name: "", price: 0, enabled: true, defaultQuantity: 1, maxQty: 1 }, box.querySelectorAll(".legacy-option-row").length);
+    box.appendChild(div.firstChild);
+  }
+
+  function handleGroupOptionAction(btn) {
+    var action = btn.getAttribute("data-action");
+    var row = findParent(btn, "legacy-option-row");
+    var target;
+    if (!row || !row.parentNode) return;
+    if (action === "deleteOption") {
+      row.parentNode.removeChild(row);
+      return;
+    }
+    if (action === "moveOptionUp") {
+      target = row.previousSibling;
+      while (target && (!target.className || String(target.className).indexOf("legacy-option-row") < 0)) target = target.previousSibling;
+      if (target) row.parentNode.insertBefore(row, target);
+      return;
+    }
+    if (action === "moveOptionDown") {
+      target = row.nextSibling;
+      while (target && (!target.className || String(target.className).indexOf("legacy-option-row") < 0)) target = target.nextSibling;
+      if (target) row.parentNode.insertBefore(target, row);
+    }
+  }
+
   function handleOptionAction(btn) {
     var action = btn.getAttribute("data-action");
     var id = btn.getAttribute("data-id");
     var group = getGroupMap()[id] || {};
     if (action === "editGroup") openGroupModal(id);
+    if (action === "copyGroup") copyGroup(id);
     if (action === "toggleGroup") updatePath("customGroups/" + id, { enabled: group.enabled === false, updatedAt: now() }, "餐點選項狀態更新失敗");
     if (action === "moveGroupUp") moveGroups(id, -1);
     if (action === "moveGroupDown") moveGroups(id, 1);
+    if (action === "deleteGroup") deleteGroup(id);
+  }
+
+  function copyGroup(id) {
+    var source = getGroupMap()[id];
+    var newId = firebasePushKey("customGroups");
+    var copy;
+    var updates = {};
+    if (!source) return;
+    copy = normalizeGroup(newId, source);
+    copy.id = newId;
+    copy.name = (copy.name || "餐點選項") + " 複製";
+    copy.createdAt = now();
+    copy.updatedAt = now();
+    copy.sortOrder = now();
+    updates["customGroups/" + newId] = copy;
+    updates["customOptionGroups/" + newId] = copy;
+    db.ref().update(updates, function(error) { if (error) showSaveError("餐點選項複製失敗", error); });
+  }
+
+  function deleteGroup(id) {
+    var updates = {};
+    if (!confirm("確定刪除這個餐點選項？")) return;
+    updates["customGroups/" + id] = null;
+    updates["customOptionGroups/" + id] = null;
+    db.ref().update(updates, function(error) { if (error) showSaveError("餐點選項刪除失敗", error); });
   }
 
   function moveGroups(id, direction) {
@@ -847,22 +939,28 @@
     var template = id ? (getTemplateMap()[id] || {}) : {};
     var ids = groupIdsFromTemplate(template);
     var groups = getGroups();
-    var body = '<form class="legacy-form"><label>範本名稱<input id="legacyTemplateName" type="text" value="' + escapeHtml(template.name || "") + '" /></label><div class="legacy-card"><strong>餐點選項</strong><div id="legacyTemplateGroups" class="legacy-checkbox-list">';
+    var body = "";
     var i;
     state.editingTemplateId = id || "";
+    state.templateGroupIds = ids.slice(0);
+    body += '<form class="legacy-form">';
+    body += '<section class="legacy-form-section"><h3>範本設定</h3><label>範本名稱<input id="legacyTemplateName" type="text" value="' + escapeHtml(template.name || "") + '" /></label></section>';
+    body += '<section class="legacy-form-section"><h3>可用餐點選項</h3><div class="legacy-inline-form"><select id="legacyTemplateAvailable">';
     for (i = 0; i < groups.length; i += 1) {
-      body += '<label><input type="checkbox" value="' + escapeHtml(groups[i].id) + '"' + (indexOf(ids, groups[i].id) >= 0 ? " checked" : "") + ' /> ' + escapeHtml(groups[i].name) + '</label>';
+      body += '<option value="' + escapeHtml(groups[i].id) + '">' + escapeHtml(groups[i].name) + '</option>';
     }
-    body += '</div></div></form>';
+    body += '</select><button id="legacyAddTemplateGroupBtn" type="button">加入</button></div></section>';
+    body += '<section class="legacy-form-section"><h3>已加入餐點選項</h3><div id="legacyTemplateGroups" class="legacy-template-picked"></div></section>';
+    body += '<section class="legacy-form-section"><h3>使用狀況</h3><p>使用中的分類：' + countCategoriesUsingTemplate(id) + '</p><p>使用中的餐點：' + countItemsUsingTemplate(id) + '</p></section>';
+    body += '</form>';
     openModal(id ? "編輯範本" : "新增範本", body, '<button id="legacyCancelModalBtn" type="button">取消</button><button id="legacySaveTemplateBtn" type="button" class="primary">儲存範本</button>');
-    bindTap($("legacySaveTemplateBtn"), saveTemplateFromModal);
-    bindTap($("legacyCancelModalBtn"), closeModal);
+    renderTemplatePickedGroups();
   }
 
   function saveTemplateFromModal() {
     var id = state.editingTemplateId || firebasePushKey("optionTemplates");
     var old = getTemplateMap()[id] || {};
-    var ids = readCheckedValues("legacyTemplateGroups");
+    var ids = state.templateGroupIds.slice(0);
     var template = copyObject(old);
     template.id = id;
     template.name = $("legacyTemplateName").value.replace(/^\s+|\s+$/g, "");
@@ -875,6 +973,52 @@
       if (error) return showSaveError("範本儲存失敗", error);
       closeModal();
     });
+  }
+
+  function renderTemplatePickedGroups() {
+    var el = $("legacyTemplateGroups");
+    var groups = getGroupMap();
+    var html = "";
+    var i;
+    var id;
+    if (!el) return;
+    for (i = 0; i < state.templateGroupIds.length; i += 1) {
+      id = state.templateGroupIds[i];
+      html += '<div class="legacy-picked-row" data-id="' + escapeHtml(id) + '"><strong>' + escapeHtml((groups[id] && (groups[id].name || groups[id].title)) || "未命名餐點選項") + '</strong>' +
+        '<button type="button" data-action="moveTemplateGroupUp">上移</button>' +
+        '<button type="button" data-action="moveTemplateGroupDown">下移</button>' +
+        '<button type="button" data-action="removeTemplateGroup" class="danger">移除</button></div>';
+    }
+    el.innerHTML = html || '<div class="legacy-empty">尚未加入餐點選項。</div>';
+  }
+
+  function addTemplateGroupFromSelect() {
+    var select = $("legacyTemplateAvailable");
+    var id = select ? select.value : "";
+    if (!id || indexOf(state.templateGroupIds, id) >= 0) return;
+    state.templateGroupIds.push(id);
+    renderTemplatePickedGroups();
+  }
+
+  function handleTemplateGroupAction(btn) {
+    var row = findParent(btn, "legacy-picked-row");
+    var action = btn.getAttribute("data-action");
+    var id = row ? row.getAttribute("data-id") : "";
+    var index = indexOf(state.templateGroupIds, id);
+    var next;
+    if (index < 0) return;
+    if (action === "removeTemplateGroup") {
+      state.templateGroupIds.splice(index, 1);
+    } else if (action === "moveTemplateGroupUp" && index > 0) {
+      next = state.templateGroupIds[index - 1];
+      state.templateGroupIds[index - 1] = state.templateGroupIds[index];
+      state.templateGroupIds[index] = next;
+    } else if (action === "moveTemplateGroupDown" && index < state.templateGroupIds.length - 1) {
+      next = state.templateGroupIds[index + 1];
+      state.templateGroupIds[index + 1] = state.templateGroupIds[index];
+      state.templateGroupIds[index] = next;
+    }
+    renderTemplatePickedGroups();
   }
 
   function handleTemplateAction(btn) {
@@ -906,33 +1050,76 @@
   function handleCategoryAction(btn) {
     var action = btn.getAttribute("data-action");
     var id = btn.getAttribute("data-id");
-    var name = btn.getAttribute("data-name") || "";
-    if (action === "renameCategory") renameCategory(id, name);
+    if (action === "editCategory") openCategoryModal(id);
     if (action === "toggleCategory") toggleCategory(id);
     if (action === "moveCategoryUp") moveCategories(id, -1);
     if (action === "moveCategoryDown") moveCategories(id, 1);
   }
 
-  function addCategory() {
-    var input = $("legacyNewCategoryName");
-    var name = input.value.replace(/^\s+|\s+$/g, "");
-    var id;
-    if (!name) return;
-    id = firebasePushKey("categories");
-    db.ref("categories/" + id).update({ name: name, enabled: true, sortOrder: now(), createdAt: now(), updatedAt: now() }, function(error) {
-      if (error) return showSaveError("分類新增失敗", error);
-      input.value = "";
-    });
+  function openCategoryModal(id) {
+    var category = id ? (data.categories[id] || {}) : {};
+    var body = "";
+    var templates = getTemplates();
+    var i;
+    if (String(id).indexOf("legacy-") === 0) {
+      category = { name: String(id).replace(/^legacy-/, ""), enabled: true, defaultTemplateId: "" };
+    }
+    state.editingCategoryId = id || "";
+    body += '<form class="legacy-form">';
+    body += '<section class="legacy-form-section"><h3>分類設定</h3><div class="legacy-form-grid">';
+    body += '<label>分類名稱<input id="legacyCategoryName" type="text" value="' + escapeHtml(category.name || "") + '" /></label>';
+    body += '<label>預設範本<select id="legacyCategoryTemplate"><option value="">不套用</option>';
+    for (i = 0; i < templates.length; i += 1) {
+      body += '<option value="' + escapeHtml(templates[i].id) + '"' + (category.defaultTemplateId === templates[i].id ? " selected" : "") + '>' + escapeHtml(templates[i].name || "未命名範本") + '</option>';
+    }
+    body += '</select></label>';
+    body += '<label class="legacy-check"><input id="legacyCategoryEnabled" type="checkbox"' + (category.enabled !== false ? " checked" : "") + ' /> 啟用狀態</label>';
+    body += '<label class="legacy-check"><input id="legacyCategoryApplyExisting" type="checkbox" /> 套用至既有餐點</label>';
+    body += '</div><p>餐點數量：' + countItemsInCategory(category.name || "") + '</p></section>';
+    body += '</form>';
+    openModal(id ? "編輯分類" : "新增分類", body, '<button id="legacyCancelModalBtn" type="button">取消</button><button id="legacySaveCategoryBtn" type="button" class="primary">儲存分類</button>');
   }
 
-  function renameCategory(id, oldName) {
-    var next = prompt("請輸入新的分類名稱", oldName);
+  function saveCategoryFromModal() {
+    var id = state.editingCategoryId || firebasePushKey("categories");
+    var oldCategory = data.categories[id] || {};
+    var oldName = oldCategory.name || "";
+    var next = $("legacyCategoryName").value.replace(/^\s+|\s+$/g, "");
+    var templateId = $("legacyCategoryTemplate").value || "";
     var updates = {};
-    if (!next) return;
+    var items;
+    var i;
+    if (!next) return alert("請輸入分類名稱");
     if (String(id).indexOf("legacy-") === 0) id = firebasePushKey("categories");
+    updates["categories/" + id + "/enabled"] = $("legacyCategoryEnabled").checked === true;
     updates["categories/" + id + "/name"] = next;
+    updates["categories/" + id + "/defaultTemplateId"] = templateId;
+    if (!oldCategory.createdAt) updates["categories/" + id + "/createdAt"] = now();
+    if (!oldCategory.sortOrder) updates["categories/" + id + "/sortOrder"] = now();
     updates["categories/" + id + "/updatedAt"] = now();
-    db.ref().update(updates, function(error) { if (error) showSaveError("分類改名失敗", error); });
+    if ($("legacyCategoryApplyExisting").checked === true) {
+      if (!confirm("確定套用至既有餐點？這會更新同分類餐點的範本餐點選項。")) return;
+      items = getMenuItems();
+      for (i = 0; i < items.length; i += 1) {
+        if ((items[i].category || "未分類") === (oldName || next)) {
+          updates["menu/" + items[i].id + "/category"] = next;
+          if (templateId) {
+            updates["menu/" + items[i].id + "/customGroupIds"] = groupIdsFromTemplate(getTemplateMap()[templateId] || {});
+            updates["menu/" + items[i].id + "/customOptionGroupIds"] = groupIdsFromTemplate(getTemplateMap()[templateId] || {});
+          }
+          updates["menu/" + items[i].id + "/updatedAt"] = now();
+        }
+      }
+    } else if (oldName && oldName !== next) {
+      items = getMenuItems();
+      for (i = 0; i < items.length; i += 1) {
+        if ((items[i].category || "未分類") === oldName) updates["menu/" + items[i].id + "/category"] = next;
+      }
+    }
+    db.ref().update(updates, function(error) {
+      if (error) return showSaveError("分類儲存失敗", error);
+      closeModal();
+    });
   }
 
   function toggleCategory(id) {
@@ -1027,22 +1214,58 @@
     });
   }
 
-  function initEvents() {
-    var tabs = document.querySelectorAll("#legacyTabs button");
-    var i;
-    for (i = 0; i < tabs.length; i += 1) {
-      bindTap(tabs[i], function(event) {
-        setActiveTab((event.currentTarget || event.srcElement).getAttribute("data-tab"));
-      });
+  function findButton(node) {
+    while (node && node !== document) {
+      if (node.tagName && String(node.tagName).toLowerCase() === "button") return node;
+      node = node.parentNode;
     }
-    bindTap($("legacyAddGroupBtn"), function() { openGroupModal(""); });
-    bindTap($("legacyAddTemplateBtn"), function() { openTemplateModal(""); });
-    bindTap($("legacyAddCategoryBtn"), addCategory);
-    bindTap($("legacyResetItemBtn"), resetItemForm);
-    bindTap($("legacyModalCloseBtn"), closeModal);
-    bindTap($("legacyApplyTemplateBtn"), function() {
-      applyTemplateToItem($("legacyItemTemplateSelect").value);
-    });
+    return null;
+  }
+
+  function handleDelegatedTap(event) {
+    var btn;
+    var action;
+    var t = now();
+    event = event || window.event;
+    if (event.type === "touchend") {
+      state.lastTouchAt = t;
+    } else if (event.type === "click" && state.lastTouchAt && t - state.lastTouchAt < 500) {
+      return;
+    }
+    btn = findButton(event.target || event.srcElement);
+    if (!btn || btn.disabled) return;
+    if (event.type === "touchend" && event.preventDefault) event.preventDefault();
+    action = btn.getAttribute("data-action") || "";
+    if (btn.getAttribute("data-tab")) return setActiveTab(btn.getAttribute("data-tab"));
+    if (btn.getAttribute("data-category")) {
+      state.categoryFilter = btn.getAttribute("data-category") || "全部";
+      renderCategoryFilters();
+      renderMenu();
+      return;
+    }
+    if (btn.id === "legacyAddGroupBtn") return openGroupModal("");
+    if (btn.id === "legacyAddTemplateBtn") return openTemplateModal("");
+    if (btn.id === "legacyAddCategoryBtn") return openCategoryModal("");
+    if (btn.id === "legacyResetItemBtn") return resetItemForm();
+    if (btn.id === "legacySaveItemBtn") return saveItem(event);
+    if (btn.id === "legacyModalCloseBtn" || btn.id === "legacyCancelModalBtn") return closeModal();
+    if (btn.id === "legacyApplyTemplateBtn") return applyTemplateToItem($("legacyItemTemplateSelect").value);
+    if (btn.id === "legacyAddGroupOptionBtn") return addGroupOptionRow();
+    if (btn.id === "legacySaveGroupBtn") return saveGroupFromModal();
+    if (btn.id === "legacyAddTemplateGroupBtn") return addTemplateGroupFromSelect();
+    if (btn.id === "legacySaveTemplateBtn") return saveTemplateFromModal();
+    if (btn.id === "legacySaveCategoryBtn") return saveCategoryFromModal();
+    if (action === "editItem" || action === "toggleItem" || action === "soldOutItem" || action === "moveItemUp" || action === "moveItemDown") return handleMenuAction(btn);
+    if (action === "editGroup" || action === "toggleGroup" || action === "moveGroupUp" || action === "moveGroupDown" || action === "copyGroup" || action === "deleteGroup") return handleOptionAction(btn);
+    if (action === "deleteOption" || action === "moveOptionUp" || action === "moveOptionDown") return handleGroupOptionAction(btn);
+    if (action === "editTemplate" || action === "copyTemplate" || action === "deleteTemplate") return handleTemplateAction(btn);
+    if (action === "removeTemplateGroup" || action === "moveTemplateGroupUp" || action === "moveTemplateGroupDown") return handleTemplateGroupAction(btn);
+    if (action === "editCategory" || action === "toggleCategory" || action === "moveCategoryUp" || action === "moveCategoryDown") return handleCategoryAction(btn);
+  }
+
+  function initEvents() {
+    document.addEventListener("click", handleDelegatedTap, false);
+    document.addEventListener("touchend", handleDelegatedTap, false);
     $("legacyItemForm").onsubmit = saveItem;
     $("legacyMenuSearch").oninput = renderMenu;
     $("legacyItemCategory").onchange = function() {
