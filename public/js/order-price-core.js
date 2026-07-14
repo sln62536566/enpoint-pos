@@ -18,7 +18,40 @@ function sumOptionPrice(options) {
 
   for (var i = 0; i < list.length; i += 1) {
     var option = list[i] || {};
+    var isAllocation = option.quantityAllocation === true || option.selectionType === "quantityAllocation";
+    var quantity = isAllocation ? 1 : positiveQuantity(option.optionQuantity || option.qty || option.quantity || 1);
+    total += toNumber(option.price || option.optionPrice || 0) * quantity;
+  }
+
+  return total;
+}
+
+function isAllocationOption(option) {
+  return option && (option.quantityAllocation === true || option.selectionType === "quantityAllocation");
+}
+
+function sumNonAllocationOptionPrice(options) {
+  var total = 0;
+  var list = Array.isArray(options) ? options : [];
+
+  for (var i = 0; i < list.length; i += 1) {
+    if (isAllocationOption(list[i])) continue;
+    var option = list[i] || {};
     var quantity = positiveQuantity(option.optionQuantity || option.qty || option.quantity || 1);
+    total += toNumber(option.price || option.optionPrice || 0) * quantity;
+  }
+
+  return total;
+}
+
+function sumAllocationPrice(options) {
+  var total = 0;
+  var list = Array.isArray(options) ? options : [];
+
+  for (var i = 0; i < list.length; i += 1) {
+    if (!isAllocationOption(list[i])) continue;
+    var option = list[i] || {};
+    var quantity = Math.max(0, Math.floor(toNumber(option.allocationQuantity || option.qty || option.quantity, 0)));
     total += toNumber(option.price || option.optionPrice || 0) * quantity;
   }
 
@@ -44,7 +77,7 @@ function inferOptionPrice(item) {
 
   if (item.optionPrice !== undefined) return toNumber(item.optionPrice, 0);
   if (Array.isArray(item.customOptions) && item.customOptions.length) {
-    return sumOptionPrice(item.selectedOptions) + sumOptionPrice(item.customOptions);
+    return sumOptionPrice(item.selectedOptions) + sumNonAllocationOptionPrice(item.customOptions) + (item.splitOptionId ? sumOptionPrice(item.customOptions) - sumNonAllocationOptionPrice(item.customOptions) : 0);
   }
 
   var addonSource = Array.isArray(item.addons) && item.addons.length ? item.addons : item.extras;
@@ -65,7 +98,8 @@ function normalizeVariant(rawVariant, parentItem) {
     : inferOptionPrice(variant);
   var quantity = positiveQuantity(variant.quantity || variant.qty || 1);
   var unitPrice = basePrice + optionPrice;
-  var subtotal = unitPrice * quantity;
+  var allocationTotal = variant.splitOptionId ? 0 : sumAllocationPrice(variant.customOptions);
+  var subtotal = (unitPrice * quantity) + allocationTotal;
 
   return Object.assign({}, variant, {
     basePrice: basePrice,

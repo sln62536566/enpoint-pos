@@ -20,10 +20,13 @@ import {
 } from "./menu-studio-core.js";
 
 import {
-  applyOrderItemPrice,
   calculateOrderItemPrice,
   calculateOrderTotal
 } from "./order-price-core.js";
+
+import {
+  splitOrderItemByQuantityAllocation
+} from "./order-split-core.js";
 
 
 /* =========================
@@ -821,7 +824,33 @@ function normalizeQrOptionPriceForGroup(group, option, menuItem) {
   return rawPrice;
 }
 
+function clampQrAllocationSelections() {
+  var selected = window.qrV64SelectedCustomOptions || [];
+  var groupTotals = {};
+  var next = [];
+  for (var i = 0; i < selected.length; i += 1) {
+    var option = selected[i] || {};
+    if (option.selectionType !== "quantityAllocation" && option.quantityAllocation !== true) {
+      next.push(option);
+      continue;
+    }
+    var groupId = String(option.groupId || "");
+    var used = groupTotals[groupId] || 0;
+    var allowed = Math.max(0, Number(selectedQty || 1) - used);
+    var qty = Math.min(allowed, Math.max(0, Number(option.qty || option.allocationQuantity || 0)));
+    if (qty > 0) {
+      option.qty = qty;
+      option.quantity = qty;
+      option.allocationQuantity = qty;
+      next.push(option);
+      groupTotals[groupId] = used + qty;
+    }
+  }
+  window.qrV64SelectedCustomOptions = next;
+}
+
 function renderQrCustomOptionGroups() {
+  clampQrAllocationSelections();
   var oldBox = document.getElementById("qrCustomOptionGroupsBox");
   if (oldBox && oldBox.parentNode) oldBox.parentNode.removeChild(oldBox);
   if (!selectedItem || !addonsSection) return;
@@ -841,7 +870,7 @@ function renderQrCustomOptionGroups() {
       var optionPrice = normalizeQrOptionPriceForGroup(group, option, selectedItem);
       var priceText = Number(option.price || 0) > 0 ? " +" + Number(option.price || 0) : (Number(option.price || 0) < 0 ? " " + Number(option.price || 0) : "");
       var modules = group.modules || {};
-      html += '<button type="button" class="option-btn qr-v64-option ' + (selected ? "active" : "") + '" data-group-id="' + escapeHtml(group.id) + '" data-group-name="' + escapeHtml(group.name) + '" data-selection-type="' + escapeHtml(group.selectionType || "single") + '" data-option-name="' + escapeHtml(name) + '" data-option-price="' + optionPrice + '" data-qty-enabled="' + (group.allowQuantity || option.qtyEnabled || option.quantityEnabled || option.allowQuantity ? "true" : "false") + '" data-max-qty="' + Number(option.maxQty || option.maxQuantity || 1) + '" data-module-qr="' + (modules.qr === true ? "true" : "false") + '" data-module-pos="' + (modules.pos !== false ? "true" : "false") + '" data-module-kds="' + (modules.kds !== false ? "true" : "false") + '" data-module-print="' + (modules.print !== false ? "true" : "false") + '">' + escapeHtml(name) + priceText + (selected && Number(selected.qty || 1) > 1 ? " x" + Number(selected.qty || 1) : "") + '</button>';
+      html += '<button type="button" class="option-btn qr-v64-option ' + (selected ? "active" : "") + '" data-group-id="' + escapeHtml(group.id) + '" data-group-name="' + escapeHtml(group.name) + '" data-selection-type="' + escapeHtml(group.selectionType || "single") + '" data-option-name="' + escapeHtml(name) + '" data-option-price="' + optionPrice + '" data-qty-enabled="' + (group.selectionType === "quantityAllocation" || group.allowQuantity || option.qtyEnabled || option.quantityEnabled || option.allowQuantity ? "true" : "false") + '" data-max-qty="' + (group.selectionType === "quantityAllocation" ? Number(selectedQty || 1) : Number(option.maxQty || option.maxQuantity || 1)) + '" data-module-qr="' + (modules.qr === true ? "true" : "false") + '" data-module-pos="' + (modules.pos !== false ? "true" : "false") + '" data-module-kds="' + (modules.kds !== false ? "true" : "false") + '" data-module-print="' + (modules.print !== false ? "true" : "false") + '">' + escapeHtml(name) + priceText + (selected && Number(selected.qty || 1) > 1 ? " x" + Number(selected.qty || 1) : "") + '</button>';
     }
     html += '</div></div>';
   }
@@ -861,13 +890,18 @@ function toggleQrCustomOption(button) {
     if (String(list[i].groupId) === String(groupId) && String(list[i].name) === String(name)) found = i;
   }
   if (found >= 0) {
-    if (list[found].qtyEnabled && Number(list[found].qty || 1) < Number(list[found].maxQty || 1)) list[found].qty = Number(list[found].qty || 1) + 1;
-    else list.splice(found, 1);
+    if (list[found].qtyEnabled && Number(list[found].qty || 1) < Number(list[found].maxQty || 1)) {
+      list[found].qty = Number(list[found].qty || 1) + 1;
+      list[found].quantity = list[found].qty;
+      if (list[found].selectionType === "quantityAllocation" || list[found].quantityAllocation === true) list[found].allocationQuantity = list[found].qty;
+    } else {
+      list.splice(found, 1);
+    }
   } else {
     if (selectionType === "single" || selectionType === "toggle") {
       list = list.filter(function(item) { return String(item.groupId) !== String(groupId); });
     }
-    list.push({ groupId: groupId, groupName: button.getAttribute("data-group-name"), name: name, price: Number(button.getAttribute("data-option-price") || 0), qty: 1, qtyEnabled: button.getAttribute("data-qty-enabled") === "true", maxQty: Number(button.getAttribute("data-max-qty") || 1), modules: { qr: button.getAttribute("data-module-qr") === "true", pos: button.getAttribute("data-module-pos") !== "false", kds: button.getAttribute("data-module-kds") !== "false", print: button.getAttribute("data-module-print") !== "false" } });
+    list.push({ groupId: groupId, groupName: button.getAttribute("data-group-name"), name: name, price: Number(button.getAttribute("data-option-price") || 0), qty: 1, quantity: 1, allocationQuantity: selectionType === "quantityAllocation" ? 1 : 0, selectionType: selectionType, quantityAllocation: selectionType === "quantityAllocation", qtyEnabled: button.getAttribute("data-qty-enabled") === "true", maxQty: Number(button.getAttribute("data-max-qty") || 1), modules: { qr: button.getAttribute("data-module-qr") === "true", pos: button.getAttribute("data-module-pos") !== "false", kds: button.getAttribute("data-module-kds") !== "false", print: button.getAttribute("data-module-print") !== "false" } });
   }
   window.qrV64SelectedCustomOptions = list;
   renderModalOptions();
@@ -902,12 +936,14 @@ function updateModalSubtotal() {
 qtyMinusBtn.addEventListener("click", () => {
   selectedQty = Math.max(1, selectedQty - 1);
   modalQty.textContent = selectedQty;
+  renderModalOptions();
   updateModalSubtotal();
 });
 
 qtyPlusBtn.addEventListener("click", () => {
   selectedQty++;
   modalQty.textContent = selectedQty;
+  renderModalOptions();
   updateModalSubtotal();
 });
 
@@ -1004,10 +1040,12 @@ function qrAddCurrentItemToCart(event) {
   var basePrice = Number(selectedSize && selectedSize.price || getBasePrice(selectedItem) || 0);
   var nowId = selectedItem.id + "-" + new Date().getTime();
 
-  cart.push(applyOrderItemPrice({
+  var nextCartItem = {
     id: nowId,
+    cartId: nowId,
     itemId: selectedItem.id,
     name: selectedItem.name,
+    itemName: selectedItem.name,
     category: getItemCategory(selectedItem),
     size: selectedSize ? selectedSize.name : "",
     basePrice: basePrice,
@@ -1020,7 +1058,11 @@ function qrAddCurrentItemToCart(event) {
     note: itemNote ? itemNote.value.trim() : "",
     qty: selectedQty,
     quantity: selectedQty
-  }));
+  };
+  var splitItems = splitOrderItemByQuantityAllocation(nextCartItem);
+  for (var splitIndex = 0; splitIndex < splitItems.length; splitIndex += 1) {
+    cart.push(splitItems[splitIndex]);
+  }
 
   if (itemModal) {
     itemModal.className = (itemModal.className || "") + " hidden";
