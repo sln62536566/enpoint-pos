@@ -50,39 +50,46 @@
       <div id="menuList" class="menu-list"></div>
     </section>
 
-    <aside id="qrCartPanel" class="cart-area">
-      <div class="qr-cart-title-row">
-        <h2>我的餐點</h2>
-        <button id="closeCartBtn" class="qr-cart-close-btn" type="button" onclick="return window.closeQrCartPanel(event)">×</button>
-      </div>
-
-      <div id="orderTypeBox" class="qr-order-type-box">
-        <label>用餐方式</label>
-        <div class="qr-order-type-row">
-          <button id="qrDineInBtn" class="qr-type-btn active" type="button">內用</button>
-          <button id="qrTakeOutBtn" class="qr-type-btn" type="button">外帶</button>
+    <aside id="qrCartPanel" class="cart-area" aria-modal="true" role="dialog" aria-labelledby="qrCartTitle">
+      <div class="qr-cart-backdrop" data-cart-close="true"></div>
+      <div class="qr-cart-card">
+        <div class="qr-cart-title-row">
+          <h2 id="qrCartTitle">我的餐點</h2>
+          <button id="closeCartBtn" class="qr-cart-close-btn" type="button" onclick="return window.closeQrCartPanel(event)" aria-label="關閉購物車">×</button>
         </div>
 
-        <input id="qrTableInput" class="input" placeholder="請輸入桌號，例如：5" />
-        <p id="qrOrderTypeHint" class="qr-order-type-hint">請確認桌號或選擇外帶。</p>
+        <div class="qr-cart-body">
+          <div id="orderTypeBox" class="qr-order-type-box">
+            <label>用餐方式</label>
+            <div class="qr-order-type-row">
+              <button id="qrDineInBtn" class="qr-type-btn active" type="button">內用</button>
+              <button id="qrTakeOutBtn" class="qr-type-btn" type="button">外帶</button>
+            </div>
+
+            <input id="qrTableInput" class="input" placeholder="請輸入桌號，例如：5" />
+            <p id="qrOrderTypeHint" class="qr-order-type-hint">請確認桌號或選擇外帶。</p>
+          </div>
+
+          <div id="cartList" class="cart-list"></div>
+        </div>
+
+        <div class="qr-cart-footer">
+          <div class="cart-total">
+            總計：<strong id="cartTotal">$0</strong>
+          </div>
+
+          <input id="customerName" class="input" placeholder="名字或綽號，可不填" />
+          <textarea id="orderNote" class="input" placeholder="整張訂單備註，例如：餐具、取餐需求"></textarea>
+
+          <button
+            id="submitOrderBtn"
+            class="primary-btn"
+            type="button"
+            onclick="return window.qrLegacyDirectSubmitOrder(event)"
+            ontouchend="return window.qrLegacyDirectSubmitOrder(event)"
+          >送出訂單</button>
+        </div>
       </div>
-
-      <div id="cartList" class="cart-list"></div>
-
-      <div class="cart-total">
-        總計：<strong id="cartTotal">$0</strong>
-      </div>
-
-      <input id="customerName" class="input" placeholder="名字或綽號，可不填" />
-      <textarea id="orderNote" class="input" placeholder="整張訂單備註，例如：餐具、取餐需求"></textarea>
-
-      <button
-        id="submitOrderBtn"
-        class="primary-btn"
-        type="button"
-        onclick="return window.qrLegacyDirectSubmitOrder(event)"
-        ontouchend="return window.qrLegacyDirectSubmitOrder(event)"
-      >送出訂單</button>
     </aside>
   </main>
 

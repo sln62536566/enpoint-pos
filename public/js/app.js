@@ -1163,6 +1163,8 @@ function openQrCartPanel(event) {
   }
   if (qrCartPanel) {
     qrCartPanel.classList.add("cart-open");
+    qrCartPanel.setAttribute("aria-hidden", "false");
+    if (document.body) document.body.classList.add("qr-cart-modal-open");
   }
   return false;
 }
@@ -1174,12 +1176,27 @@ function closeQrCartPanel(event) {
   }
   if (qrCartPanel) {
     qrCartPanel.classList.remove("cart-open");
+    qrCartPanel.setAttribute("aria-hidden", "true");
+    if (document.body) document.body.classList.remove("qr-cart-modal-open");
   }
   return false;
 }
 
 window.openQrCartPanel = openQrCartPanel;
 window.closeQrCartPanel = closeQrCartPanel;
+
+if (qrCartPanel) {
+  qrCartPanel.setAttribute("aria-hidden", "true");
+  qrCartPanel.addEventListener("click", function(event) {
+    var target = event.target || event.srcElement;
+    if (target && target.getAttribute && target.getAttribute("data-cart-close") === "true") closeQrCartPanel(event);
+  }, false);
+}
+
+document.addEventListener("keydown", function(event) {
+  if (!event || event.key !== "Escape") return;
+  if (qrCartPanel && (" " + (qrCartPanel.className || "") + " ").indexOf(" cart-open ") !== -1) closeQrCartPanel(event);
+}, false);
 
 function renderCart() {
   if (cart.length === 0) {
@@ -3377,15 +3394,11 @@ window.openLastQrOrderFromTop = openLastQrOrderFromTop;
 
 
 /* =========================
-   v59-13 QR：用網址參數 view=last 當作查看訂單的保底入口
-   舊 iPad 若按鈕事件不吃，href 重新整理後也會自動開啟。
+   v59-13 QR：查看訂單按鈕保底入口
 ========================= */
 (function(){
   function hasViewLast(){
-    try {
-      var search = String(window.location.search || "");
-      return search.indexOf("view=last") >= 0;
-    } catch(e) { return false; }
+    return false;
   }
   function openByParam(){
     if (!hasViewLast()) return;
@@ -3409,9 +3422,7 @@ window.openLastQrOrderFromTop = openLastQrOrderFromTop;
 
 
 /* =========================
-   v59-14 QR 查看訂單：改成真正分頁連結
-   - 舊平板按事件不吃時，直接靠 href 進入 ?view=last
-   - 文字改成「查看訂單」
+   v59-14 QR 查看訂單：文字整理
 ========================= */
 (function(){
   var btn = document.getElementById("lastOrderTopBtn");
@@ -3426,33 +3437,20 @@ window.openLastQrOrderFromTop = openLastQrOrderFromTop;
 
 /* =========================
    v59-17 QR：點餐/查看訂單分頁模式
-   - 一般進入只顯示點餐區
-   - 按查看訂單才進入 ?view=last 顯示訂單區
 ========================= */
 (function(){
   var viewLink = document.getElementById("qrViewOrderPlainLink");
   var orderLink = document.getElementById("qrOrderTabLink");
   if (viewLink) {
     viewLink.innerHTML = "查看訂單";
-    viewLink.setAttribute("href", "./index.html?view=last");
+    viewLink.setAttribute("href", "javascript:void(0)");
     viewLink.onclick = null;
     viewLink.ontouchend = null;
   }
   if (orderLink) {
     orderLink.setAttribute("href", "./index.html");
   }
-  if (String(window.location.search || "").indexOf("view=last") >= 0) {
-    qrShowOrderMode();
-    try {
-      setTimeout(function(){
-        if (topOrderContent && !topOrderContent.innerHTML) {
-          topOrderContent.innerHTML = '<div class="empty">正在讀取剛剛的訂單...</div>';
-        }
-      }, 200);
-    } catch(e) {}
-  } else {
-    qrShowMenuMode();
-  }
+  qrShowMenuMode();
 })();
 
 /* =========================
@@ -3577,8 +3575,7 @@ window.openLastQrOrderFromTop = openLastQrOrderFromTop;
     viewTab.onclick = showOrder;
     viewTab.ontouchend = showOrder;
   }
-  if (String(window.location.search || "").indexOf("view=last") >= 0) showOrder(null);
-  else showMenu(null);
+  showMenu(null);
 })();
 
 /* =====================================================
@@ -3709,8 +3706,7 @@ window.openLastQrOrderFromTop = openLastQrOrderFromTop;
   if(b){ b.href="javascript:void(0)"; b.onclick=showOrder; b.ontouchend=showOrder; }
   setTimeout(function(){
     if (typeof initDirectOrderView === "function" && initDirectOrderView()) return;
-    if(String(window.location.search||"").indexOf("view=last")>=0) showOrder(null);
-    else showMenu(null);
+    showMenu(null);
   }, 100);
 })();
 

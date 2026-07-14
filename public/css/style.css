@@ -136,23 +136,90 @@ body {
 }
 
 .cart-area {
-  background: #fff;
-  border-radius: 22px;
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  display: none;
+  align-items: center;
+  justify-content: center;
   padding: 18px;
-  height: fit-content;
-  position: sticky;
-  top: 15px;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.10);
+  background: transparent;
 }
 
-.cart-area h2 {
-  margin-bottom: 14px;
+.cart-area.cart-open {
+  display: flex;
+}
+
+body.qr-cart-modal-open {
+  overflow: hidden;
+}
+
+.qr-cart-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(43, 33, 24, .46);
+}
+
+.qr-cart-card {
+  position: relative;
+  z-index: 1;
+  width: min(560px, 100%);
+  max-height: calc(100vh - 36px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 18px 48px rgba(0,0,0,.28);
+}
+
+.qr-cart-title-row {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid #ead7ba;
+  background: #fff;
+}
+
+.qr-cart-title-row h2 {
+  margin: 0;
   font-size: 22px;
 }
 
-.cart-list {
-  max-height: 48vh;
+.qr-cart-close-btn {
+  width: 42px;
+  height: 42px;
+  border: none;
+  border-radius: 50%;
+  background: #f4eadc;
+  color: #2b2118;
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.qr-cart-body {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px 18px;
+}
+
+.qr-cart-footer {
+  flex: 0 0 auto;
+  padding: 14px 18px 18px;
+  border-top: 1px solid #ead7ba;
+  background: #fff;
+}
+
+.cart-list {
+  overflow: visible;
 }
 
 .cart-item {
@@ -444,10 +511,6 @@ textarea.input {
     padding: 14px;
   }
 
-  .cart-area {
-    position: static;
-  }
-
   .menu-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
@@ -467,10 +530,6 @@ textarea.input {
 
   .menu-info strong {
     font-size: 19px;
-  }
-
-  .cart-list {
-    max-height: none;
   }
 
   .modal-card {
