@@ -328,6 +328,8 @@ textarea.input {
   display: flex;
   align-items: center;
   gap: 15px;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .qty-row button {
@@ -339,6 +341,10 @@ textarea.input {
   color: #fff;
   font-size: 24px;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .qty-row span {

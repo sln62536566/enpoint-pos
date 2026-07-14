@@ -657,6 +657,8 @@ button:disabled{
   display:flex;
   align-items:center;
   gap:16px;
+  user-select:none;
+  -webkit-user-select:none;
 }
 
 .qty-row button{
@@ -669,6 +671,10 @@ button:disabled{
   cursor:pointer;
   font-size:24px;
   font-weight:bold;
+  touch-action:manipulation;
+  -webkit-tap-highlight-color:transparent;
+  user-select:none;
+  -webkit-user-select:none;
 }
 
 .qty-row span{

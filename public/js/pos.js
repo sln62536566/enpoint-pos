@@ -2749,15 +2749,18 @@ function customOptionsToDetailLines(item, moduleName) {
   return lines;
 }
 
-modalMinusBtn.addEventListener("click", () => {
+addLegacyTapListener(modalMinusBtn, function(event) {
+  if (event && event.preventDefault) event.preventDefault();
+  if (event && event.stopPropagation) event.stopPropagation();
   currentQuantity = Math.max(1, currentQuantity - 1);
-  clampAllocationSelections();
   modalQuantity.textContent = currentQuantity;
   renderCustomOptionGroups();
   updateCustomModalPricePreview();
 });
 
-modalPlusBtn.addEventListener("click", () => {
+addLegacyTapListener(modalPlusBtn, function(event) {
+  if (event && event.preventDefault) event.preventDefault();
+  if (event && event.stopPropagation) event.stopPropagation();
   currentQuantity += 1;
   modalQuantity.textContent = currentQuantity;
   renderCustomOptionGroups();

@@ -902,14 +902,29 @@ function updateModalSubtotal() {
   modalSubtotal.textContent = money(priced.subtotal);
 }
 
-qtyMinusBtn.addEventListener("click", () => {
+function addQrStableTapListener(element, handler) {
+  if (!element || !handler) return;
+  var lastTouchAt = 0;
+  function run(event) {
+    var now = Date.now ? Date.now() : new Date().getTime();
+    if (event && event.type === "touchend") lastTouchAt = now;
+    if (event && event.type === "click" && now - lastTouchAt < 500) return;
+    if (event && event.preventDefault) event.preventDefault();
+    if (event && event.stopPropagation) event.stopPropagation();
+    handler(event);
+  }
+  element.addEventListener("touchend", run, false);
+  element.addEventListener("click", run, false);
+}
+
+addQrStableTapListener(qtyMinusBtn, function() {
   selectedQty = Math.max(1, selectedQty - 1);
   modalQty.textContent = selectedQty;
   renderModalOptions();
   updateModalSubtotal();
 });
 
-qtyPlusBtn.addEventListener("click", () => {
+addQrStableTapListener(qtyPlusBtn, function() {
   selectedQty++;
   modalQty.textContent = selectedQty;
   renderModalOptions();
