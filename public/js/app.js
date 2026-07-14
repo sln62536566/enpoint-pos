@@ -1906,19 +1906,7 @@ function renderDirectOrderMissing() {
 }
 
 function initDirectOrderView() {
-  var directOrderId = getDirectOrderIdFromUrl();
-  if (!directOrderId) {
-    try {
-      var searchParams = new URLSearchParams(window.location.search || "");
-      if (searchParams.get("view") === "order") {
-        renderDirectOrderMissing();
-        return true;
-      }
-    } catch (e) {}
-    return false;
-  }
-
-  return loadViewingOrderById(directOrderId, false);
+  return false;
 }
 
 function renderTopOrderOnly(order) {
@@ -1955,12 +1943,15 @@ function listenOrderStatus(orderId) {
     const order = snapshot.val();
     if (!order) return;
     var fullOrder = { id: orderId, ...order };
+    var bodyClass = document.body ? " " + String(document.body.className || "") + " " : "";
+    var isOrderVisible = bodyClass.indexOf(" qr-direct-order-mode ") >= 0 || bodyClass.indexOf(" qr-tab-order ") >= 0;
+    var isSuccessVisible = successPage && (" " + String(successPage.className || "") + " ").indexOf(" hidden ") === -1 && successPage.style.display !== "none";
 
-    if (getDirectOrderIdFromUrl() || (document.body && (" " + document.body.className + " ").indexOf(" qr-direct-order-mode ") >= 0)) {
+    if (getDirectOrderIdFromUrl() || isOrderVisible) {
       showSubmittedOrderView(fullOrder, false);
     } else if (qrIsViewOrderMode()) {
       renderTopOrderOnly(fullOrder);
-    } else {
+    } else if (isSuccessVisible) {
       showSuccessPage(fullOrder);
     }
 
@@ -1975,29 +1966,7 @@ if (newOrderBtn) {
 }
 
 function loadLastOrderIfExists() {
-  if (!qrIsViewOrderMode()) {
-    qrShowMenuMode();
-    return;
-  }
-  qrShowOrderMode();
-  const lastOrderId = localStorage.getItem(LAST_ORDER_KEY);
-  if (!lastOrderId) return;
-
-  const orderRef = ref(db, `orders/${lastOrderId}`);
-
-  onValue(orderRef, snapshot => {
-    const order = snapshot.val();
-
-    if (!order) {
-      localStorage.removeItem(LAST_ORDER_KEY);
-      return;
-    }
-
-    renderTopOrderOnly({ id: lastOrderId, ...order });
-    listenOrderStatus(lastOrderId);
-  }, {
-    onlyOnce: true
-  });
+  qrShowMenuMode();
 }
 
 function loadMenu() {
@@ -3634,7 +3603,7 @@ window.openLastQrOrderFromTop = openLastQrOrderFromTop;
       try { window.openLastQrOrderFromTop(null); } catch(e) {}
     }
   }
-  try { setTimeout(openByParam, 700); } catch(e) {}
+  openByParam();
   var btn = document.getElementById("lastOrderTopBtn");
   if (btn) {
     btn.style.display = "block";
@@ -3787,21 +3756,16 @@ window.openLastQrOrderFromTop = openLastQrOrderFromTop;
     try { window.scrollTo(0, 0); } catch(e2) {}
     return false;
   }
-  window.qrShowMenuTab = showMenu;
-  window.qrShowOrderTab = showOrder;
+  // Tab binding is centralized in the v65.2 QR single tab controller below.
 
   var orderTab = document.getElementById("qrOrderTabLink");
   var viewTab = document.getElementById("qrViewOrderPlainLink");
   if (orderTab) {
     orderTab.href = "javascript:void(0)";
-    orderTab.onclick = showMenu;
-    orderTab.ontouchend = showMenu;
   }
   if (viewTab) {
     viewTab.innerHTML = "查看訂單";
     viewTab.href = "javascript:void(0)";
-    viewTab.onclick = showOrder;
-    viewTab.ontouchend = showOrder;
   }
   showMenu(null);
 })();
@@ -3927,15 +3891,11 @@ window.openLastQrOrderFromTop = openLastQrOrderFromTop;
     }catch(err){ if(topOrderContent) topOrderContent.innerHTML='<div class="empty">讀取訂單失敗，請重新整理。</div>'; }
     return false;
   }
-  window.qrShowMenuTab = showMenu;
-  window.qrShowOrderTab = showOrder;
+  // Tab binding is centralized in the v65.2 QR single tab controller below.
   var a=document.getElementById("qrOrderTabLink"), b=document.getElementById("qrViewOrderPlainLink");
-  if(a){ a.href="javascript:void(0)"; a.onclick=showMenu; a.ontouchend=showMenu; }
-  if(b){ b.href="javascript:void(0)"; b.onclick=showOrder; b.ontouchend=showOrder; }
-  setTimeout(function(){
-    if (typeof initDirectOrderView === "function" && initDirectOrderView()) return;
-    showMenu(null);
-  }, 100);
+  if(a){ a.href="javascript:void(0)"; }
+  if(b){ b.href="javascript:void(0)"; }
+  showMenu(null);
 })();
 
 /* =========================
@@ -3955,35 +3915,14 @@ window.openLastQrOrderFromTop = openLastQrOrderFromTop;
     return oldBuildQrOrderHtmlV64(order);
   };
 
-  var oldShowOrderTab = window.qrShowOrderTab;
-  window.qrShowOrderTab = function(event) {
-    if (event && event.preventDefault) event.preventDefault();
-    var id = getSavedViewingOrderId();
-    if (!id) {
-      qrShowMenuMode();
-      return false;
-    }
-    if (typeof oldShowOrderTab === "function") return oldShowOrderTab(event);
-    loadViewingOrderById(id, true);
-    return false;
-  };
-
-  try {
-    var searchParams = new URLSearchParams(window.location.search || "");
-    var isDirectOrder = searchParams.get("view") === "order" && !!searchParams.get("orderId");
-    var isLastOrder = searchParams.get("view") === "last";
-    if (!isDirectOrder && !isLastOrder) {
-      qrShowMenuMode();
-    }
-  } catch (e) {
-    qrShowMenuMode();
-  }
+  qrShowMenuMode();
 })();
 
 /* =========================
    v63 final tab binding: every View Order tab open reloads Firebase by orderId.
 ========================= */
 (function(){
+  return;
   function stop(event){
     if (event) {
       if (event.preventDefault) event.preventDefault();
@@ -4001,12 +3940,11 @@ window.openLastQrOrderFromTop = openLastQrOrderFromTop;
 
   function openOrder(event){
     stop(event);
-    loadViewingOrderById(getSavedViewingOrderId(), true);
+    loadViewingOrderById(getSavedViewingOrderId(), false);
     return false;
   }
 
-  window.qrShowMenuTab = openMenu;
-  window.qrShowOrderTab = openOrder;
+  // Retired duplicate binding. The v65.2 controller below owns QR tabs.
 
   var orderTab = document.getElementById("qrOrderTabLink");
   var viewTab = document.getElementById("qrViewOrderPlainLink");
@@ -4022,46 +3960,58 @@ window.openLastQrOrderFromTop = openLastQrOrderFromTop;
   }
 })();
 
-/* v64 final tab guard after v63 binding */
+/* v65.2 QR single tab controller */
 (function(){
-  var viewTab = document.getElementById("qrViewOrderPlainLink");
-  function openOrderV64(event) {
-    if (event) {
-      if (event.preventDefault) event.preventDefault();
-      if (event.stopPropagation) event.stopPropagation();
-      if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+  function stopQrTabEvent(event) {
+    if (!event) return;
+    if (event.preventDefault) event.preventDefault();
+    if (event.stopPropagation) event.stopPropagation();
+    if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+  }
+
+  function renderQrMenuIfReady() {
+    try {
+      if (typeof renderCategories === "function") renderCategories();
+      if (typeof renderMenu === "function") renderMenu();
+    } catch (error) {
+      console.error("QR menu render failed", error);
     }
-    var id = getSavedViewingOrderId();
-    if (!id) {
-      qrShowMenuMode();
-      return false;
-    }
-    loadViewingOrderById(id, true);
+  }
+
+  function openQrMenuTab(event) {
+    stopQrTabEvent(event);
+    qrShowMenuMode();
+    renderQrMenuIfReady();
     return false;
   }
-  window.qrShowOrderTab = openOrderV64;
-  if (viewTab) {
-    viewTab.onclick = openOrderV64;
-    viewTab.ontouchend = openOrderV64;
-  }
-})();
 
-/* v65.2 hotfix: QR always opens on menu after refresh/re-entry. */
-(function(){
-  function openMenuOnEntry() {
-    try {
-      var params = new URLSearchParams(window.location.search || "");
-      if (params.get("view") === "last") {
-        params.delete("view");
-        var nextQuery = params.toString();
-        var nextUrl = window.location.pathname + (nextQuery ? "?" + nextQuery : "") + (window.location.hash || "");
-        if (window.history && window.history.replaceState) window.history.replaceState(null, "", nextUrl);
-      }
-    } catch (e) {}
-    try { qrShowMenuMode(); } catch (e2) {}
-    try { renderCategories(); renderMenu(); } catch (e3) {}
+  function openQrOrderTab(event) {
+    stopQrTabEvent(event);
+    loadViewingOrderById(getSavedViewingOrderId(), false);
+    return false;
   }
 
-  openMenuOnEntry();
-  try { setTimeout(openMenuOnEntry, 0); } catch (e4) {}
+  function bindQrTabLinks() {
+    var orderTab = document.getElementById("qrOrderTabLink");
+    var viewTab = document.getElementById("qrViewOrderPlainLink");
+    if (orderTab) {
+      orderTab.href = "javascript:void(0)";
+      orderTab.onclick = openQrMenuTab;
+      orderTab.ontouchend = openQrMenuTab;
+    }
+    if (viewTab) {
+      viewTab.href = "javascript:void(0)";
+      viewTab.onclick = openQrOrderTab;
+      viewTab.ontouchend = openQrOrderTab;
+    }
+  }
+
+  window.qrShowMenuTab = openQrMenuTab;
+  window.qrShowOrderTab = openQrOrderTab;
+  bindQrTabLinks();
+  openQrMenuTab(null);
+
+  window.addEventListener("pageshow", function(event) {
+    if (event && event.persisted) openQrMenuTab(null);
+  }, false);
 })();
