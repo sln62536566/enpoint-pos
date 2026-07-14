@@ -20,10 +20,6 @@ import {
   calculateOrderTotal
 } from "./order-price-core.js";
 
-import {
-  splitOrderItemByQuantityAllocation
-} from "./order-split-core.js";
-
 
 /* =========================
    v59-5 EARLY POS LEGACY OPEN
@@ -1602,23 +1598,6 @@ function itemDisplayName(item) {
   return item && (item.displayName || item.itemName || item.name) || "未命名餐點";
 }
 
-function isQuantityAllocationCustomOption(option) {
-  var type = String(option && (option.selectionType || option.choiceType || option.mode || "") || "");
-  return type === "quantityAllocation" || !!(option && option.quantityAllocation === true);
-}
-
-function syncSplitAllocationQuantity(item, quantity) {
-  var list = item && item.customOptions;
-  if (!item || !item.splitOptionId || !Array.isArray(list)) return;
-  list.forEach(function(option) {
-    var optionId = option && (option.optionId || option.id || option.name || "");
-    if (!isQuantityAllocationCustomOption(option) || String(optionId) !== String(item.splitOptionId)) return;
-    option.allocationQuantity = quantity;
-    option.qty = 1;
-    option.quantity = 1;
-  });
-}
-
 function itemExtras(item) {
   return item.addons || item.extras || [];
 }
@@ -2484,48 +2463,6 @@ function normalizeOptionPriceForGroup(group, option, menuItem) {
   return rawPrice;
 }
 
-function getSelectedAllocationQuantity(groupId, optionName) {
-  var selected = findSelectedCustomOption(groupId, optionName);
-  return selected ? Math.max(0, Number(selected.qty || selected.allocationQuantity || 0)) : 0;
-}
-
-function getAllocationGroupTotal(groupId, exceptName) {
-  var total = 0;
-  var selected = window.posV64SelectedCustomOptions || [];
-  for (var i = 0; i < selected.length; i += 1) {
-    if (String(selected[i].groupId) !== String(groupId)) continue;
-    if (exceptName && String(selected[i].name) === String(exceptName)) continue;
-    if (selected[i].selectionType !== "quantityAllocation" && selected[i].quantityAllocation !== true) continue;
-    total += Math.max(0, Number(selected[i].qty || selected[i].allocationQuantity || 0));
-  }
-  return total;
-}
-
-function clampAllocationSelections() {
-  var selected = window.posV64SelectedCustomOptions || [];
-  var groupTotals = {};
-  var next = [];
-  for (var i = 0; i < selected.length; i += 1) {
-    var option = selected[i] || {};
-    if (option.selectionType !== "quantityAllocation" && option.quantityAllocation !== true) {
-      next.push(option);
-      continue;
-    }
-    var groupId = String(option.groupId || "");
-    var used = groupTotals[groupId] || 0;
-    var allowed = Math.max(0, Number(currentQuantity || 1) - used);
-    var qty = Math.min(allowed, Math.max(0, Number(option.qty || option.allocationQuantity || 0)));
-    if (qty > 0) {
-      option.qty = qty;
-      option.quantity = qty;
-      option.allocationQuantity = qty;
-      next.push(option);
-      groupTotals[groupId] = used + qty;
-    }
-  }
-  window.posV64SelectedCustomOptions = next;
-}
-
 function renderCustomOptionGroups() {
   var oldBox = document.getElementById("posCustomOptionGroupsBox");
   if (oldBox && oldBox.parentNode) oldBox.parentNode.removeChild(oldBox);
@@ -2548,16 +2485,6 @@ function renderCustomOptionGroups() {
       var optionPrice = normalizeOptionPriceForGroup(group, option, currentItem);
       var priceText = Number(option.price || 0) > 0 ? " +" + Number(option.price || 0) : (Number(option.price || 0) < 0 ? " " + Number(option.price || 0) : "");
       var modules = group.modules || {};
-      if (group.selectionType === "quantityAllocation") {
-        var allocationQty = getSelectedAllocationQuantity(group.id, optionName);
-        html += '<div class="option-btn v64-allocation-row ' + (allocationQty > 0 ? "active" : "") + '" data-group-id="' + escapeHtml(group.id) + '" data-option-name="' + escapeHtml(optionName) + '">';
-        html += '<span>' + escapeHtml(optionName) + priceText + '</span>';
-        html += '<button type="button" class="v64-allocation-step" data-action="minus" data-group-id="' + escapeHtml(group.id) + '" data-group-name="' + escapeHtml(group.name) + '" data-selection-type="quantityAllocation" data-option-name="' + escapeHtml(optionName) + '" data-option-price="' + optionPrice + '" data-max-qty="' + Number(option.maxQty || option.maxQuantity || 99) + '" data-module-qr="' + (modules.qr === true ? "true" : "false") + '" data-module-pos="' + (modules.pos !== false ? "true" : "false") + '" data-module-kds="' + (modules.kds !== false ? "true" : "false") + '" data-module-print="' + (modules.print !== false ? "true" : "false") + '">-</button>';
-        html += '<strong>' + allocationQty + '</strong>';
-        html += '<button type="button" class="v64-allocation-step" data-action="plus" data-group-id="' + escapeHtml(group.id) + '" data-group-name="' + escapeHtml(group.name) + '" data-selection-type="quantityAllocation" data-option-name="' + escapeHtml(optionName) + '" data-option-price="' + optionPrice + '" data-max-qty="' + Number(option.maxQty || option.maxQuantity || 99) + '" data-module-qr="' + (modules.qr === true ? "true" : "false") + '" data-module-pos="' + (modules.pos !== false ? "true" : "false") + '" data-module-kds="' + (modules.kds !== false ? "true" : "false") + '" data-module-print="' + (modules.print !== false ? "true" : "false") + '">+</button>';
-        html += '</div>';
-        continue;
-      }
       html += '<button type="button" class="option-btn v64-custom-option-btn ' + (selected ? "active" : "") + '" data-group-id="' + escapeHtml(group.id) + '" data-group-name="' + escapeHtml(group.name) + '" data-selection-type="' + escapeHtml(group.selectionType || "single") + '" data-option-name="' + escapeHtml(optionName) + '" data-option-price="' + optionPrice + '" data-qty-enabled="' + (group.allowQuantity || option.qtyEnabled || option.quantityEnabled || option.allowQuantity ? "true" : "false") + '" data-max-qty="' + Number(option.maxQty || option.maxQuantity || 1) + '" data-module-qr="' + (modules.qr === true ? "true" : "false") + '" data-module-pos="' + (modules.pos !== false ? "true" : "false") + '" data-module-kds="' + (modules.kds !== false ? "true" : "false") + '" data-module-print="' + (modules.print !== false ? "true" : "false") + '">';
       html += escapeHtml(optionName) + priceText;
       if (selected && Number(selected.qty || 1) > 1) html += " x" + Number(selected.qty || 1);
@@ -2575,15 +2502,6 @@ function renderCustomOptionGroups() {
       toggleCustomOption(this);
     };
   }
-  var allocationButtons = box.querySelectorAll(".v64-allocation-step");
-  for (var a = 0; a < allocationButtons.length; a += 1) {
-    allocationButtons[a].onclick = function(event) {
-      if (event && event.preventDefault) event.preventDefault();
-      if (event && event.stopPropagation) event.stopPropagation();
-      updateAllocationOption(this);
-      return false;
-    };
-  }
 }
 
 function buildSelectedCustomOption(group, option, quantity, menuItem) {
@@ -2595,7 +2513,6 @@ function buildSelectedCustomOption(group, option, quantity, menuItem) {
     price: normalizeOptionPriceForGroup(group, option, menuItem),
     qty: Math.max(1, Number(quantity || 1)),
     selectionType: group.selectionType || group.choiceType || "single",
-    quantityAllocation: group.selectionType === "quantityAllocation" || group.choiceType === "quantityAllocation",
     qtyEnabled: group.allowQuantity === true || option.qtyEnabled === true || option.quantityEnabled === true || option.allowQuantity === true,
     maxQty: Number(option.maxQty || option.maxQuantity || 1),
     modules: {
@@ -2725,7 +2642,7 @@ function deriveLegacyFieldsFromCustomOptions(customOptions) {
     var name = option.name || "";
     var row = { name: name, price: Number(option.price || 0), qty: Number(option.qty || 1) };
 
-    if ((groupId === "__legacy_sizes" || isSizeOptionGroup({ id: groupId, name: groupName })) && option.selectionType !== "quantityAllocation" && option.quantityAllocation !== true) fields.size = name;
+    if (groupId === "__legacy_sizes" || isSizeOptionGroup({ id: groupId, name: groupName })) fields.size = name;
     else if (groupId === "__legacy_addons") fields.addons.push(row);
     else if (groupId === "__legacy_removes") fields.removes.push(name);
     else if (groupId === "__legacy_spicy") fields.spicy = name;
@@ -2766,7 +2683,7 @@ function toggleCustomOption(button) {
       list.splice(foundIndex, 1);
     }
   } else {
-    if (selectionType === "single" || selectionType === "toggle") {
+    if (selectionType === "single") {
       list = list.filter(function(item) { return String(item.groupId) !== String(groupId); });
     }
     list.push({
@@ -2776,7 +2693,6 @@ function toggleCustomOption(button) {
       price: price,
       qty: 1,
       selectionType: selectionType,
-      quantityAllocation: selectionType === "quantityAllocation",
       qtyEnabled: qtyEnabled,
       maxQty: maxQty,
       modules: {
@@ -2788,60 +2704,6 @@ function toggleCustomOption(button) {
     });
   }
   window.posV64SelectedCustomOptions = list;
-  renderCustomOptionGroups();
-  updateCustomModalPricePreview();
-}
-
-function updateAllocationOption(button) {
-  var list = window.posV64SelectedCustomOptions || [];
-  var groupId = button.getAttribute("data-group-id");
-  var groupName = button.getAttribute("data-group-name");
-  var name = button.getAttribute("data-option-name");
-  var price = Number(button.getAttribute("data-option-price") || 0);
-  var maxQty = Math.max(1, Number(button.getAttribute("data-max-qty") || 99));
-  var action = button.getAttribute("data-action");
-  var foundIndex = -1;
-  var current = 0;
-  for (var i = 0; i < list.length; i += 1) {
-    if (String(list[i].groupId) === String(groupId) && String(list[i].name) === String(name)) {
-      foundIndex = i;
-      current = Math.max(0, Number(list[i].qty || list[i].allocationQuantity || 0));
-    }
-  }
-  var otherTotal = getAllocationGroupTotal(groupId, name);
-  var groupMax = Math.max(0, Number(currentQuantity || 1) - otherTotal);
-  var nextQty = action === "plus" ? current + 1 : current - 1;
-  nextQty = Math.max(0, Math.min(nextQty, groupMax, maxQty));
-
-  if (foundIndex >= 0 && nextQty <= 0) {
-    list.splice(foundIndex, 1);
-  } else if (foundIndex >= 0) {
-    list[foundIndex].qty = nextQty;
-    list[foundIndex].quantity = nextQty;
-    list[foundIndex].allocationQuantity = nextQty;
-  } else if (nextQty > 0) {
-    list.push({
-      groupId: groupId,
-      groupName: groupName,
-      name: name,
-      price: price,
-      qty: nextQty,
-      quantity: nextQty,
-      allocationQuantity: nextQty,
-      selectionType: "quantityAllocation",
-      quantityAllocation: true,
-      qtyEnabled: true,
-      maxQty: maxQty,
-      modules: {
-        qr: button.getAttribute("data-module-qr") === "true",
-        pos: button.getAttribute("data-module-pos") !== "false",
-        kds: button.getAttribute("data-module-kds") !== "false",
-        print: button.getAttribute("data-module-print") !== "false"
-      }
-    });
-  }
-  window.posV64SelectedCustomOptions = list;
-  clampAllocationSelections();
   renderCustomOptionGroups();
   updateCustomModalPricePreview();
 }
@@ -2950,19 +2812,18 @@ confirmCustomBtn.addEventListener("click", () => {
     removeOptionsSelected: legacyFields.removeOptionsSelected,
     note: noteInput ? noteInput.value.trim() : ""
   };
-  const splitCartItems = splitOrderItemByQuantityAllocation(nextCartItem);
 
   if (editingCartId) {
     const editIndex = cart.findIndex(item => String(item.cartId) === String(editingCartId));
     if (editIndex >= 0) {
-      cart.splice.apply(cart, [editIndex, 1].concat(splitCartItems));
+      cart.splice(editIndex, 1, nextCartItem);
     } else {
-      for (var sc = 0; sc < splitCartItems.length; sc += 1) cart.push(splitCartItems[sc]);
+      cart.push(nextCartItem);
     }
     editingCartId = null;
     confirmCustomBtn.textContent = "加入訂單";
   } else {
-    for (var si = 0; si < splitCartItems.length; si += 1) cart.push(splitCartItems[si]);
+    cart.push(nextCartItem);
   }
 
   renderCart();

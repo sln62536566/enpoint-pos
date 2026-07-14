@@ -3285,15 +3285,54 @@ function handleMenuStudioOptionCardAction(event, card, id) {
   return false;
 }
 
-function ensureCustomGroupModal() {
-  var modal = document.getElementById("customGroupModal");
+function ensureMenuStudioModal() {
+  var modal = document.getElementById("menuStudioSharedModal");
   if (modal) return modal;
   modal = document.createElement("div");
-  modal.id = "customGroupModal";
+  modal.id = "menuStudioSharedModal";
   modal.className = "menu-studio-modal hidden";
-  modal.innerHTML = '<div class="menu-studio-modal-backdrop"></div><section class="menu-studio-modal-card" role="dialog" aria-modal="true" aria-labelledby="customGroupModalTitle"><div id="customGroupModalContent"></div></section>';
+  modal.innerHTML = '<div class="menu-studio-modal-backdrop" data-action="cancelModal"></div><section class="menu-studio-modal-card" role="dialog" aria-modal="true"><header class="menu-studio-modal-header"><div><h2 id="menuStudioSharedModalTitle"></h2><p id="menuStudioSharedModalSubtitle"></p></div><button type="button" class="item-editor-close-btn" data-action="cancelModal" aria-label="關閉">×</button></header><div class="menu-studio-modal-body" id="menuStudioSharedModalBody"></div><footer class="menu-studio-modal-actions" id="menuStudioSharedModalActions"></footer></section>';
   document.body.appendChild(modal);
   return modal;
+}
+
+function renderMenuStudioModal(options) {
+  var modal = ensureMenuStudioModal();
+  var title = modal.querySelector("#menuStudioSharedModalTitle");
+  var subtitle = modal.querySelector("#menuStudioSharedModalSubtitle");
+  var body = modal.querySelector("#menuStudioSharedModalBody");
+  var actions = modal.querySelector("#menuStudioSharedModalActions");
+  options = options || {};
+  if (title) title.textContent = options.title || "";
+  if (subtitle) subtitle.textContent = options.subtitle || "";
+  if (body) body.innerHTML = options.body || "";
+  if (actions) actions.innerHTML = options.actions || "";
+  bindMenuStudioModalEvents(options);
+  return modal;
+}
+
+function bindMenuStudioModalEvents(options) {
+  var modal = ensureMenuStudioModal();
+  var closeHandler = options && options.onClose ? options.onClose : closeMenuStudioModal;
+  var cancelButtons = modal.querySelectorAll('[data-action="cancelModal"]');
+  for (var i = 0; i < cancelButtons.length; i += 1) cancelButtons[i].onclick = closeHandler;
+  var saveButton = modal.querySelector('[data-action="saveModal"]');
+  if (saveButton && options && options.onSave) saveButton.onclick = options.onSave;
+}
+
+function openMenuStudioModal(options) {
+  var modal = renderMenuStudioModal(options || {});
+  modal.classList.remove("hidden");
+  lockMenuStudioBodyScroll();
+  var body = modal.querySelector(".menu-studio-modal-body");
+  if (body) body.scrollTop = 0;
+  return modal;
+}
+
+function closeMenuStudioModal() {
+  var modal = ensureMenuStudioModal();
+  modal.classList.add("hidden");
+  unlockMenuStudioBodyScroll();
 }
 
 function findActionButton(target, card) {
@@ -3330,35 +3369,29 @@ function openCustomGroupModal(mode, id, addBlankContent) {
     customGroupDraftOptions.push(createBlankCustomOption(id));
   }
   renderCustomGroupModal(group);
-  var modal = ensureCustomGroupModal();
-  modal.classList.remove("hidden");
-  lockMenuStudioBodyScroll();
-  var body = modal.querySelector(".menu-studio-modal-body");
-  if (body) body.scrollTop = 0;
+  var modal = ensureMenuStudioModal();
   var firstInput = modal.querySelector("#groupModalName");
   if (firstInput && firstInput.focus) setTimeout(function() { firstInput.focus(); }, 0);
 }
 
 function closeCustomGroupModal() {
-  var modal = ensureCustomGroupModal();
-  modal.classList.add("hidden");
   customGroupModalId = "";
   customGroupDraftOptions = [];
-  unlockMenuStudioBodyScroll();
+  closeMenuStudioModal();
 }
 
 function renderCustomGroupModal(group) {
-  var modal = ensureCustomGroupModal();
-  var content = modal.querySelector("#customGroupModalContent");
   var isEdit = customGroupModalMode === "edit";
   var usage = isEdit ? getCustomGroupUsage(group.id) : { items: [], templates: [] };
-  content.innerHTML =
-    '<header class="menu-studio-modal-header"><div><h2 id="customGroupModalTitle">' + (isEdit ? '編輯餐點選項' : '新增餐點選項') + '</h2></div><button type="button" class="item-editor-close-btn" data-action="cancelModal" aria-label="關閉">×</button></header>' +
-    '<div class="menu-studio-modal-body">' +
+  openMenuStudioModal({
+    title: isEdit ? '編輯餐點選項' : '新增餐點選項',
+    body:
       renderCustomGroupBasicFields(group) +
-      renderCustomGroupContentEditor(group, usage) +
-    '</div>' +
-    '<footer class="menu-studio-modal-actions"><button type="button" class="secondary-btn" data-action="cancelModal">取消</button><button type="button" class="primary-btn" data-action="saveModal">儲存餐點選項</button></footer>';
+      renderCustomGroupContentEditor(group, usage),
+    actions: '<button type="button" class="secondary-btn" data-action="cancelModal">取消</button><button type="button" class="primary-btn" data-action="saveModal">儲存餐點選項</button>',
+    onClose: closeCustomGroupModal,
+    onSave: function() { saveCustomGroupFromModal(group); }
+  });
   bindCustomGroupModalEvents(group);
 }
 
@@ -3366,7 +3399,7 @@ function renderCustomGroupBasicFields(group) {
   var modules = group.modules || {};
   return '<section class="menu-studio-modal-section"><h3>基本設定</h3>' +
     '<label>餐點選項名稱<input id="groupModalName" value="' + escapeHtml(group.name || "") + '" placeholder="例如：份量、辣度、加料、不要項目" /></label>' +
-    '<label>選擇方式<select id="groupModalType"><option value="single" ' + (group.selectionType === "single" ? "selected" : "") + '>單選</option><option value="multiple" ' + (group.selectionType === "multiple" ? "selected" : "") + '>多選</option><option value="toggle" ' + (group.selectionType === "toggle" ? "selected" : "") + '>開關</option><option value="quantity" ' + (group.selectionType === "quantity" ? "selected" : "") + '>數量</option><option value="quantityAllocation" ' + (group.selectionType === "quantityAllocation" ? "selected" : "") + '>數量分配</option></select></label>' +
+    '<label>選擇方式<select id="groupModalType"><option value="single" ' + (group.selectionType === "single" ? "selected" : "") + '>單選</option><option value="multiple" ' + (group.selectionType === "multiple" ? "selected" : "") + '>多選</option><option value="quantity" ' + (group.selectionType === "quantity" ? "selected" : "") + '>可累加</option></select></label>' +
     '<div class="menu-studio-inline-fields"><label><input id="groupModalRequired" type="checkbox" ' + (group.required ? "checked" : "") + ' /> 必選</label><label>最少選擇數<input id="groupModalMin" type="number" min="0" max="99" value="' + Number(group.minSelect || 0) + '" /></label><label>最多選擇數<input id="groupModalMax" type="number" min="0" max="99" value="' + Number(group.maxSelect || 1) + '" /></label><label><input id="groupModalEnabled" type="checkbox" ' + (group.enabled === false ? "" : "checked") + ' /> 啟用狀態</label></div>' +
     '<h3>顯示位置</h3><div class="menu-studio-module-grid">' + ["qr","pos","kds","print"].map(function(name) {
       var label = { qr:"QR", pos:"POS", kds:"KDS", print:"印單" }[name];
@@ -3393,12 +3426,8 @@ function renderCustomGroupContentEditor(group, usage) {
 }
 
 function bindCustomGroupModalEvents(group) {
-  var modal = ensureCustomGroupModal();
-  var content = modal.querySelector("#customGroupModalContent");
-  var cancelButtons = content.querySelectorAll('[data-action="cancelModal"]');
-  for (var i = 0; i < cancelButtons.length; i += 1) cancelButtons[i].onclick = closeCustomGroupModal;
-  var saveButton = content.querySelector('[data-action="saveModal"]');
-  if (saveButton) saveButton.onclick = function() { saveCustomGroupFromModal(group); };
+  var modal = ensureMenuStudioModal();
+  var content = modal;
   var addButton = content.querySelector('[data-action="addOptionRow"]');
   if (addButton) addButton.onclick = function() {
     syncCustomGroupDraftFromModal();
@@ -3445,7 +3474,7 @@ function createBlankCustomOption(groupId) {
 }
 
 function syncCustomGroupDraftFromModal() {
-  var modal = ensureCustomGroupModal();
+  var modal = ensureMenuStudioModal();
   var rows = modal.querySelectorAll(".studio-modal-option-row");
   var next = [];
   for (var i = 0; i < rows.length; i += 1) {
@@ -3473,7 +3502,7 @@ function syncCustomGroupDraftFromModal() {
 }
 
 function readCustomGroupModalData(group) {
-  var modal = ensureCustomGroupModal();
+  var modal = ensureMenuStudioModal();
   syncCustomGroupDraftFromModal();
   var nameInput = modal.querySelector("#groupModalName");
   var typeInput = modal.querySelector("#groupModalType");
@@ -3487,8 +3516,8 @@ function readCustomGroupModalData(group) {
   for (var i = 0; i < moduleInputs.length; i += 1) modules[moduleInputs[i].getAttribute("data-modal-module")] = moduleInputs[i].checked === true;
   var selectionType = normalizeSelectionType(typeInput ? typeInput.value : "single");
   var previousType = group && group.selectionType ? group.selectionType : "single";
-  if (previousType !== selectionType && (selectionType === "toggle" || selectionType === "quantity") && customGroupDraftOptions.filter(function(option) { return option.name; }).length > 1) {
-    if (!confirm("切換為開關或數量後通常只需要一個內容，仍要繼續儲存嗎？")) return null;
+  if (previousType !== selectionType && selectionType === "quantity" && customGroupDraftOptions.filter(function(option) { return option.name; }).length > 1) {
+    if (!confirm("切換為可累加後通常只需要一個內容，仍要繼續儲存嗎？")) return null;
   }
   return {
     name: nameInput ? String(nameInput.value || "").trim() : "",
@@ -3545,7 +3574,7 @@ async function saveCustomGroupFromModal(group) {
 function addCustomGroupV650() {
   var name = customGroupNameInput ? String(customGroupNameInput.value || "").trim() : "";
   openCustomGroupModal("create", "");
-  var modal = ensureCustomGroupModal();
+  var modal = ensureMenuStudioModal();
   var input = modal.querySelector("#groupModalName");
   if (input && name) input.value = name;
   if (customGroupNameInput) customGroupNameInput.value = "";

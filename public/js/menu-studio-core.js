@@ -34,19 +34,14 @@ export function defaultMenuOptionModules(area) {
 
 export function normalizeMenuSelectionType(value) {
   if (value === "multi") return "multiple";
-  if (value === "allocation") return "quantityAllocation";
-  if (value === "quantity_allocation") return "quantityAllocation";
-  if (value === "quantityAllocation") return "quantityAllocation";
-  if (value === "multiple" || value === "quantity" || value === "toggle") return value;
+  if (value === "multiple" || value === "quantity") return value;
   return "single";
 }
 
 export function menuSelectionTypeLabel(value) {
   const type = normalizeMenuSelectionType(value);
   if (type === "multiple") return "多選";
-  if (type === "quantityAllocation") return "數量分配";
   if (type === "quantity") return "可調數量";
-  if (type === "toggle") return "開關";
   return "單選";
 }
 
