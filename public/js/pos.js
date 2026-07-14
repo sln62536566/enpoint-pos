@@ -183,6 +183,7 @@ const orderLookupMinutesRef = ref(db, "settings/orderLookupMinutes");
 const enableSoundRef = ref(db, "settings/enableSound");
 const soundTypeRef = ref(db, "settings/soundType");
 const soundVolumeRef = ref(db, "settings/soundVolume");
+const qrSessionControlRef = ref(db, "qrSessionControl");
 
 /* =========================
    State
@@ -239,7 +240,7 @@ const defaultSettings = {
   storeName: "",
   tableCount: 8,
   prepTime: 15,
-  qrValidMinutes: 120,
+  qrValidMinutes: 30,
   orderLookupMinutes: 60,
   showTestOrders: true,
   enableSound: true,
@@ -452,7 +453,11 @@ function normalizeOrderLookupMinutes(value) {
 
 function normalizeQrValidMinutes(value) {
   var minutes = Math.floor(Number(value) || defaultSettings.qrValidMinutes);
-  return Math.min(1440, Math.max(30, minutes));
+  var allowed = [15, 30, 45, 60, 75, 90];
+  for (var i = 0; i < allowed.length; i += 1) {
+    if (minutes === allowed[i]) return minutes;
+  }
+  return defaultSettings.qrValidMinutes;
 }
 
 function readSoundTypeSetting(key, fallback) {
@@ -3816,6 +3821,21 @@ async function confirmPaidAndProcess(orderId) {
   }
 }
 
+function invalidateQrSessionForOrder(order, reason) {
+  var sessionId = order && order.qrSessionId ? String(order.qrSessionId) : "";
+  if (!sessionId) return Promise.resolve();
+  var now = Date.now ? Date.now() : new Date().getTime();
+  return update(ref(db, "qrSessions/" + sessionId), {
+    status: "completed",
+    invalidReason: reason || "order_done",
+    invalidatedAt: now,
+    completedAt: now,
+    updatedAt: now
+  }).catch(function(error) {
+    console.error("QR session invalidation failed", error);
+  });
+}
+
 async function markOrderDoneByPOS(orderId) {
   const order = ordersData[orderId];
 
@@ -3837,6 +3857,7 @@ async function markOrderDoneByPOS(orderId) {
       doneAt: now,
       updatedAt: now
     });
+    await invalidateQrSessionForOrder(order, "order_done");
   } catch (error) {
     console.error("標記完成失敗：", error);
     alert("標記完成失敗");
@@ -4123,6 +4144,11 @@ async function closeBusinessDay() {
 
   try {
     const now = Date.now();
+    await update(qrSessionControlRef, {
+      closeDayVersion: now,
+      closeDayAt: now,
+      updatedAt: now
+    });
 
     await set(ref(db, `businessDays/${STORE_ID}/${getTodayKey()}`), {
       storeId: STORE_ID,

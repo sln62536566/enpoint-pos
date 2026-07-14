@@ -11,6 +11,7 @@ import {
   onValue,
   push,
   set,
+  update,
   getBusinessDate,
   createOrderNumber
 } from "./firebase.js";
@@ -47,7 +48,8 @@ const LAST_ORDER_KEY = "enpoint_last_qr_order_id";
 const LAST_ORDER_KEY_COMPAT = "lastQrOrderId";
 const DEFAULT_QR_STORE_NAME = "恩點點餐";
 const DEFAULT_ORDER_LOOKUP_MINUTES = 60;
-const DEFAULT_QR_VALID_MINUTES = 120;
+const DEFAULT_QR_VALID_MINUTES = 30;
+const QR_SESSION_INVALID_MESSAGE = "本次點餐已失效，請重新掃描桌面 QR Code 開始新的點餐。";
 
 function normalizeQrOrderLookupMinutes(value) {
   var raw = String(value === undefined || value === null ? "" : value);
@@ -58,7 +60,11 @@ function normalizeQrOrderLookupMinutes(value) {
 
 function normalizeQrValidMinutes(value) {
   var minutes = Math.floor(Number(value) || DEFAULT_QR_VALID_MINUTES);
-  return Math.min(1440, Math.max(30, minutes));
+  var allowed = [15, 30, 45, 60, 75, 90];
+  for (var i = 0; i < allowed.length; i += 1) {
+    if (minutes === allowed[i]) return minutes;
+  }
+  return DEFAULT_QR_VALID_MINUTES;
 }
 
 const params = new URLSearchParams(window.location.search);
@@ -101,13 +107,7 @@ function setQrPageMode(mode) {
 }
 
 function qrIsViewOrderMode() {
-  try {
-    var searchParams = new URLSearchParams(window.location.search || "");
-    var view = searchParams.get("view");
-    return view === "last" || view === "order";
-  } catch (e) {
-    return false;
-  }
+  return false;
 }
 
 function saveCurrentViewingOrderId(orderId) {
@@ -235,6 +235,7 @@ const qrValidMinutesRef = ref(db, "settings/qrValidMinutes");
 const orderLookupMinutesRef = ref(db, "settings/orderLookupMinutes");
 const customOptionGroupsRef = ref(db, "customOptionGroups");
 const customGroupsRef = ref(db, "customGroups");
+const qrSessionControlRef = ref(db, "qrSessionControl");
 
 let menuData = [];
 let categoriesData = {};
@@ -242,6 +243,16 @@ let customOptionGroupsData = {};
 let customGroupsData = {};
 let currentCategory = "全部";
 let cart = [];
+let qrSessionId = "";
+let qrSessionStartedAt = 0;
+let qrSessionLastActivityAt = 0;
+let qrSessionInvalid = false;
+let qrSessionInvalidReason = "";
+let qrSessionOrderId = "";
+let qrSessionCloseDayVersion = 0;
+let qrSessionCloseDayReady = false;
+let qrSessionTimer = null;
+let qrSessionLastSyncedActivityAt = 0;
 window.qrV64SelectedCustomOptions = [];
 
 let currentOrderType = table ? "內用" : "內用";
@@ -258,6 +269,209 @@ var qrLastSubmitTapAt = 0;
 var qrLastOrderActionAt = 0;
 var qrLastOrderActionKey = "";
 var qrOrderTypeAlertLocked = false;
+
+function getNowMs() {
+  return Date.now ? Date.now() : new Date().getTime();
+}
+
+function makeQrSessionId() {
+  var random = Math.floor(Math.random() * 1000000000);
+  return "qr_" + getNowMs() + "_" + random;
+}
+
+function getQrSessionRef(path) {
+  return ref(db, "qrSessions/" + qrSessionId + (path ? "/" + path : ""));
+}
+
+function saveQrSessionStorage() {
+  try {
+    sessionStorage.setItem("enpoint_qr_session_id", qrSessionId);
+    sessionStorage.setItem("enpoint_qr_session_started_at", String(qrSessionStartedAt));
+    sessionStorage.setItem("enpoint_qr_session_last_activity_at", String(qrSessionLastActivityAt));
+  } catch (e) {}
+}
+
+function writeQrSessionPatch(patch) {
+  if (!qrSessionId || !patch) return;
+  try {
+    update(getQrSessionRef(""), patch).catch(function(error) {
+      console.error("QR session update failed", error);
+    });
+  } catch (e) {}
+}
+
+function ensureQrSession() {
+  if (qrSessionId) return qrSessionId;
+  var now = getNowMs();
+  var hadStoredSession = false;
+  try {
+    qrSessionId = sessionStorage.getItem("enpoint_qr_session_id") || "";
+    qrSessionStartedAt = Number(sessionStorage.getItem("enpoint_qr_session_started_at") || 0);
+    qrSessionLastActivityAt = Number(sessionStorage.getItem("enpoint_qr_session_last_activity_at") || 0);
+    hadStoredSession = !!qrSessionId;
+  } catch (e) {}
+  if (!qrSessionId || !qrSessionStartedAt) {
+    qrSessionId = makeQrSessionId();
+    qrSessionStartedAt = now;
+    qrSessionLastActivityAt = now;
+    hadStoredSession = false;
+  }
+  if (!qrSessionLastActivityAt) qrSessionLastActivityAt = now;
+  saveQrSessionStorage();
+  try {
+    if (hadStoredSession) {
+      update(getQrSessionRef(""), {
+        lastSeenAt: now,
+        timeoutMinutes: normalizeQrValidMinutes(qrValidMinutes)
+      }).catch(function(error) {
+        console.error("QR session resume failed", error);
+      });
+    } else {
+      set(getQrSessionRef(""), {
+        id: qrSessionId,
+        storeId: STORE_ID,
+        table: table || "",
+        status: "active",
+        startedAt: qrSessionStartedAt,
+        lastActivityAt: qrSessionLastActivityAt,
+        timeoutMinutes: normalizeQrValidMinutes(qrValidMinutes),
+        orderId: qrSessionOrderId || "",
+        createdFrom: "qr",
+        userAgent: typeof navigator !== "undefined" && navigator.userAgent ? String(navigator.userAgent).slice(0, 240) : ""
+      }).catch(function(error) {
+        console.error("QR session create failed", error);
+      });
+    }
+  } catch (e2) {}
+  return qrSessionId;
+}
+
+function markQrSessionActivity(forceSync) {
+  if (qrSessionInvalid) return;
+  ensureQrSession();
+  var now = getNowMs();
+  qrSessionLastActivityAt = now;
+  saveQrSessionStorage();
+  if (forceSync || now - qrSessionLastSyncedActivityAt > 30000) {
+    qrSessionLastSyncedActivityAt = now;
+    writeQrSessionPatch({
+      lastActivityAt: now,
+      timeoutMinutes: normalizeQrValidMinutes(qrValidMinutes)
+    });
+  }
+}
+
+function ensureQrSessionExpiredOverlay() {
+  var overlay = document.getElementById("qrSessionExpiredOverlay");
+  if (overlay) return overlay;
+  overlay = document.createElement("div");
+  overlay.id = "qrSessionExpiredOverlay";
+  overlay.className = "qr-session-expired-overlay";
+  overlay.innerHTML = '<div class="qr-session-expired-card"><h2>點餐已失效</h2><p>' + QR_SESSION_INVALID_MESSAGE + '</p></div>';
+  if (document.body) document.body.appendChild(overlay);
+  return overlay;
+}
+
+function setQrOrderingDisabled(disabled) {
+  var buttons = [addToCartBtn, submitOrderBtn, confirmSubmitBtn, floatingCartBtn];
+  for (var i = 0; i < buttons.length; i += 1) {
+    if (buttons[i]) buttons[i].disabled = disabled;
+  }
+  if (disabled) addBodyClass("qr-session-expired");
+  else removeBodyClass("qr-session-expired");
+}
+
+function invalidateQrSession(reason, skipRemoteWrite) {
+  if (qrSessionInvalid) return false;
+  ensureQrSession();
+  qrSessionInvalid = true;
+  qrSessionInvalidReason = reason || QR_SESSION_INVALID_MESSAGE;
+  cart = [];
+  try { renderCart(); } catch (e) { try { legacyRenderQrCart(); } catch (e2) {} }
+  try { closeQrCartPanel(); } catch (e3) {}
+  if (itemModal) {
+    itemModal.className = (itemModal.className || "") + " hidden";
+    itemModal.className = itemModal.className.replace(/\bshow-force\b/g, "");
+    itemModal.style.display = "none";
+  }
+  if (confirmModal) {
+    confirmModal.className = (confirmModal.className || "") + " hidden";
+    confirmModal.className = confirmModal.className.replace(/\bshow-force\b/g, "");
+    confirmModal.style.display = "none";
+  }
+  var overlay = ensureQrSessionExpiredOverlay();
+  overlay.style.display = "flex";
+  setQrOrderingDisabled(true);
+  if (!skipRemoteWrite) {
+    writeQrSessionPatch({
+      status: "expired",
+      invalidReason: qrSessionInvalidReason,
+      invalidatedAt: getNowMs(),
+      updatedAt: getNowMs()
+    });
+  }
+  return false;
+}
+
+function ensureQrSessionActive() {
+  if (qrSessionInvalid) {
+    ensureQrSessionExpiredOverlay().style.display = "flex";
+    return false;
+  }
+  if (isQrOrderingExpired()) {
+    invalidateQrSession(QR_SESSION_INVALID_MESSAGE, false);
+    return false;
+  }
+  markQrSessionActivity(false);
+  return true;
+}
+
+function checkQrSessionExpiry() {
+  if (qrSessionInvalid) return;
+  if (isQrOrderingExpired()) invalidateQrSession(QR_SESSION_INVALID_MESSAGE, false);
+}
+
+function bindQrSessionActivityListeners() {
+  var events = ["click", "touchend", "keydown", "input", "change"];
+  for (var i = 0; i < events.length; i += 1) {
+    document.addEventListener(events[i], function() {
+      markQrSessionActivity(false);
+    }, true);
+  }
+}
+
+function startQrSessionWatchers() {
+  ensureQrSession();
+  markQrSessionActivity(true);
+  bindQrSessionActivityListeners();
+  try {
+    onValue(getQrSessionRef(""), function(snapshot) {
+      var session = snapshot && snapshot.val ? snapshot.val() : null;
+      if (!session) return;
+      qrSessionOrderId = session.orderId || qrSessionOrderId || "";
+      if (session.status === "completed" || session.status === "closedDay" || session.status === "expired" || session.status === "invalid") {
+        invalidateQrSession(QR_SESSION_INVALID_MESSAGE, true);
+      }
+    });
+  } catch (e) {}
+  try {
+    onValue(ref(db, "qrSessionControl/closeDayVersion"), function(snapshot) {
+      var version = Number(snapshot && snapshot.val ? snapshot.val() : 0);
+      if (!version) return;
+      if (!qrSessionCloseDayReady) {
+        qrSessionCloseDayReady = true;
+        qrSessionCloseDayVersion = version;
+        return;
+      }
+      if (version !== qrSessionCloseDayVersion) {
+        qrSessionCloseDayVersion = version;
+        invalidateQrSession(QR_SESSION_INVALID_MESSAGE, false);
+      }
+    });
+  } catch (e2) {}
+  if (qrSessionTimer) clearInterval(qrSessionTimer);
+  qrSessionTimer = setInterval(checkQrSessionExpiry, 15000);
+}
 
 const SPICY_OPTIONS = ["不辣", "微辣", "小辣", "中辣", "大辣"];
 
@@ -681,6 +895,7 @@ function renderQrModalFoodImage(item) {
 }
 
 function openItemModal(item) {
+  if (!ensureQrSessionActive()) return;
   if (!item) {
     alert("找不到這個餐點");
     return;
@@ -1022,6 +1237,13 @@ window.legacyRemoveQrCartItem = function(index) {
 var qrLastAddCartAt = 0;
 
 function qrAddCurrentItemToCart(event) {
+  if (!ensureQrSessionActive()) {
+    if (event) {
+      event.preventDefault && event.preventDefault();
+      event.stopPropagation && event.stopPropagation();
+    }
+    return false;
+  }
   var nowTime = new Date().getTime();
   if (nowTime - qrLastAddCartAt < 650) {
     if (event) {
@@ -1161,6 +1383,7 @@ function openQrCartPanel(event) {
     event.preventDefault && event.preventDefault();
     event.stopPropagation && event.stopPropagation();
   }
+  if (!ensureQrSessionActive()) return false;
   if (qrCartPanel) {
     qrCartPanel.classList.add("cart-open");
     qrCartPanel.setAttribute("aria-hidden", "false");
@@ -1278,6 +1501,7 @@ function validateOrderType() {
 }
 
 function renderConfirmModal() {
+  if (!ensureQrSessionActive()) return;
   if (!validateOrderType()) return;
 
   const total = calculateOrderTotal(cart);
@@ -1308,6 +1532,8 @@ window.qrSubmitOrderNow = function (event) {
     event.preventDefault();
     event.stopPropagation();
   }
+
+  if (!ensureQrSessionActive()) return false;
 
   if (!shouldHandleQrOrderAction(event, "submitOrder", 2200)) return false;
 
@@ -1342,11 +1568,8 @@ function submitConfirmedQrOrder(event) {
   if (qrLastSubmitTapAt && nowTap - qrLastSubmitTapAt < 900) return false;
   qrLastSubmitTapAt = nowTap;
 
+  if (!ensureQrSessionActive()) return false;
   if (!validateOrderType()) return false;
-  if (isQrOrderingExpired()) {
-    showQrOrderingExpired();
-    return false;
-  }
   if (!cart || cart.length === 0) {
     alert("購物車目前是空的");
     return false;
@@ -1373,6 +1596,7 @@ function submitConfirmedQrOrder(event) {
         sourcePrefix: "Q",
         deviceType: "qr",
         source: "QR",
+        qrSessionId: qrSessionId,
         type: meta.type,
         table: meta.table,
         customerName: customerNameInput.value.trim(),
@@ -1398,6 +1622,13 @@ function submitConfirmedQrOrder(event) {
     })
     .then(function (order) {
       saveCurrentViewingOrderId(order.id);
+      qrSessionOrderId = order.id;
+      writeQrSessionPatch({
+        status: "submitted",
+        orderId: order.id,
+        submittedAt: getNowMs(),
+        updatedAt: getNowMs()
+      });
 
       confirmModal.classList.add("hidden");
       showSubmittedOrderView(order, true);
@@ -1485,15 +1716,7 @@ function escapeHtml(value) {
 }
 
 function getDirectOrderIdFromUrl() {
-  try {
-    var searchParams = new URLSearchParams(window.location.search || "");
-    if (searchParams.get("view") !== "order") return "";
-    var id = searchParams.get("orderId") || "";
-    if (id) saveCurrentViewingOrderId(id);
-    return id;
-  } catch (e) {
-    return "";
-  }
+  return "";
 }
 
 function getPaymentStatusText(order) {
@@ -1636,11 +1859,7 @@ function showDirectOrderShell() {
 }
 
 function updateOrderUrl(orderId) {
-  if (!orderId || !window.history || !window.history.replaceState) return;
-  try {
-    var nextUrl = window.location.pathname + "?view=order&orderId=" + encodeURIComponent(orderId);
-    window.history.replaceState(null, "", nextUrl);
-  } catch (e) {}
+  return;
 }
 
 function showSubmittedOrderView(order, updateUrl) {
@@ -1868,21 +2087,19 @@ function loadQrValidMinutes() {
 
 function isQrOrderingExpired() {
   var minutes = normalizeQrValidMinutes(qrValidMinutes);
-  var startAt = 0;
-  try {
-    startAt = Number(sessionStorage.getItem("enpoint_qr_session_started_at") || 0);
-    if (!startAt) {
-      startAt = Date.now ? Date.now() : new Date().getTime();
-      sessionStorage.setItem("enpoint_qr_session_started_at", String(startAt));
-    }
-  } catch (e) {
-    startAt = Date.now ? Date.now() : new Date().getTime();
+  var lastActivityAt = Number(qrSessionLastActivityAt || 0);
+  if (!lastActivityAt) {
+    try {
+      lastActivityAt = Number(sessionStorage.getItem("enpoint_qr_session_last_activity_at") || sessionStorage.getItem("enpoint_qr_session_started_at") || 0);
+    } catch (e) {}
   }
-  return (Date.now ? Date.now() : new Date().getTime()) - startAt > minutes * 60 * 1000;
+  if (!lastActivityAt) return false;
+  return getNowMs() - lastActivityAt > minutes * 60 * 1000;
 }
 
 function showQrOrderingExpired() {
-  alert("此點餐連結已過期，請重新掃描 QR Code");
+  invalidateQrSession(QR_SESSION_INVALID_MESSAGE, false);
+  return;
 }
 
 function renderMenuCardV64(item) {
@@ -1932,6 +2149,7 @@ initOrderTypeUI();
 loadQrStoreName();
 loadOrderLookupMinutes();
 loadQrValidMinutes();
+startQrSessionWatchers();
 loadMenu();
 hideAppLoadingScreen();
 
@@ -2986,6 +3204,8 @@ window.qrLegacyDirectSubmitOrder = function (event) {
     if (event.stopImmediatePropagation) event.stopImmediatePropagation();
   }
 
+  if (!ensureQrSessionActive()) return false;
+
   if (!shouldHandleQrOrderAction(event, "submitOrder", 2200)) return false;
 
   var nowTime = new Date().getTime();
@@ -3043,6 +3263,7 @@ window.qrLegacyDirectSubmitOrder = function (event) {
           sourcePrefix: "Q",
           deviceType: "qr",
           source: "QR",
+          qrSessionId: qrSessionId,
           type: meta.type,
           table: meta.table,
           customerName: safeCustomerName,
@@ -3068,6 +3289,13 @@ window.qrLegacyDirectSubmitOrder = function (event) {
       })
       .then(function (order) {
         saveCurrentViewingOrderId(order.id);
+        qrSessionOrderId = order.id;
+        writeQrSessionPatch({
+          status: "submitted",
+          orderId: order.id,
+          submittedAt: getNowMs(),
+          updatedAt: getNowMs()
+        });
 
         if (confirmModal) {
           confirmModal.className = (confirmModal.className || "") + " hidden";
