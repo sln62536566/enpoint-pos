@@ -14,6 +14,12 @@ import {
   getAppliedMenuOptionGroups
 } from "./menu-studio-core.js";
 
+import {
+  applyOrderItemPrice,
+  calculateOrderItemPrice,
+  calculateOrderTotal
+} from "./order-price-core.js";
+
 
 /* =========================
    v59-5 EARLY POS LEGACY OPEN
@@ -1594,16 +1600,18 @@ function normalizeOrderItems(items) {
 }
 
 function itemQty(item) {
+  if (Array.isArray(item && item.variants) && item.variants.length) {
+    return calculateOrderItemPrice(item).quantity;
+  }
   return Number(item.qty || item.quantity || 1);
 }
 
 function itemUnitPrice(item) {
-  return Number(item.price || item.unitPrice || item.basePrice || 0);
+  return Number(calculateOrderItemPrice(item).unitPrice || 0);
 }
 
 function itemSubtotal(item) {
-  if (item.subtotal) return Number(item.subtotal);
-  return itemUnitPrice(item) * itemQty(item);
+  return Number(calculateOrderItemPrice(item).subtotal || 0);
 }
 
 function itemExtras(item) {
@@ -1611,7 +1619,7 @@ function itemExtras(item) {
 }
 
 function calculateTotal(items = cart) {
-  return items.reduce((sum, item) => sum + itemSubtotal(item), 0);
+  return calculateOrderTotal(items);
 }
 
 function escapeHtml(value) {
@@ -2599,21 +2607,16 @@ confirmCustomBtn.addEventListener("click", () => {
     return;
   }
   
-  const basePrice = Number(getBasePrice(currentItem));
-  const extrasTotal = customOptionsTotal(window.posV64SelectedCustomOptions || []);
-  const unitPrice = basePrice + extrasTotal;
-  const subtotal = unitPrice * currentQuantity;
+  const basePrice = Number(selectedPortion.price || getBasePrice(currentItem) || 0);
 
-  const nextCartItem = {
+  const nextCartItem = applyOrderItemPrice({
     cartId: editingCartId || (Date.now().toString() + Math.random().toString(36).slice(2)),
     id: currentItem.id,
     itemId: currentItem.id,
     name: currentItem.name,
     category: getItemCategory(currentItem),
-    size: "",
+    size: selectedPortion.name || "",
     basePrice,
-    price: unitPrice,
-    unitPrice,
     quantity: currentQuantity,
     qty: currentQuantity,
     spicy: "",
@@ -2624,9 +2627,8 @@ confirmCustomBtn.addEventListener("click", () => {
     customOptions: window.posV64SelectedCustomOptions || [],
     removes: [],
     removeOptionsSelected: [],
-    note: "",
-    subtotal
-  };
+    note: ""
+  });
 
   if (editingCartId) {
     const editIndex = cart.findIndex(item => String(item.cartId) === String(editingCartId));
@@ -2808,6 +2810,9 @@ function openCartItemEditModal(index) {
   selectedRemoves = itemRemoves(cartItem).slice();
   selectedSatay = cartItem.satay || "不要";
   selectedRequiredOption = cartItem.requiredOption ? cartItem.requiredOption.value : "";
+  window.posV64SelectedCustomOptions = Array.isArray(cartItem.customOptions)
+    ? cartItem.customOptions.map(option => Object.assign({}, option))
+    : [];
   noteInput.value = cartItem.note || "";
 
   const portions = getPortionOptions(currentItem);
@@ -2823,6 +2828,7 @@ function openCartItemEditModal(index) {
   renderRequiredOptionBox();
   renderExtrasOptions();
   renderRemoveOptions();
+  renderCustomOptionGroups();
   renderSpicyButtons(spicySelect, "spicyChipBox", spicySelect.value, !spicySelect.disabled, "selectSpicy");
 
   if (confirmCustomBtn) confirmCustomBtn.textContent = "更新餐點";
@@ -3161,7 +3167,7 @@ function changeEditItemQty(index, amount) {
   const nextQty = Math.max(1, itemQty(item) + amount);
   item.qty = nextQty;
   item.quantity = nextQty;
-  item.subtotal = itemUnitPrice(item) * nextQty;
+  Object.assign(item, applyOrderItemPrice(item));
 
   renderEditOrderItems();
 }
@@ -3476,12 +3482,11 @@ function toggleEditExtra(name, price) {
 function updateEditItemSubtotal() {
   if (!editSelectedPortion) return;
 
-  const extrasTotal = editSelectedExtras.reduce((sum, extra) => {
-    return sum + Number(extra.price || 0);
-  }, 0);
-
-  const unitPrice = Number(editSelectedPortion.price || 0) + extrasTotal;
-  const subtotal = unitPrice * editQuantity;
+  const subtotal = calculateOrderItemPrice({
+    basePrice: Number(editSelectedPortion.price || 0),
+    addons: editSelectedExtras,
+    quantity: editQuantity
+  }).subtotal;
 
   editItemSubtotal.textContent = money(subtotal);
 }
@@ -3510,20 +3515,11 @@ saveEditItemBtn.addEventListener("click", () => {
 
   if (editingItemIndex === null || !editingItems[editingItemIndex]) return;
 
-  const extrasTotal = editSelectedExtras.reduce((sum, extra) => {
-    return sum + Number(extra.price || 0);
-  }, 0);
-
-  const unitPrice = Number(editSelectedPortion.price || 0) + extrasTotal;
-  const subtotal = unitPrice * editQuantity;
-
-  editingItems[editingItemIndex] = {
+  editingItems[editingItemIndex] = applyOrderItemPrice({
     ...editingItems[editingItemIndex],
     itemId: editingItems[editingItemIndex].itemId || (editingMenuItem && editingMenuItem.id) || editingItems[editingItemIndex].id,
     size: editSelectedPortion.name,
     basePrice: Number(editSelectedPortion.price || 0),
-    price: unitPrice,
-    unitPrice,
     spicy: editItemSpicySelect.value,
     satay: editSelectedSatay,
 
@@ -3535,14 +3531,13 @@ saveEditItemBtn.addEventListener("click", () => {
       : null,
     
     addons: editSelectedExtras,
-    extras: editSelectedExtras,
+    extras: [],
     removes: editSelectedRemoves,
     removeOptionsSelected: editSelectedRemoves,
     note: editItemNoteInput.value.trim(),
     qty: editQuantity,
-    quantity: editQuantity,
-    subtotal
-  };
+    quantity: editQuantity
+  });
 
   renderEditOrderItems();
   closeEditItemModal();

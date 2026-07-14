@@ -19,6 +19,12 @@ import {
   getAppliedMenuOptionGroups
 } from "./menu-studio-core.js";
 
+import {
+  applyOrderItemPrice,
+  calculateOrderItemPrice,
+  calculateOrderTotal
+} from "./order-price-core.js";
+
 
 /* =========================
    v59-5 EARLY QR HARD ADD
@@ -875,9 +881,13 @@ function validateQrRequiredCustomGroups(item) {
 }
 
 function updateModalSubtotal() {
-  const base = Number(selectedSize && selectedSize.price || 0);
-  const addonsTotal = selectedAddons.reduce((sum, addon) => sum + Number(addon.price || 0), 0) + qrCustomOptionsTotal(window.qrV64SelectedCustomOptions || []);
-  modalSubtotal.textContent = money((base + addonsTotal) * selectedQty);
+  const priced = calculateOrderItemPrice({
+    basePrice: Number(selectedSize && selectedSize.price || getBasePrice(selectedItem) || 0),
+    addons: selectedAddons,
+    customOptions: window.qrV64SelectedCustomOptions || [],
+    quantity: selectedQty
+  });
+  modalSubtotal.textContent = money(priced.subtotal);
 }
 
 qtyMinusBtn.addEventListener("click", () => {
@@ -920,7 +930,7 @@ function legacyRenderQrCart() {
   for (var i = 0; i < cart.length; i++) {
     var item = cart[i] || {};
     var qty = Number(item.qty || item.quantity || 1);
-    var subtotal = Number(item.subtotal || 0);
+    var subtotal = calculateOrderItemPrice(item).subtotal;
     total += subtotal;
     html += '<div class="cart-item">';
     html += '<div><strong>' + (item.name || '餐點') + ' × ' + qty + '</strong>';
@@ -982,32 +992,26 @@ function qrAddCurrentItemToCart(event) {
     return false;
   }
 
-  var basePrice = Number(getBasePrice(selectedItem) || 0);
-  var addonsTotal = 0;
-  addonsTotal += qrCustomOptionsTotal(window.qrV64SelectedCustomOptions || []);
-  var unitPrice = basePrice + addonsTotal;
+  var basePrice = Number(selectedSize && selectedSize.price || getBasePrice(selectedItem) || 0);
   var nowId = selectedItem.id + "-" + new Date().getTime();
 
-  cart.push({
+  cart.push(applyOrderItemPrice({
     id: nowId,
     itemId: selectedItem.id,
     name: selectedItem.name,
     category: getItemCategory(selectedItem),
-    size: "",
+    size: selectedSize ? selectedSize.name : "",
     basePrice: basePrice,
-    price: unitPrice,
-    unitPrice: unitPrice,
     requiredOption: null,
     customOptions: window.qrV64SelectedCustomOptions || [],
-    addons: [],
+    addons: selectedAddons,
     extras: [],
     spicy: "",
     satay: "",
     note: itemNote ? itemNote.value.trim() : "",
     qty: selectedQty,
-    quantity: selectedQty,
-    subtotal: unitPrice * selectedQty
-  });
+    quantity: selectedQty
+  }));
 
   if (itemModal) {
     itemModal.className = (itemModal.className || "") + " hidden";
@@ -1078,18 +1082,14 @@ if (topNewOrderBtn) {
 }
 
 function getQrCartTotal() {
-  var total = 0;
-  for (var i = 0; i < cart.length; i++) {
-    total += Number(cart[i].subtotal || 0);
-  }
-  return total;
+  return calculateOrderTotal(cart);
 }
 
 function updateFloatingCartButton() {
   if (!floatingCartBtn) return;
   var count = 0;
   for (var i = 0; i < cart.length; i++) {
-    count += Number(cart[i].qty || 1);
+    count += calculateOrderItemPrice(cart[i]).quantity;
   }
   floatingCartBtn.innerHTML = "購物車 " + count + " 項｜" + money(getQrCartTotal());
 }
@@ -1137,7 +1137,7 @@ function renderCart() {
       </div>
 
       <div class="cart-price">
-        <strong>${money(item.subtotal)}</strong>
+        <strong>${money(calculateOrderItemPrice(item).subtotal)}</strong>
         <button class="remove-btn" data-index="${index}">刪除</button>
       </div>
     </div>
@@ -1150,7 +1150,7 @@ function renderCart() {
     });
   });
 
-  const total = cart.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
+  const total = calculateOrderTotal(cart);
   cartTotal.textContent = money(total);
   updateFloatingCartButton();
 }
@@ -1201,7 +1201,7 @@ function validateOrderType() {
 function renderConfirmModal() {
   if (!validateOrderType()) return;
 
-  const total = cart.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
+  const total = calculateOrderTotal(cart);
   const meta = getOrderMeta();
 
   confirmTotal.textContent = money(total);
@@ -1215,7 +1215,7 @@ function renderConfirmModal() {
 
         <div class="confirm-item-detail">
           ${renderItemDetail(item)}
-          <p>小計：${money(item.subtotal)}</p>
+          <p>小計：${money(calculateOrderItemPrice(item).subtotal)}</p>
         </div>
       </div>
     `).join("")}
@@ -1276,9 +1276,7 @@ function submitConfirmedQrOrder(event) {
   confirmSubmitBtn.disabled = true;
   confirmSubmitBtn.textContent = "送出中...";
 
-  var total = cart.reduce(function (sum, item) {
-    return sum + Number(item.subtotal || 0);
-  }, 0);
+  var total = calculateOrderTotal(cart);
   var orderRef = push(ref(db, "orders"));
   var now = Date.now();
   var businessDate = getBusinessDate();
@@ -1389,7 +1387,7 @@ function buildQrOrderHtml(order) {
 
         <div class="success-item-detail">
           ${renderItemDetail(item)}
-          <p>小計：${money(item.subtotal || (Number(item.price || item.unitPrice || 0) * Number(item.qty || item.quantity || 1)))}</p>
+          <p>小計：${money(calculateOrderItemPrice(item).subtotal)}</p>
         </div>
       </div>
     `).join("") : ""}
@@ -1528,7 +1526,7 @@ function buildDirectOrderViewHtml(order) {
       '<div class="qr-direct-items">' +
         (items.length ? items.map(function(item) {
           var qty = Number(item.qty || item.quantity || 1);
-          var subtotal = Number(item.subtotal || (Number(item.price || item.unitPrice || 0) * qty));
+          var subtotal = calculateOrderItemPrice(item).subtotal;
           return '<div class="qr-direct-item">' +
             '<div class="qr-direct-item-main"><span>' + escapeHtml(item.name || "未命名餐點") + '</span><b>× ' + qty + '</b></div>' +
             buildDirectItemDetailHtml(item) +
