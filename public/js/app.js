@@ -806,6 +806,21 @@ function findQrSelectedCustomOption(groupId, optionName) {
   return null;
 }
 
+function isQrSizeOptionGroup(group) {
+  var id = String(group && group.id || "");
+  var name = String(group && group.name || "").toLowerCase();
+  return id === "__legacy_sizes" || name.indexOf("份量") !== -1 || name.indexOf("size") !== -1 || name.indexOf("大小") !== -1;
+}
+
+function normalizeQrOptionPriceForGroup(group, option, menuItem) {
+  var rawPrice = Number(option && option.price || 0);
+  if (!isQrSizeOptionGroup(group) || String(group && group.id || "") === "__legacy_sizes") return rawPrice;
+
+  var basePrice = Number(getBasePrice(menuItem || selectedItem) || 0);
+  if (basePrice > 0 && rawPrice >= basePrice) return rawPrice - basePrice;
+  return rawPrice;
+}
+
 function renderQrCustomOptionGroups() {
   var oldBox = document.getElementById("qrCustomOptionGroupsBox");
   if (oldBox && oldBox.parentNode) oldBox.parentNode.removeChild(oldBox);
@@ -823,9 +838,10 @@ function renderQrCustomOptionGroups() {
       var option = typeof group.options[o] === "string" ? { name: group.options[o] } : group.options[o];
       var name = option.name || option.label || option.value || "";
       var selected = findQrSelectedCustomOption(group.id, name);
+      var optionPrice = normalizeQrOptionPriceForGroup(group, option, selectedItem);
       var priceText = Number(option.price || 0) > 0 ? " +" + Number(option.price || 0) : (Number(option.price || 0) < 0 ? " " + Number(option.price || 0) : "");
       var modules = group.modules || {};
-      html += '<button type="button" class="option-btn qr-v64-option ' + (selected ? "active" : "") + '" data-group-id="' + escapeHtml(group.id) + '" data-group-name="' + escapeHtml(group.name) + '" data-selection-type="' + escapeHtml(group.selectionType || "single") + '" data-option-name="' + escapeHtml(name) + '" data-option-price="' + Number(option.price || 0) + '" data-qty-enabled="' + (group.allowQuantity || option.qtyEnabled || option.quantityEnabled || option.allowQuantity ? "true" : "false") + '" data-max-qty="' + Number(option.maxQty || option.maxQuantity || 1) + '" data-module-qr="' + (modules.qr === true ? "true" : "false") + '" data-module-pos="' + (modules.pos !== false ? "true" : "false") + '" data-module-kds="' + (modules.kds !== false ? "true" : "false") + '" data-module-print="' + (modules.print !== false ? "true" : "false") + '">' + escapeHtml(name) + priceText + (selected && Number(selected.qty || 1) > 1 ? " x" + Number(selected.qty || 1) : "") + '</button>';
+      html += '<button type="button" class="option-btn qr-v64-option ' + (selected ? "active" : "") + '" data-group-id="' + escapeHtml(group.id) + '" data-group-name="' + escapeHtml(group.name) + '" data-selection-type="' + escapeHtml(group.selectionType || "single") + '" data-option-name="' + escapeHtml(name) + '" data-option-price="' + optionPrice + '" data-qty-enabled="' + (group.allowQuantity || option.qtyEnabled || option.quantityEnabled || option.allowQuantity ? "true" : "false") + '" data-max-qty="' + Number(option.maxQty || option.maxQuantity || 1) + '" data-module-qr="' + (modules.qr === true ? "true" : "false") + '" data-module-pos="' + (modules.pos !== false ? "true" : "false") + '" data-module-kds="' + (modules.kds !== false ? "true" : "false") + '" data-module-print="' + (modules.print !== false ? "true" : "false") + '">' + escapeHtml(name) + priceText + (selected && Number(selected.qty || 1) > 1 ? " x" + Number(selected.qty || 1) : "") + '</button>';
     }
     html += '</div></div>';
   }

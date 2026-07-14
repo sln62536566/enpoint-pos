@@ -2150,6 +2150,7 @@ function openCustomModal(itemId) {
   extrasBox.innerHTML = "";
   if (spicySelect && spicySelect.parentNode) spicySelect.parentNode.style.display = "none";
   renderCustomOptionGroups();
+  updateCustomModalPricePreview();
 
   customModal.classList.remove("hidden");
   customModal.className = (customModal.className || "").replace(/\bhidden\b/g, "");
@@ -2425,6 +2426,31 @@ function optionLabelWithQty(option, qty) {
   return String(name || "");
 }
 
+function updateCustomModalPricePreview() {
+  if (!modalItemPrice || !currentItem) return;
+  var priced = calculateOrderItemPrice({
+    basePrice: Number(getBasePrice(currentItem) || 0),
+    customOptions: window.posV64SelectedCustomOptions || [],
+    quantity: currentQuantity
+  });
+  modalItemPrice.textContent = "小計 " + money(priced.subtotal);
+}
+
+function isSizeOptionGroup(group) {
+  var id = String(group && group.id || "");
+  var name = String(group && group.name || "").toLowerCase();
+  return id === "__legacy_sizes" || name.indexOf("份量") !== -1 || name.indexOf("size") !== -1 || name.indexOf("大小") !== -1;
+}
+
+function normalizeOptionPriceForGroup(group, option, menuItem) {
+  var rawPrice = Number(option && option.price || 0);
+  if (!isSizeOptionGroup(group) || String(group && group.id || "") === "__legacy_sizes") return rawPrice;
+
+  var basePrice = Number(getBasePrice(menuItem || currentItem) || 0);
+  if (basePrice > 0 && rawPrice >= basePrice) return rawPrice - basePrice;
+  return rawPrice;
+}
+
 function renderCustomOptionGroups() {
   var oldBox = document.getElementById("posCustomOptionGroupsBox");
   if (oldBox && oldBox.parentNode) oldBox.parentNode.removeChild(oldBox);
@@ -2444,9 +2470,10 @@ function renderCustomOptionGroups() {
       var option = typeof options[o] === "string" ? { name: options[o] } : options[o];
       var optionName = option.name || option.label || option.value || "";
       var selected = findSelectedCustomOption(group.id, optionName);
+      var optionPrice = normalizeOptionPriceForGroup(group, option, currentItem);
       var priceText = Number(option.price || 0) > 0 ? " +" + Number(option.price || 0) : (Number(option.price || 0) < 0 ? " " + Number(option.price || 0) : "");
       var modules = group.modules || {};
-      html += '<button type="button" class="option-btn v64-custom-option-btn ' + (selected ? "active" : "") + '" data-group-id="' + escapeHtml(group.id) + '" data-group-name="' + escapeHtml(group.name) + '" data-selection-type="' + escapeHtml(group.selectionType || "single") + '" data-option-name="' + escapeHtml(optionName) + '" data-option-price="' + Number(option.price || 0) + '" data-qty-enabled="' + (group.allowQuantity || option.qtyEnabled || option.quantityEnabled || option.allowQuantity ? "true" : "false") + '" data-max-qty="' + Number(option.maxQty || option.maxQuantity || 1) + '" data-module-qr="' + (modules.qr === true ? "true" : "false") + '" data-module-pos="' + (modules.pos !== false ? "true" : "false") + '" data-module-kds="' + (modules.kds !== false ? "true" : "false") + '" data-module-print="' + (modules.print !== false ? "true" : "false") + '">';
+      html += '<button type="button" class="option-btn v64-custom-option-btn ' + (selected ? "active" : "") + '" data-group-id="' + escapeHtml(group.id) + '" data-group-name="' + escapeHtml(group.name) + '" data-selection-type="' + escapeHtml(group.selectionType || "single") + '" data-option-name="' + escapeHtml(optionName) + '" data-option-price="' + optionPrice + '" data-qty-enabled="' + (group.allowQuantity || option.qtyEnabled || option.quantityEnabled || option.allowQuantity ? "true" : "false") + '" data-max-qty="' + Number(option.maxQty || option.maxQuantity || 1) + '" data-module-qr="' + (modules.qr === true ? "true" : "false") + '" data-module-pos="' + (modules.pos !== false ? "true" : "false") + '" data-module-kds="' + (modules.kds !== false ? "true" : "false") + '" data-module-print="' + (modules.print !== false ? "true" : "false") + '">';
       html += escapeHtml(optionName) + priceText;
       if (selected && Number(selected.qty || 1) > 1) html += " x" + Number(selected.qty || 1);
       html += '</button>';
@@ -2465,13 +2492,13 @@ function renderCustomOptionGroups() {
   }
 }
 
-function buildSelectedCustomOption(group, option, quantity) {
+function buildSelectedCustomOption(group, option, quantity, menuItem) {
   var modules = group.modules || {};
   return {
     groupId: group.id,
     groupName: group.name,
     name: option.name || option.label || option.value || "",
-    price: Number(option.price || 0),
+    price: normalizeOptionPriceForGroup(group, option, menuItem),
     qty: Math.max(1, Number(quantity || 1)),
     qtyEnabled: group.allowQuantity === true || option.qtyEnabled === true || option.quantityEnabled === true || option.allowQuantity === true,
     maxQty: Number(option.maxQty || option.maxQuantity || 1),
@@ -2512,13 +2539,13 @@ function buildCustomOptionsFromOrderItem(cartItem, menuItem) {
     if (!group || !option) return;
     var name = option.name || option.label || option.value || "";
     if (!name || selectedOptionExists(selected, group.id, name)) return;
-    selected.push(buildSelectedCustomOption(group, option, quantity));
+    selected.push(buildSelectedCustomOption(group, option, quantity, menuItem));
   }
 
   for (var i = 0; i < groups.length; i += 1) {
     var group = groups[i] || {};
 
-    if (group.id === "__legacy_sizes" && cartItem.size) {
+    if (isSizeOptionGroup(group) && cartItem.size) {
       pushMatched(group, findGroupOption(group, function(option) {
         return String(option.name || "") === String(cartItem.size || "");
       }), 1);
@@ -2565,6 +2592,20 @@ function buildCustomOptionsFromOrderItem(cartItem, menuItem) {
     }
   }
 
+  for (var s = 0; s < selected.length; s += 1) {
+    for (var g = 0; g < groups.length; g += 1) {
+      if (String(groups[g].id) !== String(selected[s].groupId)) continue;
+      if (!isSizeOptionGroup(groups[g])) continue;
+      var matchedOption = findGroupOption(groups[g], function(option) {
+        return String(option.name || "") === String(selected[s].name || "");
+      });
+      if (matchedOption) {
+        selected[s].groupName = selected[s].groupName || groups[g].name;
+        selected[s].price = normalizeOptionPriceForGroup(groups[g], matchedOption, menuItem);
+      }
+    }
+  }
+
   return selected;
 }
 
@@ -2588,7 +2629,7 @@ function deriveLegacyFieldsFromCustomOptions(customOptions) {
     var name = option.name || "";
     var row = { name: name, price: Number(option.price || 0), qty: Number(option.qty || 1) };
 
-    if (groupId === "__legacy_sizes") fields.size = name;
+    if (groupId === "__legacy_sizes" || isSizeOptionGroup({ id: groupId, name: groupName })) fields.size = name;
     else if (groupId === "__legacy_addons") fields.addons.push(row);
     else if (groupId === "__legacy_removes") fields.removes.push(name);
     else if (groupId === "__legacy_spicy") fields.spicy = name;
@@ -2650,6 +2691,7 @@ function toggleCustomOption(button) {
   }
   window.posV64SelectedCustomOptions = list;
   renderCustomOptionGroups();
+  updateCustomModalPricePreview();
 }
 
 function validatePosRequiredCustomGroups(item) {
@@ -2696,11 +2738,13 @@ function customOptionsToDetailLines(item, moduleName) {
 modalMinusBtn.addEventListener("click", () => {
   currentQuantity = Math.max(1, currentQuantity - 1);
   modalQuantity.textContent = currentQuantity;
+  updateCustomModalPricePreview();
 });
 
 modalPlusBtn.addEventListener("click", () => {
   currentQuantity += 1;
   modalQuantity.textContent = currentQuantity;
+  updateCustomModalPricePreview();
 });
 
 cancelCustomBtn.addEventListener("click", requestCloseCustomModal);
@@ -2947,6 +2991,7 @@ function openCartItemEditModal(index) {
   extrasBox.innerHTML = "";
   if (spicySelect && spicySelect.parentNode) spicySelect.parentNode.style.display = "none";
   renderCustomOptionGroups();
+  updateCustomModalPricePreview();
 
   if (confirmCustomBtn) confirmCustomBtn.textContent = "更新餐點";
 }
