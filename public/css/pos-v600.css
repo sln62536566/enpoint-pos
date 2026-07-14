@@ -4451,6 +4451,45 @@ body.hide-test-order-button #orderTab #submitTestOrderBtn{
 .pos-menu-studio-card h3{margin:0 0 8px}
 .pos-menu-studio-card p{margin:0 0 14px;color:#6f5639;font-weight:700;line-height:1.5}
 .pos-menu-studio-link{display:inline-flex;text-decoration:none;align-items:center;justify-content:center;min-height:44px}
+
+/* v65.2 modal scroll guard */
+#customModal,
+#editOrderModal,
+#editItemModal {
+  overflow:hidden !important;
+  touch-action:none !important;
+  pointer-events:auto !important;
+}
+
+#customModal .modal-card,
+#editOrderModal .modal-card,
+#editOrderModal .edit-modal-card,
+#editItemModal .modal-card {
+  max-height:calc(100vh - 24px) !important;
+  overflow-y:auto !important;
+  -webkit-overflow-scrolling:touch !important;
+  touch-action:pan-y !important;
+  overscroll-behavior:contain;
+  pointer-events:auto !important;
+}
+
+#customModal .modal-card h2,
+#editOrderModal .modal-card h2,
+#editItemModal .modal-card h2 {
+  position:sticky;
+  top:0;
+  z-index:5;
+  background:inherit;
+}
+
+#customModal .modal-actions,
+#editOrderModal .modal-actions,
+#editItemModal .modal-actions {
+  position:sticky;
+  bottom:0;
+  z-index:5;
+  background:inherit;
+}
 .legacy-fixed-option{display:none!important}
 .pos-menu-status-actions{display:flex;gap:6px;flex-wrap:wrap}
 .pos-menu-status-actions button{border:1px solid #d9bd93;background:#fff;border-radius:8px;padding:7px 9px;font-weight:800}

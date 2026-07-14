@@ -11,7 +11,17 @@ function positiveQuantity(value) {
 }
 
 function optionQuantity(option) {
-  return Math.max(0, Math.floor(toNumber(option && (option.allocationQuantity || option.qty || option.quantity), 0)));
+  if (!option) return 0;
+  if (Object.prototype.hasOwnProperty.call(option, "allocationQuantity")) {
+    return Math.max(0, Math.floor(toNumber(option.allocationQuantity, 0)));
+  }
+  if (Object.prototype.hasOwnProperty.call(option, "qty")) {
+    return Math.max(0, Math.floor(toNumber(option.qty, 0)));
+  }
+  if (Object.prototype.hasOwnProperty.call(option, "quantity")) {
+    return Math.max(0, Math.floor(toNumber(option.quantity, 0)));
+  }
+  return 0;
 }
 
 function cloneList(list) {
@@ -43,15 +53,15 @@ export function splitOrderItemByQuantityAllocation(item) {
   var commonOptions = [];
 
   for (var i = 0; i < customOptions.length; i += 1) {
-    if (isQuantityAllocationOption(customOptions[i]) && optionQuantity(customOptions[i]) > 0) {
-      allocationOptions.push(customOptions[i]);
+    if (isQuantityAllocationOption(customOptions[i])) {
+      if (optionQuantity(customOptions[i]) > 0) allocationOptions.push(customOptions[i]);
     } else {
       commonOptions.push(customOptions[i]);
     }
   }
 
   if (!allocationOptions.length) {
-    return [applyOrderItemPrice(source)];
+    return [applyOrderItemPrice(Object.assign({}, source, { customOptions: commonOptions }))];
   }
 
   var parentItemId = source.parentItemId || source.itemId || source.id || "";

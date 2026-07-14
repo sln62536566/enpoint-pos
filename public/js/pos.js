@@ -202,7 +202,7 @@ let cart = [];
 const HELD_CARTS_KEY = "enpoint_pos_held_carts_v1";
 let heldCarts = loadHeldCarts();
 
-let currentOrderType = "內用";
+let currentOrderType = "外帶";
 let selectedTable = "1";
 
 let currentItem = null;
@@ -1045,11 +1045,11 @@ async function restoreHeldCart(id) {
 
   cart = cloneCartItems(entry.items);
   if (entry.orderType === "內用") {
-    currentOrderType = "內用";
+    setPosOrderType("內用");
     selectedTable = entry.table || selectedTable;
     renderTableButtons();
   } else {
-    currentOrderType = "外帶";
+    setPosOrderType("外帶");
   }
   if (posOrderNoteInput) posOrderNoteInput.value = entry.note || "";
   heldCarts.splice(index, 1);
@@ -1598,6 +1598,27 @@ function itemQty(item) {
   return Number(item.qty || item.quantity || 1);
 }
 
+function itemDisplayName(item) {
+  return item && (item.displayName || item.itemName || item.name) || "未命名餐點";
+}
+
+function isQuantityAllocationCustomOption(option) {
+  var type = String(option && (option.selectionType || option.choiceType || option.mode || "") || "");
+  return type === "quantityAllocation" || !!(option && option.quantityAllocation === true);
+}
+
+function syncSplitAllocationQuantity(item, quantity) {
+  var list = item && item.customOptions;
+  if (!item || !item.splitOptionId || !Array.isArray(list)) return;
+  list.forEach(function(option) {
+    var optionId = option && (option.optionId || option.id || option.name || "");
+    if (!isQuantityAllocationCustomOption(option) || String(optionId) !== String(item.splitOptionId)) return;
+    option.allocationQuantity = quantity;
+    option.qty = 1;
+    option.quantity = 1;
+  });
+}
+
 function itemExtras(item) {
   return item.addons || item.extras || [];
 }
@@ -1667,7 +1688,7 @@ function buildKitchenTicketHtml(order) {
     '<hr>' +
     items.map(function(item) {
       return '<div class="ticket-item">' +
-        '<div class="ticket-item-main"><strong>' + escapeHtml(item.name || "未命名餐點") + '</strong><b>× ' + itemQty(item) + '</b></div>' +
+        '<div class="ticket-item-main"><strong>' + escapeHtml(itemDisplayName(item)) + '</strong><b>× ' + itemQty(item) + '</b></div>' +
         buildPrintItemDetailHtml(item, false) +
       '</div>';
     }).join("") +
@@ -1689,7 +1710,7 @@ function buildCustomerTicketHtml(order) {
     '<hr>' +
     items.map(function(item) {
       return '<div class="ticket-item">' +
-        '<div class="ticket-item-main"><strong>' + escapeHtml(item.name || "未命名餐點") + ' × ' + itemQty(item) + '</strong><b>' + money(calculateOrderItemPrice(item).subtotal) + '</b></div>' +
+        '<div class="ticket-item-main"><strong>' + escapeHtml(itemDisplayName(item)) + ' × ' + itemQty(item) + '</strong><b>' + money(calculateOrderItemPrice(item).subtotal) + '</b></div>' +
         buildPrintItemDetailHtml(item, true) +
       '</div>';
     }).join("") +
@@ -1873,21 +1894,29 @@ function selectTable(table) {
   renderTableButtons();
 }
 
+function setPosOrderType(type) {
+  currentOrderType = type === "內用" ? "內用" : "外帶";
+  if (dineInBtn) {
+    if (currentOrderType === "內用") dineInBtn.classList.add("active");
+    else dineInBtn.classList.remove("active");
+  }
+  if (takeOutBtn) {
+    if (currentOrderType === "外帶") takeOutBtn.classList.add("active");
+    else takeOutBtn.classList.remove("active");
+  }
+  if (tableSelectBox) tableSelectBox.style.display = currentOrderType === "內用" ? "block" : "none";
+  if (takeOutInfo) takeOutInfo.style.display = currentOrderType === "外帶" ? "block" : "none";
+}
+
 dineInBtn.addEventListener("click", () => {
-  currentOrderType = "內用";
-  dineInBtn.classList.add("active");
-  takeOutBtn.classList.remove("active");
-  tableSelectBox.style.display = "block";
-  takeOutInfo.style.display = "none";
+  setPosOrderType("內用");
 });
 
 takeOutBtn.addEventListener("click", () => {
-  currentOrderType = "外帶";
-  takeOutBtn.classList.add("active");
-  dineInBtn.classList.remove("active");
-  tableSelectBox.style.display = "none";
-  takeOutInfo.style.display = "block";
+  setPosOrderType("外帶");
 });
+
+setPosOrderType(currentOrderType);
 
 /* =========================
    Menu
@@ -2963,7 +2992,7 @@ function renderCartV64() {
         <button class="swipe-delete-action" type="button" onclick="removeFromCart('${item.cartId}')">刪除</button>
         <div class="cart-item-inner">
           <div>
-            <strong>${item.name} × ${itemQty(item)}</strong>
+            <strong>${escapeHtml(itemDisplayName(item))} × ${itemQty(item)}</strong>
 
             <div class="cart-detail">
               ${item.size && item.size !== "一般" ? `<p>份量：${item.size}</p>` : ""}
@@ -2992,7 +3021,7 @@ function renderCartV64() {
 
 function removeFromCart(cartId) {
   const item = cart.find(item => String(item.cartId) === String(cartId));
-  if (item && !confirm(`確定刪除「${item.name || "餐點"}」？`)) return;
+  if (item && !confirm(`確定刪除「${itemDisplayName(item)}」？`)) return;
   cart = cart.filter(item => item.cartId !== cartId);
   renderCart();
 }
@@ -3182,7 +3211,7 @@ async function submitOrderCore(isTestMode, paymentMode) {
       item.note ? `備註：${item.note}` : ""
     ].filter(Boolean).join("｜");
 
-    return `${index + 1}. ${item.name} × ${itemQty(item)}｜小計 ${money(calculateOrderItemPrice(item).subtotal)}${detail ? `\n   ${detail}` : ""}`;
+    return `${index + 1}. ${itemDisplayName(item)} × ${itemQty(item)}｜小計 ${money(calculateOrderItemPrice(item).subtotal)}${detail ? `\n   ${detail}` : ""}`;
   }).join("\n\n");
 
   const checkoutText = `${isTestMode ? "【測試訂單】\n此單會送到廚房、可完整跑流程，但不會計入營收與收班。\n\n" : ""}確認結帳並送出？\n\n類型：${currentOrderType}${currentOrderType === "內用" ? `｜${selectedTable}桌` : "｜外帶"}\n\n餐點：\n${itemsText}\n\n總計：${money(total)}\n\n確認已收款後，按「確定」會直接送廚房。`;
@@ -3353,7 +3382,7 @@ function renderOrderItem(item) {
 
   return `
     <div class="order-item">
-      <strong>• ${item.name} × ${itemQty(item)}</strong>
+      <strong>• ${escapeHtml(itemDisplayName(item))} × ${itemQty(item)}</strong>
 
       <div class="order-item-detail">
         ${item.size && item.size !== "一般" ? `<p>份量：${item.size}</p>` : ""}
@@ -3425,7 +3454,7 @@ function renderEditOrderItems() {
     return `
       <div class="edit-order-item">
         <div>
-          <strong>${item.name}</strong>
+          <strong>${escapeHtml(itemDisplayName(item))}</strong>
 
           <div class="order-item-detail">
             ${item.size && item.size !== "一般" ? `<p>份量：${item.size}</p>` : ""}
@@ -3460,6 +3489,7 @@ function changeEditItemQty(index, amount) {
   const nextQty = Math.max(1, itemQty(item) + amount);
   item.qty = nextQty;
   item.quantity = nextQty;
+  syncSplitAllocationQuantity(item, nextQty);
   Object.assign(item, applyOrderItemPrice(item));
 
   renderEditOrderItems();
@@ -3469,7 +3499,7 @@ function removeEditItem(index) {
   const item = editingItems[index];
   if (!item) return;
 
-  const ok = confirm(`確定要刪除「${item.name}」嗎？`);
+  const ok = confirm(`確定要刪除「${itemDisplayName(item)}」嗎？`);
   if (!ok) return;
 
   editingItems.splice(index, 1);
@@ -3535,7 +3565,7 @@ function openEditItemModal(index) {
     price: Number(item.basePrice || item.price || item.unitPrice || 0)
   };
 
-  editItemName.textContent = item.name;
+  editItemName.textContent = itemDisplayName(item);
   editItemPrice.textContent = "調整份量、加料、辣度與備註";
   editItemNoteInput.value = item.note || "";
   editItemSpicySelect.value = item.spicy || "";
@@ -4071,7 +4101,7 @@ function renderTopItems(orders) {
     const items = normalizeOrderItems(order.items);
 
     items.forEach(item => {
-      const name = item.name || "未命名";
+      const name = itemDisplayName(item);
       counter[name] = (counter[name] || 0) + itemQty(item);
     });
   });
@@ -4351,7 +4381,7 @@ function renderCartV649() {
     var removes = itemRemoves(item);
     html += '<div class="cart-item" data-cart-id="' + escapeHtml(item.cartId) + '">';
     html += '<button class="swipe-delete-action" type="button" onclick="removeFromCart(\'' + escapeInlineValue(item.cartId) + '\')">刪除</button>';
-    html += '<div class="cart-item-inner"><div><strong>' + escapeHtml(item.name || "餐點") + ' x ' + itemQty(item) + '</strong><div class="cart-detail">';
+    html += '<div class="cart-item-inner"><div><strong>' + escapeHtml(itemDisplayName(item)) + ' x ' + itemQty(item) + '</strong><div class="cart-detail">';
     if (item.size) html += '<p>份量：' + escapeHtml(item.size) + '</p>';
     if (item.requiredOption && item.requiredOption.title) html += '<p>' + escapeHtml(item.requiredOption.title) + '：' + escapeHtml(item.requiredOption.value) + '</p>';
     html += renderCustomOptionsDetail(item);

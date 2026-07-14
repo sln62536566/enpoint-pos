@@ -12,6 +12,20 @@ function positiveQuantity(value) {
   return quantity > 0 ? quantity : 1;
 }
 
+function allocationQuantity(option) {
+  if (!option) return 0;
+  if (Object.prototype.hasOwnProperty.call(option, "allocationQuantity")) {
+    return Math.max(0, Math.floor(toNumber(option.allocationQuantity, 0)));
+  }
+  if (Object.prototype.hasOwnProperty.call(option, "qty")) {
+    return Math.max(0, Math.floor(toNumber(option.qty, 0)));
+  }
+  if (Object.prototype.hasOwnProperty.call(option, "quantity")) {
+    return Math.max(0, Math.floor(toNumber(option.quantity, 0)));
+  }
+  return 0;
+}
+
 function sumOptionPrice(options) {
   var total = 0;
   var list = Array.isArray(options) ? options : [];
@@ -51,7 +65,7 @@ function sumAllocationPrice(options) {
   for (var i = 0; i < list.length; i += 1) {
     if (!isAllocationOption(list[i])) continue;
     var option = list[i] || {};
-    var quantity = Math.max(0, Math.floor(toNumber(option.allocationQuantity || option.qty || option.quantity, 0)));
+    var quantity = allocationQuantity(option);
     total += toNumber(option.price || option.optionPrice || 0) * quantity;
   }
 

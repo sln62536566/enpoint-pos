@@ -79,6 +79,10 @@ function getItemQty(item) {
   return item.qty || item.quantity || 1;
 }
 
+function itemDisplayName(item) {
+  return item && (item.displayName || item.itemName || item.name) || "未命名餐點";
+}
+
 function getItemAddons(item) {
   return item.addons || item.extras || [];
 }
@@ -111,7 +115,7 @@ function renderItem(item) {
   return `
     <li class="kitchen-item">
       <div class="item-main">
-        ${item.name || "未命名餐點"} × ${getItemQty(item)}
+        ${itemDisplayName(item)} × ${getItemQty(item)}
       </div>
 
       <div class="item-detail">
@@ -147,7 +151,7 @@ function buildOrderConfirmText(order) {
       item.note ? `備註：${item.note}` : ""
     ].filter(Boolean);
 
-    return `${index + 1}. ${item.name || "未命名餐點"} × ${getItemQty(item)}${details.length ? `\n   ${details.join("｜")}` : ""}`;
+    return `${index + 1}. ${itemDisplayName(item)} × ${getItemQty(item)}${details.length ? `\n   ${details.join("｜")}` : ""}`;
   }).join("\n\n");
 
   return `

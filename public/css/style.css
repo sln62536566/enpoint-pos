@@ -2730,3 +2730,34 @@ body.menu-studio-modal-open{overflow:hidden!important}
   .menu-studio-modal-body{padding:14px 12px 18px}
   .menu-studio-usage-grid{grid-template-columns:1fr}
 }
+
+/* v65.2 Menu Studio modal scroll guard */
+.menu-studio-modal {
+  overflow:hidden !important;
+  touch-action:none !important;
+  pointer-events:auto !important;
+}
+
+.menu-studio-modal-card {
+  height:calc(100vh - 24px) !important;
+  max-height:calc(100vh - 24px) !important;
+  overflow:hidden !important;
+  display:flex !important;
+  flex-direction:column !important;
+  pointer-events:auto !important;
+}
+
+.menu-studio-modal-header,
+.menu-studio-modal-actions {
+  flex:0 0 auto !important;
+}
+
+.menu-studio-modal-body {
+  flex:1 1 auto !important;
+  min-height:0 !important;
+  overflow-y:auto !important;
+  -webkit-overflow-scrolling:touch !important;
+  touch-action:pan-y !important;
+  overscroll-behavior:contain;
+  pointer-events:auto !important;
+}

@@ -978,7 +978,7 @@ function legacyRenderQrCart() {
     var subtotal = calculateOrderItemPrice(item).subtotal;
     total += subtotal;
     html += '<div class="cart-item">';
-    html += '<div><strong>' + (item.name || '餐點') + ' × ' + qty + '</strong>';
+    html += '<div><strong>' + escapeHtml(itemDisplayName(item)) + ' × ' + qty + '</strong>';
     html += '<div class="cart-detail">';
     if (item.size) html += '<p>份量：' + item.size + '</p>';
     if (item.requiredOption && item.requiredOption.title) html += '<p>' + item.requiredOption.title + '：' + item.requiredOption.value + '</p>';
@@ -1181,7 +1181,7 @@ function renderCart() {
   cartList.innerHTML = cart.map((item, index) => `
     <div class="cart-item">
       <div>
-        <strong>${item.name} × ${item.qty}</strong>
+        <strong>${escapeHtml(itemDisplayName(item))} × ${item.qty}</strong>
         <div class="cart-detail">
           ${renderItemDetail(item)}
         </div>
@@ -1262,7 +1262,7 @@ function renderConfirmModal() {
 
     ${cart.map(item => `
       <div class="confirm-item">
-        <div class="confirm-item-main">• ${item.name} × ${item.qty}</div>
+        <div class="confirm-item-main">• ${escapeHtml(itemDisplayName(item))} × ${item.qty}</div>
 
         <div class="confirm-item-detail">
           ${renderItemDetail(item)}
@@ -1434,7 +1434,7 @@ function buildQrOrderHtml(order) {
 
     ${Array.isArray(order.items) ? order.items.map(item => `
       <div class="success-item">
-        <div class="success-item-main">• ${item.name} × ${item.qty || item.quantity || 1}</div>
+        <div class="success-item-main">• ${escapeHtml(itemDisplayName(item))} × ${item.qty || item.quantity || 1}</div>
 
         <div class="success-item-detail">
           ${renderItemDetail(item)}
@@ -1511,6 +1511,10 @@ function getQrItemRemoves(item) {
   return (item && (item.removes || item.removeOptionsSelected || item.noOptionsSelected)) || [];
 }
 
+function itemDisplayName(item) {
+  return item && (item.displayName || item.itemName || item.name) || "未命名餐點";
+}
+
 function renderQrCustomOptionsDetail(item) {
   var list = item && item.customOptions;
   if (!list || !list.length) return "";
@@ -1579,7 +1583,7 @@ function buildDirectOrderViewHtml(order) {
           var qty = Number(item.qty || item.quantity || 1);
           var subtotal = calculateOrderItemPrice(item).subtotal;
           return '<div class="qr-direct-item">' +
-            '<div class="qr-direct-item-main"><span>' + escapeHtml(item.name || "未命名餐點") + '</span><b>× ' + qty + '</b></div>' +
+            '<div class="qr-direct-item-main"><span>' + escapeHtml(itemDisplayName(item)) + '</span><b>× ' + qty + '</b></div>' +
             buildDirectItemDetailHtml(item) +
             '<div class="qr-direct-item-subtotal">小計：' + money(subtotal) + '</div>' +
           '</div>';
