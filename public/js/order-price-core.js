@@ -43,6 +43,9 @@ function inferOptionPrice(item) {
   if (!item) return 0;
 
   if (item.optionPrice !== undefined) return toNumber(item.optionPrice, 0);
+  if (Array.isArray(item.customOptions) && item.customOptions.length) {
+    return sumOptionPrice(item.selectedOptions) + sumOptionPrice(item.customOptions);
+  }
 
   var addonSource = Array.isArray(item.addons) && item.addons.length ? item.addons : item.extras;
 

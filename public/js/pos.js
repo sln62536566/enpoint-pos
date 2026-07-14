@@ -228,18 +228,6 @@ let editQuantity = 1;
 
 const POS_LEGACY_SPICY_OPTIONS = ["不辣", "微辣", "小辣", "中辣", "大辣"];
 
-/* =========================
-   v61-6 hotfix：module 內函式掛到 window
-   修正 HTML onclick 找不到 toggleRemoveOption 的問題
-========================= */
-window.toggleRemoveOption = function(name) {
-  return toggleRemoveOption(name);
-};
-
-window.toggleEditRemoveOption = function(name) {
-  return toggleEditRemoveOption(name);
-};
-
 let businessDayCloseData = null;
 let lastFoodOpenAt = 0;
 let lastFoodOpenId = "";
@@ -1021,7 +1009,7 @@ async function holdCurrentCart(options) {
     items: cloneCartItems(cart),
     note: posOrderNoteInput ? posOrderNoteInput.value.trim() : "",
     itemCount: cart.reduce(function(sum, item) { return sum + itemQty(item); }, 0),
-    total: calculateTotal(cart),
+    total: calculateOrderTotal(cart),
     heldAt: now,
     createdAt: now
   };
@@ -1606,20 +1594,8 @@ function itemQty(item) {
   return Number(item.qty || item.quantity || 1);
 }
 
-function itemUnitPrice(item) {
-  return Number(calculateOrderItemPrice(item).unitPrice || 0);
-}
-
-function itemSubtotal(item) {
-  return Number(calculateOrderItemPrice(item).subtotal || 0);
-}
-
 function itemExtras(item) {
   return item.addons || item.extras || [];
-}
-
-function calculateTotal(items = cart) {
-  return calculateOrderTotal(items);
 }
 
 function escapeHtml(value) {
@@ -1666,7 +1642,7 @@ function buildPrintItemDetailHtml(item, includePrice) {
   if (item.note) details.push("備註：" + item.note);
   var customLines = customOptionsToDetailLines(item, "print");
   for (var c = 0; c < customLines.length; c += 1) details.push(customLines[c]);
-  if (includePrice) details.push("單價：" + money(itemUnitPrice(item)));
+  if (includePrice) details.push("單價：" + money(calculateOrderItemPrice(item).unitPrice));
 
   if (!details.length) return "";
   return '<div class="ticket-item-detail">' + details.map(function(detail) {
@@ -1683,7 +1659,7 @@ function buildKitchenTicketHtml(order) {
     '<div class="ticket-row"><span>桌號</span><b>' + escapeHtml(order.table || (order.type === "外帶" ? "外帶" : "-")) + '</b></div>' +
     '<div class="ticket-row"><span>時間</span><b>' + escapeHtml(formatTime(order.createdAt || Date.now())) + '</b></div>' +
     '<div class="ticket-row ticket-payment ' + (isUnpaid(order) ? 'unpaid' : 'paid') + '"><span>付款狀態</span><b>' + escapeHtml(getPaymentStatusText(order)) + '</b></div>' +
-    '<div class="ticket-row ticket-payment ' + (isUnpaid(order) ? 'unpaid' : 'paid') + '"><span>應收</span><b>' + money(order.total || calculateTotal(items)) + '</b></div>' +
+    '<div class="ticket-row ticket-payment ' + (isUnpaid(order) ? 'unpaid' : 'paid') + '"><span>應收</span><b>' + money(order.total || calculateOrderTotal(items)) + '</b></div>' +
     '<hr>' +
     items.map(function(item) {
       return '<div class="ticket-item">' +
@@ -1705,15 +1681,15 @@ function buildCustomerTicketHtml(order) {
     '<div class="ticket-row"><span>時間</span><b>' + escapeHtml(formatTime(order.createdAt || Date.now())) + '</b></div>' +
     '<div class="ticket-row"><span>類型</span><b>' + escapeHtml(order.type || "") + (order.table ? "｜" + escapeHtml(order.table) + "桌" : "") + '</b></div>' +
     '<div class="ticket-row ticket-payment ' + (isUnpaid(order) ? 'unpaid' : 'paid') + '"><span>付款狀態</span><b>' + escapeHtml(getPaymentStatusText(order)) + '</b></div>' +
-    '<div class="ticket-row ticket-payment ' + (isUnpaid(order) ? 'unpaid' : 'paid') + '"><span>應收</span><b>' + money(order.total || calculateTotal(items)) + '</b></div>' +
+    '<div class="ticket-row ticket-payment ' + (isUnpaid(order) ? 'unpaid' : 'paid') + '"><span>應收</span><b>' + money(order.total || calculateOrderTotal(items)) + '</b></div>' +
     '<hr>' +
     items.map(function(item) {
       return '<div class="ticket-item">' +
-        '<div class="ticket-item-main"><strong>' + escapeHtml(item.name || "未命名餐點") + ' × ' + itemQty(item) + '</strong><b>' + money(itemSubtotal(item)) + '</b></div>' +
+        '<div class="ticket-item-main"><strong>' + escapeHtml(item.name || "未命名餐點") + ' × ' + itemQty(item) + '</strong><b>' + money(calculateOrderItemPrice(item).subtotal) + '</b></div>' +
         buildPrintItemDetailHtml(item, true) +
       '</div>';
     }).join("") +
-    '<div class="ticket-total"><span>總計</span><strong>' + money(order.total || calculateTotal(items)) + '</strong></div>' +
+    '<div class="ticket-total"><span>總計</span><strong>' + money(order.total || calculateOrderTotal(items)) + '</strong></div>' +
     '<div class="ticket-qr"><img src="' + qrUrl + '" alt="訂單查詢 QR Code"><p>掃描查詢訂單進度</p><small>' + escapeHtml(orderUrl) + '</small></div>' +
     '</section>';
 }
@@ -1944,8 +1920,6 @@ function selectCategory(category) {
   renderCategories();
   renderMenu();
 }
-
-window.selectCategory = selectCategory;
 
 if (categoryList) {
   addLegacyTapListener(categoryList, function(event) {
@@ -2491,6 +2465,142 @@ function renderCustomOptionGroups() {
   }
 }
 
+function buildSelectedCustomOption(group, option, quantity) {
+  var modules = group.modules || {};
+  return {
+    groupId: group.id,
+    groupName: group.name,
+    name: option.name || option.label || option.value || "",
+    price: Number(option.price || 0),
+    qty: Math.max(1, Number(quantity || 1)),
+    qtyEnabled: group.allowQuantity === true || option.qtyEnabled === true || option.quantityEnabled === true || option.allowQuantity === true,
+    maxQty: Number(option.maxQty || option.maxQuantity || 1),
+    modules: {
+      qr: modules.qr === true,
+      pos: modules.pos !== false,
+      kds: modules.kds !== false,
+      print: modules.print !== false
+    }
+  };
+}
+
+function findGroupOption(group, matcher) {
+  var options = group && group.options ? group.options : [];
+  for (var i = 0; i < options.length; i += 1) {
+    var option = typeof options[i] === "string" ? { name: options[i] } : (options[i] || {});
+    if (matcher(option)) return option;
+  }
+  return null;
+}
+
+function selectedOptionExists(list, groupId, name) {
+  for (var i = 0; i < list.length; i += 1) {
+    if (String(list[i].groupId) === String(groupId) && String(list[i].name) === String(name)) return true;
+  }
+  return false;
+}
+
+function buildCustomOptionsFromOrderItem(cartItem, menuItem) {
+  var selected = Array.isArray(cartItem && cartItem.customOptions)
+    ? cartItem.customOptions.map(function(option) { return Object.assign({}, option); })
+    : [];
+  var groups = getAppliedCustomGroups(menuItem, "pos");
+  var extras = itemExtras(cartItem);
+  var removes = itemRemoves(cartItem);
+
+  function pushMatched(group, option, quantity) {
+    if (!group || !option) return;
+    var name = option.name || option.label || option.value || "";
+    if (!name || selectedOptionExists(selected, group.id, name)) return;
+    selected.push(buildSelectedCustomOption(group, option, quantity));
+  }
+
+  for (var i = 0; i < groups.length; i += 1) {
+    var group = groups[i] || {};
+
+    if (group.id === "__legacy_sizes" && cartItem.size) {
+      pushMatched(group, findGroupOption(group, function(option) {
+        return String(option.name || "") === String(cartItem.size || "");
+      }), 1);
+    }
+
+    if (group.id === "__legacy_addons") {
+      for (var e = 0; e < extras.length; e += 1) {
+        (function(extra) {
+          pushMatched(group, findGroupOption(group, function(option) {
+            return String(option.name || "") === String(extra.name || extra.label || extra || "");
+          }), extra.qty || extra.quantity || 1);
+        })(extras[e] || {});
+      }
+    }
+
+    if (group.id === "__legacy_removes") {
+      for (var r = 0; r < removes.length; r += 1) {
+        (function(removeName) {
+          pushMatched(group, findGroupOption(group, function(option) {
+            return String(option.name || "") === String(removeName || "");
+          }), 1);
+        })(removes[r]);
+      }
+    }
+
+    if (group.id === "__legacy_spicy" && cartItem.spicy) {
+      pushMatched(group, findGroupOption(group, function(option) {
+        return String(option.name || "") === String(cartItem.spicy || "");
+      }), 1);
+    }
+
+    if (group.id === "__legacy_satay" && cartItem.satay) {
+      pushMatched(group, findGroupOption(group, function(option) {
+        var name = String(option.name || "");
+        var satay = String(cartItem.satay || "");
+        return name === satay || name.indexOf(satay) !== -1 || satay.indexOf(name) !== -1;
+      }), 1);
+    }
+
+    if (String(group.id || "").indexOf("__legacy_required_") === 0 && cartItem.requiredOption && cartItem.requiredOption.value) {
+      pushMatched(group, findGroupOption(group, function(option) {
+        return String(option.name || "") === String(cartItem.requiredOption.value || "");
+      }), 1);
+    }
+  }
+
+  return selected;
+}
+
+function deriveLegacyFieldsFromCustomOptions(customOptions) {
+  var fields = {
+    size: "",
+    addons: [],
+    extras: [],
+    removes: [],
+    removeOptionsSelected: [],
+    spicy: "",
+    satay: "",
+    requiredOption: null
+  };
+  var list = Array.isArray(customOptions) ? customOptions : [];
+
+  for (var i = 0; i < list.length; i += 1) {
+    var option = list[i] || {};
+    var groupId = String(option.groupId || "");
+    var groupName = option.groupName || "";
+    var name = option.name || "";
+    var row = { name: name, price: Number(option.price || 0), qty: Number(option.qty || 1) };
+
+    if (groupId === "__legacy_sizes") fields.size = name;
+    else if (groupId === "__legacy_addons") fields.addons.push(row);
+    else if (groupId === "__legacy_removes") fields.removes.push(name);
+    else if (groupId === "__legacy_spicy") fields.spicy = name;
+    else if (groupId === "__legacy_satay") fields.satay = name;
+    else if (groupId.indexOf("__legacy_required_") === 0) fields.requiredOption = { title: groupName || "選項", value: name };
+  }
+
+  fields.extras = fields.addons.slice();
+  fields.removeOptionsSelected = fields.removes.slice();
+  return fields;
+}
+
 function findSelectedCustomOption(groupId, optionName) {
   var selected = window.posV64SelectedCustomOptions || [];
   for (var i = 0; i < selected.length; i += 1) {
@@ -2522,17 +2632,24 @@ function toggleCustomOption(button) {
     if (selectionType === "single" || selectionType === "toggle") {
       list = list.filter(function(item) { return String(item.groupId) !== String(groupId); });
     }
-    list.push({ groupId: groupId, groupName: groupName, name: name, price: price, qty: 1, qtyEnabled: qtyEnabled, maxQty: maxQty, modules: { qr: button.getAttribute("data-module-qr") === "true", pos: button.getAttribute("data-module-pos") !== "false", kds: button.getAttribute("data-module-kds") !== "false", print: button.getAttribute("data-module-print") !== "false" } });
+    list.push({
+      groupId: groupId,
+      groupName: groupName,
+      name: name,
+      price: price,
+      qty: 1,
+      qtyEnabled: qtyEnabled,
+      maxQty: maxQty,
+      modules: {
+        qr: button.getAttribute("data-module-qr") === "true",
+        pos: button.getAttribute("data-module-pos") !== "false",
+        kds: button.getAttribute("data-module-kds") !== "false",
+        print: button.getAttribute("data-module-print") !== "false"
+      }
+    });
   }
   window.posV64SelectedCustomOptions = list;
   renderCustomOptionGroups();
-}
-
-function customOptionsTotal(list) {
-  var total = 0;
-  list = list || [];
-  for (var i = 0; i < list.length; i += 1) total += Number(list[i].price || 0) * Number(list[i].qty || 1);
-  return total;
 }
 
 function validatePosRequiredCustomGroups(item) {
@@ -2607,7 +2724,11 @@ confirmCustomBtn.addEventListener("click", () => {
     return;
   }
   
-  const basePrice = Number(selectedPortion.price || getBasePrice(currentItem) || 0);
+  const selectedCustomOptions = (window.posV64SelectedCustomOptions || []).map(function(option) {
+    return Object.assign({}, option);
+  });
+  const legacyFields = deriveLegacyFieldsFromCustomOptions(selectedCustomOptions);
+  const basePrice = Number(getBasePrice(currentItem) || 0);
 
   const nextCartItem = applyOrderItemPrice({
     cartId: editingCartId || (Date.now().toString() + Math.random().toString(36).slice(2)),
@@ -2615,19 +2736,19 @@ confirmCustomBtn.addEventListener("click", () => {
     itemId: currentItem.id,
     name: currentItem.name,
     category: getItemCategory(currentItem),
-    size: selectedPortion.name || "",
+    size: legacyFields.size,
     basePrice,
     quantity: currentQuantity,
     qty: currentQuantity,
-    spicy: "",
-    satay: "",
-    requiredOption: null,
-    extras: [],
-    addons: [],
-    customOptions: window.posV64SelectedCustomOptions || [],
-    removes: [],
-    removeOptionsSelected: [],
-    note: ""
+    spicy: legacyFields.spicy,
+    satay: legacyFields.satay,
+    requiredOption: legacyFields.requiredOption,
+    extras: legacyFields.extras,
+    addons: legacyFields.addons,
+    customOptions: selectedCustomOptions,
+    removes: legacyFields.removes,
+    removeOptionsSelected: legacyFields.removeOptionsSelected,
+    note: noteInput ? noteInput.value.trim() : ""
   });
 
   if (editingCartId) {
@@ -2677,7 +2798,7 @@ function renderCartV64() {
               ${extras.length ? `<p>加料：${extras.map(extra => extra.name).join("、")}</p>` : ""}
               ${removes.length ? `<p>不要：${removes.join("、")}</p>` : ""}
               ${item.note ? `<p>備註：${item.note}</p>` : ""}
-              <p>小計：${money(itemSubtotal(item))}</p>
+              <p>小計：${money(calculateOrderItemPrice(item).subtotal)}</p>
             </div>
           </div>
 
@@ -2690,7 +2811,7 @@ function renderCartV64() {
     `;
   }).join("");
 
-  totalAmount.textContent = money(calculateTotal(cart));
+  totalAmount.textContent = money(calculateOrderTotal(cart));
   bindCartCardActions();
 }
 
@@ -2810,9 +2931,7 @@ function openCartItemEditModal(index) {
   selectedRemoves = itemRemoves(cartItem).slice();
   selectedSatay = cartItem.satay || "不要";
   selectedRequiredOption = cartItem.requiredOption ? cartItem.requiredOption.value : "";
-  window.posV64SelectedCustomOptions = Array.isArray(cartItem.customOptions)
-    ? cartItem.customOptions.map(option => Object.assign({}, option))
-    : [];
+  window.posV64SelectedCustomOptions = buildCustomOptionsFromOrderItem(cartItem, currentItem);
   noteInput.value = cartItem.note || "";
 
   const portions = getPortionOptions(currentItem);
@@ -2823,13 +2942,11 @@ function openCartItemEditModal(index) {
     spicySelect.value = cartItem.spicy || "不辣";
   }
 
-  renderPortionOptions();
-  renderSatayOptions();
-  renderRequiredOptionBox();
-  renderExtrasOptions();
-  renderRemoveOptions();
+  portionBox.innerHTML = "";
+  satayBox.innerHTML = "";
+  extrasBox.innerHTML = "";
+  if (spicySelect && spicySelect.parentNode) spicySelect.parentNode.style.display = "none";
   renderCustomOptionGroups();
-  renderSpicyButtons(spicySelect, "spicyChipBox", spicySelect.value, !spicySelect.disabled, "selectSpicy");
 
   if (confirmCustomBtn) confirmCustomBtn.textContent = "更新餐點";
 }
@@ -2871,7 +2988,7 @@ async function submitOrderCore(isTestMode, paymentMode) {
     return;
   }
 
-  const total = calculateTotal(cart);
+  const total = calculateOrderTotal(cart);
   const isUnpaidMode = paymentMode === "unpaid" && !isTestMode;
   const isPaidMode = !isUnpaidMode;
   const orderNote = posOrderNoteInput ? posOrderNoteInput.value.trim() : "";
@@ -2889,7 +3006,7 @@ async function submitOrderCore(isTestMode, paymentMode) {
       item.note ? `備註：${item.note}` : ""
     ].filter(Boolean).join("｜");
 
-    return `${index + 1}. ${item.name} × ${itemQty(item)}｜小計 ${money(itemSubtotal(item))}${detail ? `\n   ${detail}` : ""}`;
+    return `${index + 1}. ${item.name} × ${itemQty(item)}｜小計 ${money(calculateOrderItemPrice(item).subtotal)}${detail ? `\n   ${detail}` : ""}`;
   }).join("\n\n");
 
   const checkoutText = `${isTestMode ? "【測試訂單】\n此單會送到廚房、可完整跑流程，但不會計入營收與收班。\n\n" : ""}確認結帳並送出？\n\n類型：${currentOrderType}${currentOrderType === "內用" ? `｜${selectedTable}桌` : "｜外帶"}\n\n餐點：\n${itemsText}\n\n總計：${money(total)}\n\n確認已收款後，按「確定」會直接送廚房。`;
@@ -3099,7 +3216,7 @@ function openEditOrderModal(orderId) {
     extras: item.extras || item.addons || [],
     qty: itemQty(item),
     quantity: itemQty(item),
-    subtotal: itemSubtotal(item)
+    subtotal: calculateOrderItemPrice(item).subtotal
   }));
 
   editOrderTitle.textContent = `編輯訂單 #${order.orderNumber || order.id}`;
@@ -3142,7 +3259,7 @@ function renderEditOrderItems() {
             ${extras.length ? `<p>加料：${extras.map(extra => extra.name).join("、")}</p>` : ""}
             ${removes.length ? `<p>不要：${removes.join("、")}</p>` : ""}
             ${item.note ? `<p>備註：${item.note}</p>` : ""}
-            <p>小計：${money(itemSubtotal(item))}</p>
+            <p>小計：${money(calculateOrderItemPrice(item).subtotal)}</p>
           </div>
         </div>
 
@@ -3157,7 +3274,7 @@ function renderEditOrderItems() {
     `;
   }).join("");
 
-  editOrderTotal.textContent = money(calculateTotal(editingItems));
+  editOrderTotal.textContent = money(calculateOrderTotal(editingItems));
 }
 
 function changeEditItemQty(index, amount) {
@@ -3197,7 +3314,7 @@ async function saveEditOrder() {
   try {
     await update(ref(db, `orders/${editingOrderId}`), {
       items: editingItems,
-      total: calculateTotal(editingItems),
+      total: calculateOrderTotal(editingItems),
       note: editOrderNote.value.trim(),
       updatedAt: Date.now()
     });
@@ -4067,12 +4184,12 @@ function renderCartV649() {
     if (extras.length) html += '<p>加料：' + escapeHtml(extras.map(function(extra) { return optionLabelWithQty(extra, extra.qty); }).join("、")) + '</p>';
     if (removes.length) html += '<p>不要：' + escapeHtml(removes.join("、")) + '</p>';
     if (item.note) html += '<p>備註：' + escapeHtml(item.note) + '</p>';
-    html += '<p>小計：' + money(itemSubtotal(item)) + '</p></div></div>';
+    html += '<p>小計：' + money(calculateOrderItemPrice(item).subtotal) + '</p></div></div>';
     html += '<div class="cart-item-actions"><button class="secondary-btn" type="button" onclick="openCartItemEditModal(' + i + ')">編輯</button><button class="danger-btn" type="button" onclick="removeFromCart(\'' + escapeInlineValue(item.cartId) + '\')">刪除</button></div>';
     html += '</div></div>';
   }
   cartList.innerHTML = html;
-  if (totalAmount) totalAmount.textContent = money(calculateTotal(cart));
+  if (totalAmount) totalAmount.textContent = money(calculateOrderTotal(cart));
   updateCartSubtabBadge();
   renderHeldCarts();
   bindCartCardActions();
@@ -4407,9 +4524,6 @@ if (closeBusinessDayBtn) {
 
 watchBusinessDayClose();
 
-window.selectCategory = selectCategory;
-window.selectTable = selectTable;
-
 
 /* =========================
    v59 Legacy Tablet Click Fallback
@@ -4557,49 +4671,3 @@ window.posOpenFoodById = function (itemId, event) {
 
 window.selectTable = selectTable;
 window.selectCategory = selectCategory;
-window.printOrderTicket = printOrderTicket;
-window.sendOrderToPrinterDevice = sendOrderToPrinterDevice;
-window.queueAutoPrintAfterKitchenConfirm = queueAutoPrintAfterKitchenConfirm;
-window.selectPortion = selectPortion;
-window.selectSatay = selectSatay;
-window.toggleExtra = toggleExtra;
-window.toggleRemoveOption = toggleRemoveOption;
-window.openCartItemEditModal = openCartItemEditModal;
-window.removeFromCart = removeFromCart;
-
-window.openEditOrderModal = openEditOrderModal;
-window.confirmPaidAndProcess = confirmPaidAndProcess;
-window.markOrderDoneByPOS = markOrderDoneByPOS;
-window.closeOrder = closeOrder;
-window.cancelOrder = cancelOrder;
-window.voidOrder = voidOrder;
-
-window.openEditItemModal = openEditItemModal;
-window.changeEditItemQty = changeEditItemQty;
-window.removeEditItem = removeEditItem;
-window.selectEditPortion = selectEditPortion;
-window.selectEditSatay = selectEditSatay;
-window.selectEditRequiredOption = selectEditRequiredOption;
-window.toggleEditExtra = toggleEditExtra;
-window.toggleEditRemoveOption = toggleEditRemoveOption;
-
-/* =========================
-   v61-6 final safety bridge
-========================= */
-window.toggleRemoveOption = function(name) {
-  if (selectedRemoves.indexOf(name) !== -1) {
-    selectedRemoves = selectedRemoves.filter(function(item) { return item !== name; });
-  } else {
-    selectedRemoves.push(name);
-  }
-  renderRemoveOptions();
-};
-
-window.toggleEditRemoveOption = function(name) {
-  if (editSelectedRemoves.indexOf(name) !== -1) {
-    editSelectedRemoves = editSelectedRemoves.filter(function(item) { return item !== name; });
-  } else {
-    editSelectedRemoves.push(name);
-  }
-  renderEditItemRemoves();
-};

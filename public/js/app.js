@@ -858,13 +858,6 @@ function toggleQrCustomOption(button) {
   updateModalSubtotal();
 }
 
-function qrCustomOptionsTotal(list) {
-  var total = 0;
-  list = list || [];
-  for (var i = 0; i < list.length; i += 1) total += Number(list[i].price || 0) * Number(list[i].qty || 1);
-  return total;
-}
-
 function validateQrRequiredCustomGroups(item) {
   var groups = getAppliedCustomGroups(item, "qr");
   var selected = window.qrV64SelectedCustomOptions || [];
@@ -2936,10 +2929,7 @@ window.qrLegacyDirectSubmitOrder = function (event) {
       confirmSubmitBtn.textContent = "送出中...";
     }
 
-    var total = 0;
-    for (var i = 0; i < cart.length; i++) {
-      total += Number(cart[i].subtotal || 0);
-    }
+    var total = calculateOrderTotal(cart);
 
     var orderRef = push(ref(db, "orders"));
     var now = Date.now();
