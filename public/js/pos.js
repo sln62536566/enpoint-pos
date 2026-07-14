@@ -1598,6 +1598,21 @@ function itemDisplayName(item) {
   return item && (item.displayName || item.itemName || item.name) || "未命名餐點";
 }
 
+function itemSizeLabel(item) {
+  var list = item && item.customOptions;
+  if (Array.isArray(list)) {
+    for (var i = 0; i < list.length; i += 1) {
+      var option = list[i] || {};
+      var groupId = String(option.groupId || "");
+      var groupName = String(option.groupName || "").toLowerCase();
+      if ((groupId === "__legacy_sizes" || groupName.indexOf("份量") !== -1 || groupName.indexOf("size") !== -1 || groupName.indexOf("大小") !== -1) && option.name) {
+        return option.name;
+      }
+    }
+  }
+  return item && item.size || "";
+}
+
 function itemExtras(item) {
   return item.addons || item.extras || [];
 }
@@ -1637,7 +1652,8 @@ function buildPrintItemDetailHtml(item, includePrice) {
   var extras = itemExtras(item);
   var removes = itemRemoves(item);
   var details = [];
-  if (item.size && item.size !== "一般") details.push("份量：" + item.size);
+  var sizeLabel = itemSizeLabel(item);
+  if (sizeLabel && sizeLabel !== "一般") details.push("份量：" + sizeLabel);
   if (extras.length) details.push("加料：" + extras.map(function(extra) { return extra.name || extra.label || String(extra); }).join("、"));
   if (removes.length) details.push("不要：" + removes.join("、"));
   if (item.spicy) details.push("辣度：" + item.spicy);
@@ -2736,6 +2752,9 @@ function customOptionsToDetailLines(item, moduleName) {
   for (var i = 0; i < list.length; i += 1) {
     var opt = list[i] || {};
     if (moduleName && opt.modules && opt.modules[moduleName] === false) continue;
+    var groupId = String(opt.groupId || "");
+    var groupName = String(opt.groupName || "").toLowerCase();
+    if (groupId === "__legacy_sizes" || groupName.indexOf("份量") !== -1 || groupName.indexOf("size") !== -1 || groupName.indexOf("大小") !== -1) continue;
     var group = opt.groupName || "選項";
     if (!byGroup[group]) byGroup[group] = [];
     byGroup[group].push(optionLabelWithQty(opt, opt.qty));
@@ -2859,7 +2878,7 @@ function renderCartV64() {
             <strong>${escapeHtml(itemDisplayName(item))} × ${itemQty(item)}</strong>
 
             <div class="cart-detail">
-              ${item.size && item.size !== "一般" ? `<p>份量：${item.size}</p>` : ""}
+              ${itemSizeLabel(item) && itemSizeLabel(item) !== "一般" ? `<p>份量：${escapeHtml(itemSizeLabel(item))}</p>` : ""}
               ${item.spicy ? `<p>辣度：${item.spicy}</p>` : ""}
               ${item.satay ? `<p>沙茶：${item.satay}</p>` : ""}
               ${item.requiredOption ? `<p>${item.requiredOption.title}：${item.requiredOption.value}</p>` : ""}
@@ -3066,7 +3085,7 @@ async function submitOrderCore(isTestMode, paymentMode) {
     const extras = itemExtras(item);
     const removes = itemRemoves(item);
     const detail = [
-      item.size && item.size !== "一般" ? `份量：${item.size}` : "",
+      itemSizeLabel(item) && itemSizeLabel(item) !== "一般" ? `份量：${itemSizeLabel(item)}` : "",
       item.requiredOption ? `${item.requiredOption.title}：${item.requiredOption.value}` : "",
       item.spicy ? `辣度：${item.spicy}` : "",
       item.satay ? `沙茶：${item.satay}` : "",
@@ -3249,7 +3268,7 @@ function renderOrderItem(item) {
       <strong>• ${escapeHtml(itemDisplayName(item))} × ${itemQty(item)}</strong>
 
       <div class="order-item-detail">
-        ${item.size && item.size !== "一般" ? `<p>份量：${item.size}</p>` : ""}
+        ${itemSizeLabel(item) && itemSizeLabel(item) !== "一般" ? `<p>份量：${escapeHtml(itemSizeLabel(item))}</p>` : ""}
         ${item.spicy ? `<p>辣度：${item.spicy}</p>` : ""}
         ${item.satay ? `<p>沙茶：${item.satay}</p>` : ""}
         ${item.requiredOption ? `<p>${item.requiredOption.title}：${item.requiredOption.value}</p>` : ""}
@@ -3321,7 +3340,7 @@ function renderEditOrderItems() {
           <strong>${escapeHtml(itemDisplayName(item))}</strong>
 
           <div class="order-item-detail">
-            ${item.size && item.size !== "一般" ? `<p>份量：${item.size}</p>` : ""}
+            ${itemSizeLabel(item) && itemSizeLabel(item) !== "一般" ? `<p>份量：${escapeHtml(itemSizeLabel(item))}</p>` : ""}
             ${item.spicy ? `<p>辣度：${item.spicy}</p>` : ""}
             ${item.satay ? `<p>沙茶：${item.satay}</p>` : ""}
             ${item.requiredOption ? `<p>${item.requiredOption.title}：${item.requiredOption.value}</p>` : ""}
@@ -4246,7 +4265,8 @@ function renderCartV649() {
     html += '<div class="cart-item" data-cart-id="' + escapeHtml(item.cartId) + '">';
     html += '<button class="swipe-delete-action" type="button" onclick="removeFromCart(\'' + escapeInlineValue(item.cartId) + '\')">刪除</button>';
     html += '<div class="cart-item-inner"><div><strong>' + escapeHtml(itemDisplayName(item)) + ' x ' + itemQty(item) + '</strong><div class="cart-detail">';
-    if (item.size) html += '<p>份量：' + escapeHtml(item.size) + '</p>';
+    var sizeLabel = itemSizeLabel(item);
+    if (sizeLabel) html += '<p>份量：' + escapeHtml(sizeLabel) + '</p>';
     if (item.requiredOption && item.requiredOption.title) html += '<p>' + escapeHtml(item.requiredOption.title) + '：' + escapeHtml(item.requiredOption.value) + '</p>';
     html += renderCustomOptionsDetail(item);
     if (item.spicy) html += '<p>辣度：' + escapeHtml(item.spicy) + '</p>';

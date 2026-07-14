@@ -83,6 +83,21 @@ function itemDisplayName(item) {
   return item && (item.displayName || item.itemName || item.name) || "未命名餐點";
 }
 
+function itemSizeLabel(item) {
+  const list = item && item.customOptions;
+  if (Array.isArray(list)) {
+    for (let i = 0; i < list.length; i += 1) {
+      const option = list[i] || {};
+      const groupId = String(option.groupId || "");
+      const groupName = String(option.groupName || "").toLowerCase();
+      if ((groupId === "__legacy_sizes" || groupName.indexOf("份量") !== -1 || groupName.indexOf("size") !== -1 || groupName.indexOf("大小") !== -1) && option.name) {
+        return option.name;
+      }
+    }
+  }
+  return item && item.size || "";
+}
+
 function getItemAddons(item) {
   return item.addons || item.extras || [];
 }
@@ -97,6 +112,9 @@ function getKitchenCustomOptionLines(item) {
   const byGroup = {};
   list.forEach(option => {
     if (option && option.modules && option.modules.kds === false) return;
+    const groupId = String(option && option.groupId || "");
+    const normalizedGroupName = String(option && option.groupName || "").toLowerCase();
+    if (groupId === "__legacy_sizes" || normalizedGroupName.indexOf("份量") !== -1 || normalizedGroupName.indexOf("size") !== -1 || normalizedGroupName.indexOf("大小") !== -1) return;
     const groupName = option.groupName || "選項";
     const qty = Number(option.qty || 1);
     const label = (option.name || "") + (qty > 1 ? ` x${qty}` : "");
@@ -111,6 +129,7 @@ function renderItem(item) {
   const addons = getItemAddons(item);
   const removes = getItemRemoves(item);
   const customLines = getKitchenCustomOptionLines(item);
+  const sizeLabel = itemSizeLabel(item);
 
   return `
     <li class="kitchen-item">
@@ -119,7 +138,7 @@ function renderItem(item) {
       </div>
 
       <div class="item-detail">
-        ${item.size && item.size !== "一般" ? `<p>份量：${item.size}</p>` : ""}
+        ${sizeLabel && sizeLabel !== "一般" ? `<p>份量：${sizeLabel}</p>` : ""}
         ${item.requiredOption ? `<p>${item.requiredOption.title}：${item.requiredOption.value}</p>` : ""}
         ${item.spicy ? `<p>辣度：${item.spicy}</p>` : ""}
         ${item.satay ? `<p>沙茶：${item.satay}</p>` : ""}
@@ -139,9 +158,10 @@ function buildOrderConfirmText(order) {
     const addons = getItemAddons(item);
     const removes = getItemRemoves(item);
     const customLines = getKitchenCustomOptionLines(item);
+    const sizeLabel = itemSizeLabel(item);
 
     const details = [
-      item.size && item.size !== "一般" ? `份量：${item.size}` : "",
+      sizeLabel && sizeLabel !== "一般" ? `份量：${sizeLabel}` : "",
       item.requiredOption ? `${item.requiredOption.title}：${item.requiredOption.value}` : "",
       item.spicy ? `辣度：${item.spicy}` : "",
       item.satay ? `沙茶：${item.satay}` : "",

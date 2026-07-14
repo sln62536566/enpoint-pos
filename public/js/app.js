@@ -811,6 +811,25 @@ function isQrSizeOptionGroup(group) {
   return id === "__legacy_sizes" || name.indexOf("份量") !== -1 || name.indexOf("size") !== -1 || name.indexOf("大小") !== -1;
 }
 
+function isQrSizeCustomOption(option) {
+  var groupId = String(option && option.groupId || "");
+  var groupName = String(option && option.groupName || "").toLowerCase();
+  return groupId === "__legacy_sizes" || groupName.indexOf("份量") !== -1 || groupName.indexOf("size") !== -1 || groupName.indexOf("大小") !== -1;
+}
+
+function getQrSelectedSizeName(customOptions, fallback) {
+  var list = Array.isArray(customOptions) ? customOptions : [];
+  for (var i = 0; i < list.length; i += 1) {
+    if (isQrSizeCustomOption(list[i]) && list[i].name) return String(list[i].name);
+  }
+  return fallback || "";
+}
+
+function getQrItemSize(item) {
+  if (!item) return "";
+  return getQrSelectedSizeName(item.customOptions, item.size || "");
+}
+
 function normalizeQrOptionPriceForGroup(group, option, menuItem) {
   var rawPrice = Number(option && option.price || 0);
   if (!isQrSizeOptionGroup(group) || String(group && group.id || "") === "__legacy_sizes") return rawPrice;
@@ -873,6 +892,7 @@ function toggleQrCustomOption(button) {
     list.push({ groupId: groupId, groupName: button.getAttribute("data-group-name"), name: name, price: Number(button.getAttribute("data-option-price") || 0), qty: 1, quantity: 1, selectionType: selectionType, qtyEnabled: button.getAttribute("data-qty-enabled") === "true", maxQty: Number(button.getAttribute("data-max-qty") || 1), modules: { qr: button.getAttribute("data-module-qr") === "true", pos: button.getAttribute("data-module-pos") !== "false", kds: button.getAttribute("data-module-kds") !== "false", print: button.getAttribute("data-module-print") !== "false" } });
   }
   window.qrV64SelectedCustomOptions = list;
+  syncSelectedSizeFromCustomOptions();
   renderModalOptions();
   updateModalSubtotal();
 }
@@ -900,6 +920,12 @@ function updateModalSubtotal() {
     quantity: selectedQty
   });
   modalSubtotal.textContent = money(priced.subtotal);
+}
+
+function syncSelectedSizeFromCustomOptions() {
+  var sizeName = getQrSelectedSizeName(window.qrV64SelectedCustomOptions || [], "");
+  if (!sizeName) return;
+  selectedSize = { name: sizeName, price: getBasePrice(selectedItem) };
 }
 
 function addQrStableTapListener(element, handler) {
@@ -964,7 +990,8 @@ function legacyRenderQrCart() {
     html += '<div class="cart-item">';
     html += '<div><strong>' + escapeHtml(itemDisplayName(item)) + ' × ' + qty + '</strong>';
     html += '<div class="cart-detail">';
-    if (item.size) html += '<p>份量：' + item.size + '</p>';
+    var itemSize = getQrItemSize(item);
+    if (itemSize) html += '<p>份量：' + escapeHtml(itemSize) + '</p>';
     if (item.requiredOption && item.requiredOption.title) html += '<p>' + item.requiredOption.title + '：' + item.requiredOption.value + '</p>';
     if (item.spicy) html += '<p>辣度：' + item.spicy + '</p>';
     if (item.satay) html += '<p>沙茶：' + item.satay + '</p>';
@@ -1021,6 +1048,9 @@ function qrAddCurrentItemToCart(event) {
     return false;
   }
 
+  syncSelectedSizeFromCustomOptions();
+  var selectedCustomOptions = window.qrV64SelectedCustomOptions || [];
+  var selectedSizeName = getQrSelectedSizeName(selectedCustomOptions, selectedSize ? selectedSize.name : "");
   var basePrice = Number(selectedSize && selectedSize.price || getBasePrice(selectedItem) || 0);
   var nowId = selectedItem.id + "-" + new Date().getTime();
 
@@ -1031,10 +1061,10 @@ function qrAddCurrentItemToCart(event) {
     name: selectedItem.name,
     itemName: selectedItem.name,
     category: getItemCategory(selectedItem),
-    size: selectedSize ? selectedSize.name : "",
+    size: selectedSizeName,
     basePrice: basePrice,
     requiredOption: null,
-    customOptions: window.qrV64SelectedCustomOptions || [],
+    customOptions: selectedCustomOptions,
     addons: selectedAddons,
     extras: [],
     spicy: "",
@@ -1502,6 +1532,7 @@ function renderQrCustomOptionsDetail(item) {
   var html = "";
   for (var i = 0; i < list.length; i += 1) {
     var opt = list[i] || {};
+    if (isQrSizeCustomOption(opt)) continue;
     html += '<p>' + escapeHtml(opt.groupName || "選項") + '：' + escapeHtml(opt.name || "") + (Number(opt.qty || 1) > 1 ? ' x' + Number(opt.qty || 1) : '') + '</p>';
   }
   return html;
@@ -1512,7 +1543,8 @@ function buildDirectItemDetailHtml(item) {
   var extras = getQrItemExtras(item);
   var removes = getQrItemRemoves(item);
 
-  if (item.size) details.push("份量：" + item.size);
+  var itemSize = getQrItemSize(item);
+  if (itemSize) details.push("份量：" + itemSize);
   if (item.requiredOption && item.requiredOption.title && item.requiredOption.value) {
     details.push(item.requiredOption.title + "：" + item.requiredOption.value);
   }
@@ -3091,7 +3123,8 @@ if (typeof window.renderItemDetail !== "function") {
   window.renderItemDetail = function(item) {
     if (!item) return "";
     var html = "";
-    if (item.size) html += "<p>份量：" + item.size + "</p>";
+    var itemSize = getQrItemSize(item);
+    if (itemSize) html += "<p>份量：" + itemSize + "</p>";
     if (item.requiredOption && item.requiredOption.title && item.requiredOption.value) {
       html += "<p>" + item.requiredOption.title + "：" + item.requiredOption.value + "</p>";
     }
@@ -3787,4 +3820,24 @@ window.openLastQrOrderFromTop = openLastQrOrderFromTop;
     viewTab.onclick = openOrderV64;
     viewTab.ontouchend = openOrderV64;
   }
+})();
+
+/* v65.2 hotfix: QR always opens on menu after refresh/re-entry. */
+(function(){
+  function openMenuOnEntry() {
+    try {
+      var params = new URLSearchParams(window.location.search || "");
+      if (params.get("view") === "last") {
+        params.delete("view");
+        var nextQuery = params.toString();
+        var nextUrl = window.location.pathname + (nextQuery ? "?" + nextQuery : "") + (window.location.hash || "");
+        if (window.history && window.history.replaceState) window.history.replaceState(null, "", nextUrl);
+      }
+    } catch (e) {}
+    try { qrShowMenuMode(); } catch (e2) {}
+    try { renderCategories(); renderMenu(); } catch (e3) {}
+  }
+
+  openMenuOnEntry();
+  try { setTimeout(openMenuOnEntry, 0); } catch (e4) {}
 })();
