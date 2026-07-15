@@ -26,6 +26,10 @@ import {
 } from "./order-price-core.js";
 
 import {
+  formatOrderOptionHtml
+} from "./order-option-display.js";
+
+import {
   createQrSessionController,
   createQrTabController
 } from "./qr-session.js";
@@ -934,11 +938,6 @@ function getQrSelectedSizeName(customOptions, defaultName) {
   return defaultName || "";
 }
 
-function getQrItemSize(item) {
-  if (!item) return "";
-  return getQrSelectedSizeName(item.customOptions, item.size || "");
-}
-
 function normalizeQrOptionPriceForGroup(group, option, menuItem) {
   var rawPrice = Number(option && option.price || 0);
   if (!isQrSizeOptionGroup(group) || String(group && group.id || "") === "__legacy_sizes") return rawPrice;
@@ -1477,6 +1476,7 @@ function submitConfirmedQrOrder(event) {
       getQrSessionController().setSubmittedOrder(order.id);
 
       confirmModal.classList.add("hidden");
+      closeQrCartPanel();
       showSubmittedOrderView(order, true);
       listenOrderStatus(order.id);
 
@@ -1560,30 +1560,7 @@ function escapeHtml(value) {
 }
 
 function renderItemDetail(item) {
-  if (!item) return "";
-  var html = "";
-  var itemSize = getQrItemSize(item);
-  if (itemSize) html += "<p>尺寸：" + escapeHtml(itemSize) + "</p>";
-  if (item.requiredOption && item.requiredOption.title && item.requiredOption.value) {
-    html += "<p>" + escapeHtml(item.requiredOption.title) + "：" + escapeHtml(item.requiredOption.value) + "</p>";
-  }
-  if (item.spicy) html += "<p>辣度：" + escapeHtml(item.spicy) + "</p>";
-  if (item.satay) html += "<p>沙茶：" + escapeHtml(item.satay) + "</p>";
-  var addons = item.addons || item.extras || [];
-  if (addons && addons.length) {
-    var names = [];
-    for (var i = 0; i < addons.length; i += 1) {
-      var addon = addons[i];
-      if (typeof addon === "string") {
-        names.push(addon);
-      } else {
-        names.push((addon.name || addon.label || "加點") + (Number(addon.price || 0) ? " +$" + Number(addon.price || 0) : ""));
-      }
-    }
-    html += "<p>加點：" + escapeHtml(names.join("、")) + "</p>";
-  }
-  if (item.note) html += "<p>備註：" + escapeHtml(item.note) + "</p>";
-  return html;
+  return formatOrderOptionHtml(item, escapeHtml, { moduleName: "qr" });
 }
 
 window.renderItemDetail = renderItemDetail;
@@ -1627,58 +1604,13 @@ function isOrderLookupExpired(order) {
   return now - startedAt > minutes * 60 * 1000;
 }
 
-function getQrItemExtras(item) {
-  return (item && (item.addons || item.extras)) || [];
-}
-
-function getQrItemRemoves(item) {
-  return (item && (item.removes || item.removeOptionsSelected || item.noOptionsSelected)) || [];
-}
-
 function itemDisplayName(item) {
   return item && (item.displayName || item.itemName || item.name) || "未命名餐點";
 }
 
-function renderQrCustomOptionsDetail(item) {
-  var list = item && item.customOptions;
-  if (!list || !list.length) return "";
-  var html = "";
-  for (var i = 0; i < list.length; i += 1) {
-    var opt = list[i] || {};
-    if (isQrSizeCustomOption(opt)) continue;
-    html += '<p>' + escapeHtml(opt.groupName || "選項") + '：' + escapeHtml(opt.name || "") + (Number(opt.qty || 1) > 1 ? ' x' + Number(opt.qty || 1) : '') + '</p>';
-  }
-  return html;
-}
-
 function buildDirectItemDetailHtml(item) {
-  var details = [];
-  var extras = getQrItemExtras(item);
-  var removes = getQrItemRemoves(item);
-
-  var itemSize = getQrItemSize(item);
-  if (itemSize) details.push("份量：" + itemSize);
-  if (item.requiredOption && item.requiredOption.title && item.requiredOption.value) {
-    details.push(item.requiredOption.title + "：" + item.requiredOption.value);
-  }
-  if (extras && extras.length) {
-    var extraNames = [];
-    for (var i = 0; i < extras.length; i++) {
-      var extra = extras[i];
-      if (typeof extra === "string") extraNames.push(extra);
-      else extraNames.push(extra.name || extra.label || "加料");
-    }
-    details.push("加料：" + extraNames.join("、"));
-  }
-  if (removes && removes.length) details.push("不要：" + removes.join("、"));
-  if (item.spicy) details.push("辣度：" + item.spicy);
-  if (item.satay) details.push("沙茶：" + item.satay);
-  if (item.note) details.push("備註：" + item.note);
-
-  if (!details.length) return "";
-  return '<div class="qr-direct-item-detail">' + details.map(function(detail) {
-    return '<p>' + escapeHtml(detail) + '</p>';
-  }).join("") + '</div>';
+  var html = formatOrderOptionHtml(item, escapeHtml, { moduleName: "qr" });
+  return html ? '<div class="qr-direct-item-detail">' + html + '</div>' : "";
 }
 
 function buildDirectOrderViewHtml(order) {

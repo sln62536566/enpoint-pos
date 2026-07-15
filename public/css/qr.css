@@ -2521,3 +2521,138 @@ body.qr-page.qr-direct-order-mode #topOrderPanel.hidden{
 .v64-custom-group{margin:8px 0}
 .v64-custom-group h3{font-size:16px;margin:0 0 8px}
 .qr-direct-expired-message{font-size:18px;font-weight:900;text-align:center;padding:24px;color:#8a1c13}
+
+/* v65.3 QR UI polish: one cart modal for desktop, tablet and mobile */
+body.qr-page {
+  padding-bottom: 82px !important;
+}
+
+body.qr-page #floatingCartBtn.qr-floating-cart-btn {
+  display: block !important;
+  position: fixed !important;
+  left: 18px !important;
+  right: 18px !important;
+  bottom: 16px !important;
+  z-index: 900 !important;
+  border: none !important;
+  border-radius: 999px !important;
+  padding: 15px 18px !important;
+  background: #2b2118 !important;
+  color: #fff !important;
+  font-size: 17px !important;
+  font-weight: 900 !important;
+  box-shadow: 0 10px 26px rgba(0,0,0,0.28) !important;
+}
+
+body.qr-page #qrCartPanel.cart-area {
+  display: none !important;
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100% !important;
+  max-width: none !important;
+  height: 100vh !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 16px !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
+  z-index: 950 !important;
+}
+
+body.qr-page #qrCartPanel.cart-area.cart-open {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+body.qr-page #qrCartPanel .qr-cart-backdrop {
+  position: absolute !important;
+  inset: 0 !important;
+  display: block !important;
+  background: rgba(0,0,0,0.56) !important;
+}
+
+body.qr-page #qrCartPanel .qr-cart-card {
+  position: relative !important;
+  z-index: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  width: calc(100vw - 28px) !important;
+  max-width: 560px !important;
+  max-height: calc(100vh - 28px) !important;
+  overflow: hidden !important;
+  border-radius: 22px !important;
+  background: #fffaf3 !important;
+  box-shadow: 0 22px 70px rgba(30,18,8,0.32) !important;
+}
+
+body.qr-page #qrCartPanel .qr-cart-title-row {
+  flex: 0 0 auto !important;
+  padding: 18px 20px 12px !important;
+  border-bottom: 1px solid #ead7bd !important;
+  background: #fffaf3 !important;
+}
+
+body.qr-page #qrCartPanel .qr-cart-title-row h2 {
+  margin: 0 !important;
+}
+
+body.qr-page #qrCartPanel .qr-cart-close-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 42px !important;
+  height: 42px !important;
+  font-size: 28px !important;
+  cursor: pointer !important;
+}
+
+body.qr-page #qrCartPanel .qr-cart-body {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  padding: 16px 20px !important;
+}
+
+body.qr-page #qrCartPanel .cart-list {
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+body.qr-page #qrCartPanel .qr-cart-footer {
+  flex: 0 0 auto !important;
+  padding: 14px 20px 18px !important;
+  border-top: 1px solid #ead7bd !important;
+  background: #fffaf3 !important;
+}
+
+body.qr-page #orderTypeBox .qr-type-btn {
+  min-height: 52px !important;
+  padding: 13px 22px !important;
+  border-radius: 16px !important;
+  font-size: 17px !important;
+  font-weight: 900 !important;
+  transition: background-color .16s ease, color .16s ease, transform .16s ease, box-shadow .16s ease !important;
+}
+
+body.qr-page #orderTypeBox .qr-type-btn:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 8px 18px rgba(43,33,24,0.12) !important;
+}
+
+body.qr-page #orderTypeBox .qr-type-btn.active {
+  background: #2b2118 !important;
+  color: #fff !important;
+  box-shadow: 0 8px 18px rgba(43,33,24,0.18) !important;
+}
+
+@media (min-width: 900px) {
+  body.qr-page #floatingCartBtn.qr-floating-cart-btn {
+    left: auto !important;
+    right: 24px !important;
+    width: 260px !important;
+  }
+}

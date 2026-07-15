@@ -5,6 +5,11 @@ import {
   update
 } from "./firebase.js";
 
+import {
+  formatOrderOptionHtml,
+  formatOrderOptionLines
+} from "./order-option-display.js";
+
 const orderList = document.getElementById("orderList");
 const ordersRef = ref(db, "orders");
 
@@ -83,54 +88,7 @@ function itemDisplayName(item) {
   return item && (item.displayName || item.itemName || item.name) || "未命名餐點";
 }
 
-function itemSizeLabel(item) {
-  const list = item && item.customOptions;
-  if (Array.isArray(list)) {
-    for (let i = 0; i < list.length; i += 1) {
-      const option = list[i] || {};
-      const groupId = String(option.groupId || "");
-      const groupName = String(option.groupName || "").toLowerCase();
-      if ((groupId === "__legacy_sizes" || groupName.indexOf("份量") !== -1 || groupName.indexOf("size") !== -1 || groupName.indexOf("大小") !== -1) && option.name) {
-        return option.name;
-      }
-    }
-  }
-  return item && item.size || "";
-}
-
-function getItemAddons(item) {
-  return item.addons || item.extras || [];
-}
-
-function getItemRemoves(item) {
-  return item.removes || item.removeOptionsSelected || item.noOptionsSelected || [];
-}
-
-function getKitchenCustomOptionLines(item) {
-  const list = item && item.customOptions;
-  if (!Array.isArray(list) || !list.length) return [];
-  const byGroup = {};
-  list.forEach(option => {
-    if (option && option.modules && option.modules.kds === false) return;
-    const groupId = String(option && option.groupId || "");
-    const normalizedGroupName = String(option && option.groupName || "").toLowerCase();
-    if (groupId === "__legacy_sizes" || normalizedGroupName.indexOf("份量") !== -1 || normalizedGroupName.indexOf("size") !== -1 || normalizedGroupName.indexOf("大小") !== -1) return;
-    const groupName = option.groupName || "選項";
-    const qty = Number(option.qty || 1);
-    const label = (option.name || "") + (qty > 1 ? ` x${qty}` : "");
-    if (!label) return;
-    if (!byGroup[groupName]) byGroup[groupName] = [];
-    byGroup[groupName].push(label);
-  });
-  return Object.keys(byGroup).map(groupName => `${groupName}：${byGroup[groupName].join("、")}`);
-}
-
 function renderItem(item) {
-  const addons = getItemAddons(item);
-  const removes = getItemRemoves(item);
-  const customLines = getKitchenCustomOptionLines(item);
-  const sizeLabel = itemSizeLabel(item);
-
   return `
     <li class="kitchen-item">
       <div class="item-main">
@@ -138,14 +96,7 @@ function renderItem(item) {
       </div>
 
       <div class="item-detail">
-        ${sizeLabel && sizeLabel !== "一般" ? `<p>份量：${sizeLabel}</p>` : ""}
-        ${item.requiredOption ? `<p>${item.requiredOption.title}：${item.requiredOption.value}</p>` : ""}
-        ${item.spicy ? `<p>辣度：${item.spicy}</p>` : ""}
-        ${item.satay ? `<p>沙茶：${item.satay}</p>` : ""}
-        ${customLines.map(line => `<p>${line}</p>`).join("")}
-        ${addons.length ? `<p>加料：${addons.map(a => a.name).join("、")}</p>` : ""}
-        ${removes.length ? `<p>不要：${removes.join("、")}</p>` : ""}
-        ${item.note ? `<p>備註：${item.note}</p>` : ""}
+        ${formatOrderOptionHtml(item, function(value) { return value; }, { moduleName: "kds" })}
       </div>
     </li>
   `;
@@ -155,21 +106,7 @@ function buildOrderConfirmText(order) {
   const items = Array.isArray(order.items) ? order.items : [];
 
   const itemLines = items.map((item, index) => {
-    const addons = getItemAddons(item);
-    const removes = getItemRemoves(item);
-    const customLines = getKitchenCustomOptionLines(item);
-    const sizeLabel = itemSizeLabel(item);
-
-    const details = [
-      sizeLabel && sizeLabel !== "一般" ? `份量：${sizeLabel}` : "",
-      item.requiredOption ? `${item.requiredOption.title}：${item.requiredOption.value}` : "",
-      item.spicy ? `辣度：${item.spicy}` : "",
-      item.satay ? `沙茶：${item.satay}` : "",
-      ...customLines,
-      addons.length ? `加料：${addons.map(a => a.name).join("、")}` : "",
-      removes.length ? `不要：${removes.join("、")}` : "",
-      item.note ? `備註：${item.note}` : ""
-    ].filter(Boolean);
+    const details = formatOrderOptionLines(item, { moduleName: "kds" });
 
     return `${index + 1}. ${itemDisplayName(item)} × ${getItemQty(item)}${details.length ? `\n   ${details.join("｜")}` : ""}`;
   }).join("\n\n");

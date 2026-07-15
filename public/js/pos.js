@@ -20,6 +20,11 @@ import {
   calculateOrderTotal
 } from "./order-price-core.js";
 
+import {
+  formatOrderOptionHtml,
+  formatOrderOptionLines
+} from "./order-option-display.js";
+
 
 /* =========================
    v59-5 EARLY POS LEGACY OPEN
@@ -1654,19 +1659,7 @@ function getQrCodeUrl(order) {
 }
 
 function buildPrintItemDetailHtml(item, includePrice) {
-  var extras = itemExtras(item);
-  var removes = itemRemoves(item);
-  var details = [];
-  var sizeLabel = itemSizeLabel(item);
-  if (sizeLabel && sizeLabel !== "一般") details.push("份量：" + sizeLabel);
-  if (extras.length) details.push("加料：" + extras.map(function(extra) { return extra.name || extra.label || String(extra); }).join("、"));
-  if (removes.length) details.push("不要：" + removes.join("、"));
-  if (item.spicy) details.push("辣度：" + item.spicy);
-  if (item.satay) details.push("沙茶：" + item.satay);
-  if (item.requiredOption) details.push((item.requiredOption.title || "選項") + "：" + item.requiredOption.value);
-  if (item.note) details.push("備註：" + item.note);
-  var customLines = customOptionsToDetailLines(item, "print");
-  for (var c = 0; c < customLines.length; c += 1) details.push(customLines[c]);
+  var details = formatOrderOptionLines(item, { moduleName: "print" });
   if (includePrice) details.push("單價：" + money(calculateOrderItemPrice(item).unitPrice));
 
   if (!details.length) return "";
@@ -2453,12 +2446,6 @@ function buildLegacyCustomGroups(item, moduleName) {
   return groups;
 }
 
-function optionLabelWithQty(option, qty) {
-  var name = option && (option.name || option.label || option.value || option);
-  if (qty && Number(qty) > 1) return String(name || "") + " x" + Number(qty);
-  return String(name || "");
-}
-
 function updateCustomModalPricePreview() {
   if (!modalItemPrice || !currentItem) return;
   var priced = calculateOrderItemPrice({
@@ -2744,35 +2731,6 @@ function validatePosRequiredCustomGroups(item) {
   return "";
 }
 
-function renderCustomOptionsDetail(item) {
-  var lines = customOptionsToDetailLines(item, "");
-  if (!lines.length) return "";
-  return lines.map(function(line) { return "<p>" + escapeHtml(line) + "</p>"; }).join("");
-}
-
-function customOptionsToDetailLines(item, moduleName) {
-  var list = item && item.customOptions;
-  if (!list || !list.length) return [];
-  var byGroup = {};
-  for (var i = 0; i < list.length; i += 1) {
-    var opt = list[i] || {};
-    if (moduleName && opt.modules && opt.modules[moduleName] === false) continue;
-    var groupId = String(opt.groupId || "");
-    var groupName = String(opt.groupName || "").toLowerCase();
-    if (groupId === "__legacy_sizes" || groupName.indexOf("份量") !== -1 || groupName.indexOf("size") !== -1 || groupName.indexOf("大小") !== -1) continue;
-    var group = opt.groupName || "選項";
-    if (!byGroup[group]) byGroup[group] = [];
-    byGroup[group].push(optionLabelWithQty(opt, opt.qty));
-  }
-  var lines = [];
-  for (var name in byGroup) {
-    if (Object.prototype.hasOwnProperty.call(byGroup, name)) {
-      lines.push(name + "：" + byGroup[name].join("、"));
-    }
-  }
-  return lines;
-}
-
 addLegacyTapListener(modalMinusBtn, function(event) {
   if (event && event.preventDefault) event.preventDefault();
   if (event && event.stopPropagation) event.stopPropagation();
@@ -2872,9 +2830,6 @@ function renderCartV64() {
   }
 
   cartList.innerHTML = cart.map((item, index) => {
-    const extras = itemExtras(item);
-    const removes = itemRemoves(item);
-
     return `
       <div class="cart-item" data-cart-id="${item.cartId}">
         <button class="swipe-delete-action" type="button" onclick="removeFromCart('${item.cartId}')">刪除</button>
@@ -2883,13 +2838,7 @@ function renderCartV64() {
             <strong>${escapeHtml(itemDisplayName(item))} × ${itemQty(item)}</strong>
 
             <div class="cart-detail">
-              ${itemSizeLabel(item) && itemSizeLabel(item) !== "一般" ? `<p>份量：${escapeHtml(itemSizeLabel(item))}</p>` : ""}
-              ${item.spicy ? `<p>辣度：${item.spicy}</p>` : ""}
-              ${item.satay ? `<p>沙茶：${item.satay}</p>` : ""}
-              ${item.requiredOption ? `<p>${item.requiredOption.title}：${item.requiredOption.value}</p>` : ""}
-              ${extras.length ? `<p>加料：${extras.map(extra => extra.name).join("、")}</p>` : ""}
-              ${removes.length ? `<p>不要：${removes.join("、")}</p>` : ""}
-              ${item.note ? `<p>備註：${item.note}</p>` : ""}
+              ${formatOrderOptionHtml(item, escapeHtml, { moduleName: "pos" })}
               <p>小計：${money(calculateOrderItemPrice(item).subtotal)}</p>
             </div>
           </div>
@@ -3087,17 +3036,7 @@ async function submitOrderCore(isTestMode, paymentMode) {
   const orderNote = posOrderNoteInput ? posOrderNoteInput.value.trim() : "";
   const orderNumberPreview = "系統送出後產生";
   const itemsText = cart.map((item, index) => {
-    const extras = itemExtras(item);
-    const removes = itemRemoves(item);
-    const detail = [
-      itemSizeLabel(item) && itemSizeLabel(item) !== "一般" ? `份量：${itemSizeLabel(item)}` : "",
-      item.requiredOption ? `${item.requiredOption.title}：${item.requiredOption.value}` : "",
-      item.spicy ? `辣度：${item.spicy}` : "",
-      item.satay ? `沙茶：${item.satay}` : "",
-      extras.length ? `加料：${extras.map(extra => extra.name).join("、")}` : "",
-      removes.length ? `不要：${removes.join("、")}` : "",
-      item.note ? `備註：${item.note}` : ""
-    ].filter(Boolean).join("｜");
+    const detail = formatOrderOptionLines(item, { moduleName: "pos" }).join("｜");
 
     return `${index + 1}. ${itemDisplayName(item)} × ${itemQty(item)}｜小計 ${money(calculateOrderItemPrice(item).subtotal)}${detail ? `\n   ${detail}` : ""}`;
   }).join("\n\n");
@@ -3265,21 +3204,12 @@ function renderOrderCard(order) {
 }
 
 function renderOrderItem(item) {
-  const extras = itemExtras(item);
-  const removes = itemRemoves(item);
-
   return `
     <div class="order-item">
       <strong>• ${escapeHtml(itemDisplayName(item))} × ${itemQty(item)}</strong>
 
       <div class="order-item-detail">
-        ${itemSizeLabel(item) && itemSizeLabel(item) !== "一般" ? `<p>份量：${escapeHtml(itemSizeLabel(item))}</p>` : ""}
-        ${item.spicy ? `<p>辣度：${item.spicy}</p>` : ""}
-        ${item.satay ? `<p>沙茶：${item.satay}</p>` : ""}
-        ${item.requiredOption ? `<p>${item.requiredOption.title}：${item.requiredOption.value}</p>` : ""}
-        ${extras.length ? `<p>加料：${extras.map(extra => extra.name).join("、")}</p>` : ""}
-        ${removes.length ? `<p>不要：${removes.join("、")}</p>` : ""}
-        ${item.note ? `<p>備註：${item.note}</p>` : ""}
+        ${formatOrderOptionHtml(item, escapeHtml, { moduleName: "pos" })}
       </div>
     </div>
   `;
@@ -3336,22 +3266,13 @@ function renderEditOrderItems() {
   }
 
   editOrderItems.innerHTML = editingItems.map((item, index) => {
-    const extras = itemExtras(item);
-    const removes = itemRemoves(item);
-
     return `
       <div class="edit-order-item">
         <div>
           <strong>${escapeHtml(itemDisplayName(item))}</strong>
 
           <div class="order-item-detail">
-            ${itemSizeLabel(item) && itemSizeLabel(item) !== "一般" ? `<p>份量：${escapeHtml(itemSizeLabel(item))}</p>` : ""}
-            ${item.spicy ? `<p>辣度：${item.spicy}</p>` : ""}
-            ${item.satay ? `<p>沙茶：${item.satay}</p>` : ""}
-            ${item.requiredOption ? `<p>${item.requiredOption.title}：${item.requiredOption.value}</p>` : ""}
-            ${extras.length ? `<p>加料：${extras.map(extra => extra.name).join("、")}</p>` : ""}
-            ${removes.length ? `<p>不要：${removes.join("、")}</p>` : ""}
-            ${item.note ? `<p>備註：${item.note}</p>` : ""}
+            ${formatOrderOptionHtml(item, escapeHtml, { moduleName: "pos" })}
             <p>小計：${money(calculateOrderItemPrice(item).subtotal)}</p>
           </div>
         </div>
@@ -4288,20 +4209,10 @@ function renderCartV649() {
   var html = "";
   for (var i = 0; i < cart.length; i += 1) {
     var item = cart[i] || {};
-    var extras = itemExtras(item);
-    var removes = itemRemoves(item);
     html += '<div class="cart-item" data-cart-id="' + escapeHtml(item.cartId) + '">';
     html += '<button class="swipe-delete-action" type="button" onclick="removeFromCart(\'' + escapeInlineValue(item.cartId) + '\')">刪除</button>';
     html += '<div class="cart-item-inner"><div><strong>' + escapeHtml(itemDisplayName(item)) + ' x ' + itemQty(item) + '</strong><div class="cart-detail">';
-    var sizeLabel = itemSizeLabel(item);
-    if (sizeLabel) html += '<p>份量：' + escapeHtml(sizeLabel) + '</p>';
-    if (item.requiredOption && item.requiredOption.title) html += '<p>' + escapeHtml(item.requiredOption.title) + '：' + escapeHtml(item.requiredOption.value) + '</p>';
-    html += renderCustomOptionsDetail(item);
-    if (item.spicy) html += '<p>辣度：' + escapeHtml(item.spicy) + '</p>';
-    if (item.satay) html += '<p>沙茶：' + escapeHtml(item.satay) + '</p>';
-    if (extras.length) html += '<p>加料：' + escapeHtml(extras.map(function(extra) { return optionLabelWithQty(extra, extra.qty); }).join("、")) + '</p>';
-    if (removes.length) html += '<p>不要：' + escapeHtml(removes.join("、")) + '</p>';
-    if (item.note) html += '<p>備註：' + escapeHtml(item.note) + '</p>';
+    html += formatOrderOptionHtml(item, escapeHtml, { moduleName: "pos" });
     html += '<p>小計：' + money(calculateOrderItemPrice(item).subtotal) + '</p></div></div>';
     html += '<div class="cart-item-actions"><button class="secondary-btn" type="button" onclick="openCartItemEditModal(' + i + ')">編輯</button><button class="danger-btn" type="button" onclick="removeFromCart(\'' + escapeInlineValue(item.cartId) + '\')">刪除</button></div>';
     html += '</div></div>';
