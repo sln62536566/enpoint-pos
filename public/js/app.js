@@ -31,23 +31,6 @@ import {
 } from "./qr-session.js";
 
 
-/* =========================
-   v59-5 EARLY QR HARD ADD
-   舊平板：加入購物車按鈕直接走這個，不依賴後面事件綁定
-========================= */
-window.qrHardAddToCart = function(event){
-  if (event) {
-    if (event.preventDefault) event.preventDefault();
-    if (event.stopPropagation) event.stopPropagation();
-  }
-  try {
-    return qrAddCurrentItemToCart(event);
-  } catch (error) {
-    alert("加入購物車失敗：" + (error && error.message ? error.message : error));
-    return false;
-  }
-};
-
 const STORE_ID = "defaultStore";
 const LAST_ORDER_KEY = "enpoint_last_qr_order_id";
 const LAST_ORDER_KEY_COMPAT = "lastQrOrderId";
@@ -341,7 +324,7 @@ function renderQrSessionExpiredState() {
   qrSessionInvalid = true;
   qrSessionInvalidReason = getQrSessionController().getState().invalidReason || QR_SESSION_INVALID_MESSAGE;
   cart = [];
-  try { renderCart(); } catch (e) { try { legacyRenderQrCart(); } catch (e2) {} }
+  renderCart();
   try { closeQrCartPanel(); } catch (e3) {}
   if (itemModal) {
     itemModal.className = (itemModal.className || "") + " hidden";
@@ -1094,61 +1077,6 @@ closeModalBtn.addEventListener("click", function () {
 
 
 
-/* =========================
-   v59-6 QR legacy cart renderer
-   舊平板保險：不用 template/arrow/dataset，直接重畫購物車
-========================= */
-function legacyRenderQrCart() {
-  var list = document.getElementById("cartList");
-  var totalEl = document.getElementById("cartTotal");
-  if (!list) return;
-
-  if (!cart || cart.length === 0) {
-    list.innerHTML = '<div class="empty">尚未選擇餐點</div>';
-    if (totalEl) totalEl.innerHTML = '$0';
-    updateFloatingCartButton && updateFloatingCartButton();
-    return;
-  }
-
-  var html = '';
-  var total = 0;
-  for (var i = 0; i < cart.length; i++) {
-    var item = cart[i] || {};
-    var qty = Number(item.qty || item.quantity || 1);
-    var subtotal = calculateOrderItemPrice(item).subtotal;
-    total += subtotal;
-    html += '<div class="cart-item">';
-    html += '<div><strong>' + escapeHtml(itemDisplayName(item)) + ' × ' + qty + '</strong>';
-    html += '<div class="cart-detail">';
-    var itemSize = getQrItemSize(item);
-    if (itemSize) html += '<p>份量：' + escapeHtml(itemSize) + '</p>';
-    if (item.requiredOption && item.requiredOption.title) html += '<p>' + item.requiredOption.title + '：' + item.requiredOption.value + '</p>';
-    if (item.spicy) html += '<p>辣度：' + item.spicy + '</p>';
-    if (item.satay) html += '<p>沙茶：' + item.satay + '</p>';
-    var extras = item.addons || item.extras || [];
-    if (extras && extras.length) {
-      var names = [];
-      for (var j = 0; j < extras.length; j++) names.push(extras[j].name || extras[j].label || String(extras[j]));
-      html += '<p>加料：' + names.join('、') + '</p>';
-    }
-    if (item.note) html += '<p>備註：' + item.note + '</p>';
-    html += '</div></div>';
-    html += '<div class="cart-price"><strong>$' + subtotal + '</strong>';
-    html += '<button class="remove-btn" type="button" data-index="' + i + '">刪除</button>';
-    html += '</div></div>';
-  }
-  list.innerHTML = html;
-  if (totalEl) totalEl.innerHTML = '$' + total;
-  updateFloatingCartButton && updateFloatingCartButton();
-}
-
-window.legacyRenderQrCart = legacyRenderQrCart;
-window.legacyRemoveQrCartItem = function(index) {
-  cart.splice(Number(index), 1);
-  legacyRenderQrCart();
-  return false;
-};
-
 var qrLastAddCartAt = 0;
 
 function qrAddCurrentItemToCart(event) {
@@ -1218,14 +1146,12 @@ function qrAddCurrentItemToCart(event) {
     itemModal.style.display = "none";
   }
 
-  try { legacyRenderQrCart(); } catch (e) { try { renderCart(); } catch (err) {} }
+  renderCart();
   return false;
 }
 
-window.qrAddCurrentItemToCart = qrAddCurrentItemToCart;
-window.qrHardAddToCart = qrAddCurrentItemToCart;
 if (addToCartBtn) {
-  addToCartBtn.addEventListener("click", qrAddCurrentItemToCart);
+  addQrStableTapListener(addToCartBtn, qrAddCurrentItemToCart);
 }
 
 function forceResetQrOrder(event) {
@@ -1341,6 +1267,14 @@ document.addEventListener("keydown", function(event) {
   if (qrCartPanel && (" " + (qrCartPanel.className || "") + " ").indexOf(" cart-open ") !== -1) closeQrCartPanel(event);
 }, false);
 
+function removeQrCartItem(index) {
+  var nextIndex = Number(index);
+  if (nextIndex < 0 || nextIndex >= cart.length) return false;
+  cart.splice(nextIndex, 1);
+  renderCart();
+  return false;
+}
+
 function renderCart() {
   if (cart.length === 0) {
     cartList.innerHTML = `<div class="empty">尚未選擇餐點</div>`;
@@ -1365,10 +1299,10 @@ function renderCart() {
     </div>
   `).join("");
 
-  document.querySelectorAll(".remove-btn").forEach(btn => {
-    btn.addEventListener("click", () => {
-      cart.splice(Number(btn.dataset.index), 1);
-      renderCart();
+  cartList.querySelectorAll(".remove-btn").forEach(btn => {
+    addQrStableTapListener(btn, function() {
+      removeQrCartItem(btn.getAttribute("data-index"));
+      return false;
     });
   });
 
@@ -2141,25 +2075,6 @@ menuList.addEventListener("touchend", function (event) {
 
 renderCart();
 loadLastOrderIfExists();
-
-/* =========================
-   v59-3 QR inline 餐點點擊與浮動購物車
-========================= */
-window.qrOpenMenuItem = function (button, event) {
-  if (event) {
-    if (event.type === "touchend" && qrMenuTouchMoved) {
-      qrMenuTouchMoved = false;
-      return false;
-    }
-    event.preventDefault && event.preventDefault();
-    event.stopPropagation && event.stopPropagation();
-  }
-  var itemId = button && button.getAttribute ? button.getAttribute("data-id") : "";
-  if (!itemId) return false;
-  openItemModalById(itemId);
-  return false;
-};
-
 
 /* v65.2 QR single tab controller */
 (function(){
