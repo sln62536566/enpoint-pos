@@ -34,6 +34,13 @@ import {
   createQrTabController
 } from "./qr-session.js";
 
+import {
+  closeQrModal,
+  initQrModalManager,
+  openQrModal,
+  registerQrModal
+} from "./qr-modal.js";
+
 
 const STORE_ID = "defaultStore";
 const LAST_ORDER_KEY = "enpoint_last_qr_order_id";
@@ -193,7 +200,6 @@ const qrTableInput = document.getElementById("qrTableInput");
 const qrOrderTypeHint = document.getElementById("qrOrderTypeHint");
 
 const itemModal = document.getElementById("itemModal");
-const closeModalBtn = document.getElementById("closeModalBtn");
 const modalItemName = document.getElementById("modalItemName");
 const modalItemPrice = document.getElementById("modalItemPrice");
 const sizeSection = document.getElementById("sizeSection");
@@ -215,6 +221,25 @@ const confirmContent = document.getElementById("confirmContent");
 const confirmTotal = document.getElementById("confirmTotal");
 const confirmSubmitBtn = document.getElementById("confirmSubmitBtn");
 const backToCartBtn = document.getElementById("backToCartBtn");
+const qrHeader = document.querySelector(".qr-header");
+
+initQrModalManager({ headerElements: qrHeader ? [qrHeader] : [] });
+registerQrModal(itemModal, {
+  openClass: "show-force",
+  closeClass: "hidden",
+  closeSelector: "[data-qr-modal-close]"
+});
+registerQrModal(confirmModal, {
+  openClass: "show-force",
+  closeClass: "hidden",
+  closeSelector: "[data-qr-modal-close]"
+});
+registerQrModal(qrCartPanel, {
+  openClass: "cart-open",
+  closeClass: "",
+  closeSelector: "[data-qr-modal-close]",
+  backdropSelector: "[data-cart-close=\"true\"]"
+});
 
 const menuRef = ref(db, "menu");
 const categoriesRef = ref(db, "categories");
@@ -330,16 +355,8 @@ function renderQrSessionExpiredState() {
   cart = [];
   renderCart();
   try { closeQrCartPanel(); } catch (e3) {}
-  if (itemModal) {
-    itemModal.className = (itemModal.className || "") + " hidden";
-    itemModal.className = itemModal.className.replace(/\bshow-force\b/g, "");
-    itemModal.style.display = "none";
-  }
-  if (confirmModal) {
-    confirmModal.className = (confirmModal.className || "") + " hidden";
-    confirmModal.className = confirmModal.className.replace(/\bshow-force\b/g, "");
-    confirmModal.style.display = "none";
-  }
+  if (itemModal) closeQrModal(itemModal);
+  if (confirmModal) closeQrModal(confirmModal);
   var overlay = ensureQrSessionExpiredOverlay();
   overlay.style.display = "flex";
   setQrOrderingDisabled(true);
@@ -826,8 +843,7 @@ function openItemModal(item) {
   modalItemPrice.textContent = "起價 " + money(getBasePrice(item));
   renderQrModalFoodImage(item);
 
-  itemModal.classList.remove("hidden");
-  itemModal.classList.add("show-force");
+  openQrModal(itemModal);
 
   try {
     renderModalOptions();
@@ -1069,13 +1085,6 @@ addQrStableTapListener(qtyPlusBtn, function() {
   updateModalSubtotal();
 });
 
-closeModalBtn.addEventListener("click", function () {
-  itemModal.classList.add("hidden");
-  itemModal.classList.remove("show-force");
-});
-
-
-
 var qrLastAddCartAt = 0;
 
 function qrAddCurrentItemToCart(event) {
@@ -1139,11 +1148,7 @@ function qrAddCurrentItemToCart(event) {
   };
   cart.push(nextCartItem);
 
-  if (itemModal) {
-    itemModal.className = (itemModal.className || "") + " hidden";
-    itemModal.className = itemModal.className.replace(/\bshow-force\b/g, "");
-    itemModal.style.display = "none";
-  }
+  if (itemModal) closeQrModal(itemModal);
 
   renderCart();
   return false;
@@ -1182,16 +1187,8 @@ function forceResetQrOrder(event) {
     orderPage.className = (orderPage.className || "").replace(/\bhidden\b/g, "");
     orderPage.style.display = "";
   }
-  if (confirmModal) {
-    confirmModal.className = (confirmModal.className || "") + " hidden";
-    confirmModal.className = confirmModal.className.replace(/\bshow-force\b/g, "");
-    confirmModal.style.display = "none";
-  }
-  if (itemModal) {
-    itemModal.className = (itemModal.className || "") + " hidden";
-    itemModal.className = itemModal.className.replace(/\bshow-force\b/g, "");
-    itemModal.style.display = "none";
-  }
+  if (confirmModal) closeQrModal(confirmModal);
+  if (itemModal) closeQrModal(itemModal);
   qrShowMenuMode();
   keepQrStoreNameVisible();
   closeQrCartPanel();
@@ -1227,11 +1224,7 @@ function openQrCartPanel(event) {
     event.stopPropagation && event.stopPropagation();
   }
   if (!ensureQrSessionActive()) return false;
-  if (qrCartPanel) {
-    qrCartPanel.classList.add("cart-open");
-    qrCartPanel.setAttribute("aria-hidden", "false");
-    if (document.body) document.body.classList.add("qr-cart-modal-open");
-  }
+  if (qrCartPanel) openQrModal(qrCartPanel, { openClass: "cart-open", closeClass: "" });
   return false;
 }
 
@@ -1240,11 +1233,7 @@ function closeQrCartPanel(event) {
     event.preventDefault && event.preventDefault();
     event.stopPropagation && event.stopPropagation();
   }
-  if (qrCartPanel) {
-    qrCartPanel.classList.remove("cart-open");
-    qrCartPanel.setAttribute("aria-hidden", "true");
-    if (document.body) document.body.classList.remove("qr-cart-modal-open");
-  }
+  if (qrCartPanel) closeQrModal(qrCartPanel, event);
   return false;
 }
 
@@ -1253,18 +1242,7 @@ window.closeQrCartPanel = closeQrCartPanel;
 if (floatingCartBtn) floatingCartBtn.addEventListener("click", openQrCartPanel);
 if (closeCartBtn) closeCartBtn.addEventListener("click", closeQrCartPanel);
 
-if (qrCartPanel) {
-  qrCartPanel.setAttribute("aria-hidden", "true");
-  qrCartPanel.addEventListener("click", function(event) {
-    var target = event.target || event.srcElement;
-    if (target && target.getAttribute && target.getAttribute("data-cart-close") === "true") closeQrCartPanel(event);
-  }, false);
-}
-
-document.addEventListener("keydown", function(event) {
-  if (!event || event.key !== "Escape") return;
-  if (qrCartPanel && (" " + (qrCartPanel.className || "") + " ").indexOf(" cart-open ") !== -1) closeQrCartPanel(event);
-}, false);
+if (qrCartPanel) qrCartPanel.setAttribute("aria-hidden", "true");
 
 function removeQrCartItem(index) {
   var nextIndex = Number(index);
@@ -1377,7 +1355,7 @@ function renderConfirmModal() {
     `).join("")}
   `;
 
-  confirmModal.classList.remove("hidden");
+  openQrModal(confirmModal);
 }
 
 window.qrSubmitOrderNow = function (event) {
@@ -1404,8 +1382,8 @@ submitOrderBtn.addEventListener("click", event => {
   return window.qrSubmitOrderNow(event);
 });
 
-backToCartBtn.addEventListener("click", () => {
-  confirmModal.classList.add("hidden");
+backToCartBtn.addEventListener("click", event => {
+  closeQrModal(confirmModal, event);
 });
 
 function submitConfirmedQrOrder(event) {
@@ -1475,7 +1453,7 @@ function submitConfirmedQrOrder(event) {
       qrSessionOrderId = order.id;
       getQrSessionController().setSubmittedOrder(order.id);
 
-      confirmModal.classList.add("hidden");
+      closeQrModal(confirmModal);
       closeQrCartPanel();
       showSubmittedOrderView(order, true);
       listenOrderStatus(order.id);

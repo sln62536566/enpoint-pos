@@ -2522,6 +2522,39 @@ body.qr-page.qr-direct-order-mode #topOrderPanel.hidden{
 .v64-custom-group h3{font-size:16px;margin:0 0 8px}
 .qr-direct-expired-message{font-size:18px;font-weight:900;text-align:center;padding:24px;color:#8a1c13}
 
+body.qr-modal-open .qr-header,
+.qr-header.qr-header-hidden,
+body.qr-modal-open .qr-top-tabs {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+body.qr-modal-open {
+  overflow: hidden !important;
+}
+
+html.qr-modal-open {
+  overflow: hidden !important;
+}
+
+body.qr-page .modal {
+  z-index: 3000 !important;
+  overflow: hidden !important;
+}
+
+body.qr-page .modal-card {
+  display: flex !important;
+  flex-direction: column !important;
+  max-height: calc(100vh - 32px) !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+body.qr-page .modal-footer {
+  flex: 0 0 auto !important;
+}
+
 /* v65.3 QR UI polish: one cart modal for desktop, tablet and mobile */
 body.qr-page {
   padding-bottom: 82px !important;
@@ -2558,7 +2591,7 @@ body.qr-page #qrCartPanel.cart-area {
   background: transparent !important;
   box-shadow: none !important;
   overflow: hidden !important;
-  z-index: 950 !important;
+  z-index: 3000 !important;
 }
 
 body.qr-page #qrCartPanel.cart-area.cart-open {
