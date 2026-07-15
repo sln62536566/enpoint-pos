@@ -30,8 +30,8 @@
     <h1 id="qrStoreNameTitle">恩點點餐</h1>
     <p id="tableInfo">掃碼點餐</p>
     <nav class="qr-top-tabs" aria-label="QR 點餐分頁">
-      <a id="qrOrderTabLink" class="qr-top-tab active" href="javascript:void(0)" onclick="return window.qrShowMenuTab(event)" ontouchend="return window.qrShowMenuTab(event)">點餐</a>
-      <a id="qrViewOrderPlainLink" class="qr-top-tab last-order-top-btn" href="javascript:void(0)" onclick="return window.qrShowOrderTab(event)" ontouchend="return window.qrShowOrderTab(event)">查看訂單</a>
+      <a id="qrOrderTabLink" class="qr-top-tab active" href="javascript:void(0)">點餐</a>
+      <a id="qrViewOrderPlainLink" class="qr-top-tab last-order-top-btn" href="javascript:void(0)">查看訂單</a>
     </nav>
 </header>
 
@@ -40,7 +40,7 @@
       <h2>查看訂單</h2>
       <p class="qr-top-order-hint">送出訂單後，這裡會顯示剛剛的訂單內容。</p>
       <div id="topOrderContent"></div>
-      <button id="topNewOrderBtn" class="primary-btn qr-new-order-btn" type="button" onclick="return window.forceResetQrOrder(event)" ontouchend="return window.forceResetQrOrder(event)">重新點餐</button>
+      <button id="topNewOrderBtn" class="primary-btn qr-new-order-btn" type="button">重新點餐</button>
     </div>
   </section>
 
@@ -55,7 +55,7 @@
       <div class="qr-cart-card">
         <div class="qr-cart-title-row">
           <h2 id="qrCartTitle">我的餐點</h2>
-          <button id="closeCartBtn" class="qr-cart-close-btn" type="button" onclick="return window.closeQrCartPanel(event)" aria-label="關閉購物車">×</button>
+          <button id="closeCartBtn" class="qr-cart-close-btn" type="button" aria-label="關閉購物車">×</button>
         </div>
 
         <div class="qr-cart-body">
@@ -85,8 +85,6 @@
             id="submitOrderBtn"
             class="primary-btn"
             type="button"
-            onclick="return window.qrLegacyDirectSubmitOrder(event)"
-            ontouchend="return window.qrLegacyDirectSubmitOrder(event)"
           >送出訂單</button>
         </div>
       </div>
@@ -104,11 +102,11 @@
         狀態：等待櫃檯確認付款
       </div>
 
-      <button id="newOrderBtn" class="primary-btn" type="button" onclick="return window.forceResetQrOrder(event)" ontouchend="return window.forceResetQrOrder(event)">再點一筆</button>
+      <button id="newOrderBtn" class="primary-btn" type="button">再點一筆</button>
     </div>
   </main>
 
-  <button id="floatingCartBtn" class="qr-floating-cart-btn" type="button" onclick="return window.openQrCartPanel(event)">購物車 $0</button>
+  <button id="floatingCartBtn" class="qr-floating-cart-btn" type="button">購物車 $0</button>
 
   <div id="itemModal" class="modal hidden">
     <div class="modal-card">
@@ -138,7 +136,7 @@
 
       <div class="modal-footer">
         <div>小計：<strong id="modalSubtotal">$0</strong></div>
-        <button id="addToCartBtn" class="primary-btn" type="button" onclick="return window.qrHardAddToCart(event)" ontouchend="return window.qrHardAddToCart(event)">加入購物車</button>
+        <button id="addToCartBtn" class="primary-btn" type="button">加入購物車</button>
       </div>
     </div>
   </div>
@@ -155,7 +153,7 @@
 
       <div class="confirm-actions">
         <button id="backToCartBtn" class="secondary-btn" type="button">返回修改</button>
-        <button id="confirmSubmitBtn" class="primary-btn" type="button" onclick="return window.qrLegacyDirectSubmitOrder(event)" ontouchend="return window.qrLegacyDirectSubmitOrder(event)">確認送出</button>
+        <button id="confirmSubmitBtn" class="primary-btn" type="button">確認送出</button>
       </div>
     </div>
   </div>

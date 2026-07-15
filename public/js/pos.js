@@ -3876,13 +3876,15 @@ async function closeOrder(orderId) {
   if (!ok) return;
 
   try {
+    const now = Date.now();
     await update(ref(db, `orders/${orderId}`), {
       status: "closed",
       statusText: "訂單已結案",
       closed: true,
-      closedAt: Date.now(),
-      updatedAt: Date.now()
+      closedAt: now,
+      updatedAt: now
     });
+    await invalidateQrSessionForOrder(order, "order_closed");
   } catch (error) {
     console.error("結案失敗：", error);
     alert("結案失敗");

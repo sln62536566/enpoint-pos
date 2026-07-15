@@ -25,6 +25,11 @@ import {
   calculateOrderTotal
 } from "./order-price-core.js";
 
+import {
+  createQrSessionController,
+  createQrTabController
+} from "./qr-session.js";
+
 
 /* =========================
    v59-5 EARLY QR HARD ADD
@@ -120,11 +125,7 @@ function saveCurrentViewingOrderId(orderId) {
 
 function getSavedViewingOrderId() {
   if (currentViewingOrderId) return currentViewingOrderId;
-  try {
-    currentViewingOrderId = localStorage.getItem(LAST_ORDER_KEY) || localStorage.getItem(LAST_ORDER_KEY_COMPAT) || "";
-  } catch (e) {
-    currentViewingOrderId = "";
-  }
+  currentViewingOrderId = getQrSessionController().getOrderId() || "";
   return currentViewingOrderId;
 }
 
@@ -235,7 +236,6 @@ const qrValidMinutesRef = ref(db, "settings/qrValidMinutes");
 const orderLookupMinutesRef = ref(db, "settings/orderLookupMinutes");
 const customOptionGroupsRef = ref(db, "customOptionGroups");
 const customGroupsRef = ref(db, "customGroups");
-const qrSessionControlRef = ref(db, "qrSessionControl");
 
 let menuData = [];
 let categoriesData = {};
@@ -244,15 +244,10 @@ let customGroupsData = {};
 let currentCategory = "全部";
 let cart = [];
 let qrSessionId = "";
-let qrSessionStartedAt = 0;
 let qrSessionLastActivityAt = 0;
 let qrSessionInvalid = false;
 let qrSessionInvalidReason = "";
 let qrSessionOrderId = "";
-let qrSessionCloseDayVersion = 0;
-let qrSessionCloseDayReady = false;
-let qrSessionTimer = null;
-let qrSessionLastSyncedActivityAt = 0;
 window.qrV64SelectedCustomOptions = [];
 
 let currentOrderType = table ? "內用" : "內用";
@@ -269,96 +264,57 @@ var qrLastSubmitTapAt = 0;
 var qrLastOrderActionAt = 0;
 var qrLastOrderActionKey = "";
 var qrOrderTypeAlertLocked = false;
+var qrSessionController = null;
+
+function getQrSessionController() {
+  if (qrSessionController) return qrSessionController;
+  qrSessionController = createQrSessionController({
+    db: db,
+    ref: ref,
+    set: set,
+    update: update,
+    onValue: onValue,
+    storeId: STORE_ID,
+    table: table || "",
+    invalidMessage: QR_SESSION_INVALID_MESSAGE,
+    storage: {
+      sessionStorage: window.sessionStorage,
+      localStorage: window.localStorage
+    },
+    getTimeoutMinutes: function() {
+      return normalizeQrValidMinutes(qrValidMinutes);
+    },
+    onExpired: function() {
+      renderQrSessionExpiredState();
+    },
+    onError: function(message, error) {
+      console.error(message, error);
+    }
+  });
+  return qrSessionController;
+}
 
 function getNowMs() {
   return Date.now ? Date.now() : new Date().getTime();
 }
 
-function makeQrSessionId() {
-  var random = Math.floor(Math.random() * 1000000000);
-  return "qr_" + getNowMs() + "_" + random;
-}
-
-function getQrSessionRef(path) {
-  return ref(db, "qrSessions/" + qrSessionId + (path ? "/" + path : ""));
-}
-
-function saveQrSessionStorage() {
-  try {
-    sessionStorage.setItem("enpoint_qr_session_id", qrSessionId);
-    sessionStorage.setItem("enpoint_qr_session_started_at", String(qrSessionStartedAt));
-    sessionStorage.setItem("enpoint_qr_session_last_activity_at", String(qrSessionLastActivityAt));
-  } catch (e) {}
-}
-
 function writeQrSessionPatch(patch) {
-  if (!qrSessionId || !patch) return;
-  try {
-    update(getQrSessionRef(""), patch).catch(function(error) {
-      console.error("QR session update failed", error);
-    });
-  } catch (e) {}
+  getQrSessionController().writePatch(patch);
 }
 
 function ensureQrSession() {
-  if (qrSessionId) return qrSessionId;
-  var now = getNowMs();
-  var hadStoredSession = false;
-  try {
-    qrSessionId = sessionStorage.getItem("enpoint_qr_session_id") || "";
-    qrSessionStartedAt = Number(sessionStorage.getItem("enpoint_qr_session_started_at") || 0);
-    qrSessionLastActivityAt = Number(sessionStorage.getItem("enpoint_qr_session_last_activity_at") || 0);
-    hadStoredSession = !!qrSessionId;
-  } catch (e) {}
-  if (!qrSessionId || !qrSessionStartedAt) {
-    qrSessionId = makeQrSessionId();
-    qrSessionStartedAt = now;
-    qrSessionLastActivityAt = now;
-    hadStoredSession = false;
-  }
-  if (!qrSessionLastActivityAt) qrSessionLastActivityAt = now;
-  saveQrSessionStorage();
-  try {
-    if (hadStoredSession) {
-      update(getQrSessionRef(""), {
-        lastSeenAt: now,
-        timeoutMinutes: normalizeQrValidMinutes(qrValidMinutes)
-      }).catch(function(error) {
-        console.error("QR session resume failed", error);
-      });
-    } else {
-      set(getQrSessionRef(""), {
-        id: qrSessionId,
-        storeId: STORE_ID,
-        table: table || "",
-        status: "active",
-        startedAt: qrSessionStartedAt,
-        lastActivityAt: qrSessionLastActivityAt,
-        timeoutMinutes: normalizeQrValidMinutes(qrValidMinutes),
-        orderId: qrSessionOrderId || "",
-        createdFrom: "qr",
-        userAgent: typeof navigator !== "undefined" && navigator.userAgent ? String(navigator.userAgent).slice(0, 240) : ""
-      }).catch(function(error) {
-        console.error("QR session create failed", error);
-      });
-    }
-  } catch (e2) {}
+  qrSessionId = getQrSessionController().ensure();
+  var state = getQrSessionController().getState();
+  qrSessionLastActivityAt = state.lastActivityAt;
+  qrSessionOrderId = state.orderId || qrSessionOrderId || "";
   return qrSessionId;
 }
 
 function markQrSessionActivity(forceSync) {
-  if (qrSessionInvalid) return;
-  ensureQrSession();
-  var now = getNowMs();
-  qrSessionLastActivityAt = now;
-  saveQrSessionStorage();
-  if (forceSync || now - qrSessionLastSyncedActivityAt > 30000) {
-    qrSessionLastSyncedActivityAt = now;
-    writeQrSessionPatch({
-      lastActivityAt: now,
-      timeoutMinutes: normalizeQrValidMinutes(qrValidMinutes)
-    });
-  }
+  getQrSessionController().markActivity(forceSync);
+  var state = getQrSessionController().getState();
+  qrSessionId = state.id;
+  qrSessionLastActivityAt = state.lastActivityAt;
 }
 
 function ensureQrSessionExpiredOverlay() {
@@ -381,11 +337,9 @@ function setQrOrderingDisabled(disabled) {
   else removeBodyClass("qr-session-expired");
 }
 
-function invalidateQrSession(reason, skipRemoteWrite) {
-  if (qrSessionInvalid) return false;
-  ensureQrSession();
+function renderQrSessionExpiredState() {
   qrSessionInvalid = true;
-  qrSessionInvalidReason = reason || QR_SESSION_INVALID_MESSAGE;
+  qrSessionInvalidReason = getQrSessionController().getState().invalidReason || QR_SESSION_INVALID_MESSAGE;
   cart = [];
   try { renderCart(); } catch (e) { try { legacyRenderQrCart(); } catch (e2) {} }
   try { closeQrCartPanel(); } catch (e3) {}
@@ -402,75 +356,32 @@ function invalidateQrSession(reason, skipRemoteWrite) {
   var overlay = ensureQrSessionExpiredOverlay();
   overlay.style.display = "flex";
   setQrOrderingDisabled(true);
-  if (!skipRemoteWrite) {
-    writeQrSessionPatch({
-      status: "expired",
-      invalidReason: qrSessionInvalidReason,
-      invalidatedAt: getNowMs(),
-      updatedAt: getNowMs()
-    });
-  }
+}
+
+function invalidateQrSession(reason, skipRemoteWrite) {
+  getQrSessionController().invalidate(reason || QR_SESSION_INVALID_MESSAGE, skipRemoteWrite);
+  var state = getQrSessionController().getState();
+  qrSessionInvalid = state.invalid;
+  qrSessionInvalidReason = state.invalidReason || QR_SESSION_INVALID_MESSAGE;
   return false;
 }
 
 function ensureQrSessionActive() {
-  if (qrSessionInvalid) {
-    ensureQrSessionExpiredOverlay().style.display = "flex";
-    return false;
-  }
-  if (isQrOrderingExpired()) {
-    invalidateQrSession(QR_SESSION_INVALID_MESSAGE, false);
-    return false;
-  }
-  markQrSessionActivity(false);
-  return true;
-}
-
-function checkQrSessionExpiry() {
-  if (qrSessionInvalid) return;
-  if (isQrOrderingExpired()) invalidateQrSession(QR_SESSION_INVALID_MESSAGE, false);
-}
-
-function bindQrSessionActivityListeners() {
-  var events = ["click", "touchend", "keydown", "input", "change"];
-  for (var i = 0; i < events.length; i += 1) {
-    document.addEventListener(events[i], function() {
-      markQrSessionActivity(false);
-    }, true);
-  }
+  var isActive = getQrSessionController().active();
+  var state = getQrSessionController().getState();
+  qrSessionInvalid = state.invalid;
+  qrSessionInvalidReason = state.invalidReason || "";
+  qrSessionId = state.id || qrSessionId;
+  qrSessionLastActivityAt = state.lastActivityAt || qrSessionLastActivityAt;
+  return isActive;
 }
 
 function startQrSessionWatchers() {
-  ensureQrSession();
-  markQrSessionActivity(true);
-  bindQrSessionActivityListeners();
-  try {
-    onValue(getQrSessionRef(""), function(snapshot) {
-      var session = snapshot && snapshot.val ? snapshot.val() : null;
-      if (!session) return;
-      qrSessionOrderId = session.orderId || qrSessionOrderId || "";
-      if (session.status === "completed" || session.status === "closedDay" || session.status === "expired" || session.status === "invalid") {
-        invalidateQrSession(QR_SESSION_INVALID_MESSAGE, true);
-      }
-    });
-  } catch (e) {}
-  try {
-    onValue(ref(db, "qrSessionControl/closeDayVersion"), function(snapshot) {
-      var version = Number(snapshot && snapshot.val ? snapshot.val() : 0);
-      if (!version) return;
-      if (!qrSessionCloseDayReady) {
-        qrSessionCloseDayReady = true;
-        qrSessionCloseDayVersion = version;
-        return;
-      }
-      if (version !== qrSessionCloseDayVersion) {
-        qrSessionCloseDayVersion = version;
-        invalidateQrSession(QR_SESSION_INVALID_MESSAGE, false);
-      }
-    });
-  } catch (e2) {}
-  if (qrSessionTimer) clearInterval(qrSessionTimer);
-  qrSessionTimer = setInterval(checkQrSessionExpiry, 15000);
+  getQrSessionController().start();
+  var state = getQrSessionController().getState();
+  qrSessionId = state.id;
+  qrSessionLastActivityAt = state.lastActivityAt;
+  qrSessionOrderId = state.orderId || "";
 }
 
 const SPICY_OPTIONS = ["不辣", "微辣", "小辣", "中辣", "大辣"];
@@ -1032,12 +943,12 @@ function isQrSizeCustomOption(option) {
   return groupId === "__legacy_sizes" || groupName.indexOf("份量") !== -1 || groupName.indexOf("size") !== -1 || groupName.indexOf("大小") !== -1;
 }
 
-function getQrSelectedSizeName(customOptions, fallback) {
+function getQrSelectedSizeName(customOptions, defaultName) {
   var list = Array.isArray(customOptions) ? customOptions : [];
   for (var i = 0; i < list.length; i += 1) {
     if (isQrSizeCustomOption(list[i]) && list[i].name) return String(list[i].name);
   }
-  return fallback || "";
+  return defaultName || "";
 }
 
 function getQrItemSize(item) {
@@ -1081,7 +992,11 @@ function renderQrCustomOptionGroups() {
   box.innerHTML = html;
   addonsSection.appendChild(box);
   var buttons = box.querySelectorAll(".qr-v64-option");
-  for (var i = 0; i < buttons.length; i += 1) buttons[i].onclick = function() { toggleQrCustomOption(this); };
+  for (var i = 0; i < buttons.length; i += 1) {
+    buttons[i].addEventListener("click", function() {
+      toggleQrCustomOption(this);
+    });
+  }
 }
 
 function toggleQrCustomOption(button) {
@@ -1219,7 +1134,7 @@ function legacyRenderQrCart() {
     if (item.note) html += '<p>備註：' + item.note + '</p>';
     html += '</div></div>';
     html += '<div class="cart-price"><strong>$' + subtotal + '</strong>';
-    html += '<button class="remove-btn" type="button" onclick="return window.legacyRemoveQrCartItem(' + i + ')">刪除</button>';
+    html += '<button class="remove-btn" type="button" data-index="' + i + '">刪除</button>';
     html += '</div></div>';
   }
   list.innerHTML = html;
@@ -1310,14 +1225,19 @@ function qrAddCurrentItemToCart(event) {
 window.qrAddCurrentItemToCart = qrAddCurrentItemToCart;
 window.qrHardAddToCart = qrAddCurrentItemToCart;
 if (addToCartBtn) {
-  addToCartBtn.onclick = qrAddCurrentItemToCart;
-  addToCartBtn.ontouchend = qrAddCurrentItemToCart;
+  addToCartBtn.addEventListener("click", qrAddCurrentItemToCart);
 }
 
 function forceResetQrOrder(event) {
   if (event) {
     event.preventDefault && event.preventDefault();
     event.stopPropagation && event.stopPropagation();
+  }
+
+  var sessionOrderId = getQrSessionController().getOrderId() || currentViewingOrderId || "";
+  if (sessionOrderId) {
+    loadViewingOrderById(sessionOrderId, false);
+    return false;
   }
 
   try {
@@ -1357,12 +1277,10 @@ function forceResetQrOrder(event) {
 }
 window.forceResetQrOrder = forceResetQrOrder;
 if (newOrderBtn) {
-  newOrderBtn.onclick = forceResetQrOrder;
-  newOrderBtn.ontouchend = forceResetQrOrder;
+  newOrderBtn.addEventListener("click", forceResetQrOrder);
 }
 if (topNewOrderBtn) {
-  topNewOrderBtn.onclick = forceResetQrOrder;
-  topNewOrderBtn.ontouchend = forceResetQrOrder;
+  topNewOrderBtn.addEventListener("click", forceResetQrOrder);
 }
 
 function getQrCartTotal() {
@@ -1407,6 +1325,8 @@ function closeQrCartPanel(event) {
 
 window.openQrCartPanel = openQrCartPanel;
 window.closeQrCartPanel = closeQrCartPanel;
+if (floatingCartBtn) floatingCartBtn.addEventListener("click", openQrCartPanel);
+if (closeCartBtn) closeCartBtn.addEventListener("click", closeQrCartPanel);
 
 if (qrCartPanel) {
   qrCartPanel.setAttribute("aria-hidden", "true");
@@ -1548,9 +1468,6 @@ window.qrSubmitOrderNow = function (event) {
 
 submitOrderBtn.addEventListener("click", event => {
   if (event && event.defaultPrevented) return false;
-  if (typeof window.qrLegacyDirectSubmitOrder === "function") {
-    return window.qrLegacyDirectSubmitOrder(event);
-  }
   return window.qrSubmitOrderNow(event);
 });
 
@@ -1623,12 +1540,7 @@ function submitConfirmedQrOrder(event) {
     .then(function (order) {
       saveCurrentViewingOrderId(order.id);
       qrSessionOrderId = order.id;
-      writeQrSessionPatch({
-        status: "submitted",
-        orderId: order.id,
-        submittedAt: getNowMs(),
-        updatedAt: getNowMs()
-      });
+      getQrSessionController().setSubmittedOrder(order.id);
 
       confirmModal.classList.add("hidden");
       showSubmittedOrderView(order, true);
@@ -1655,8 +1567,6 @@ function submitConfirmedQrOrder(event) {
 }
 
 confirmSubmitBtn.addEventListener("click", submitConfirmedQrOrder);
-confirmSubmitBtn.onclick = submitConfirmedQrOrder;
-confirmSubmitBtn.ontouchend = submitConfirmedQrOrder;
 window.submitConfirmedQrOrder = submitConfirmedQrOrder;
 
 function getOrderStatusText(order) {
@@ -1714,6 +1624,35 @@ function escapeHtml(value) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 }
+
+function renderItemDetail(item) {
+  if (!item) return "";
+  var html = "";
+  var itemSize = getQrItemSize(item);
+  if (itemSize) html += "<p>尺寸：" + escapeHtml(itemSize) + "</p>";
+  if (item.requiredOption && item.requiredOption.title && item.requiredOption.value) {
+    html += "<p>" + escapeHtml(item.requiredOption.title) + "：" + escapeHtml(item.requiredOption.value) + "</p>";
+  }
+  if (item.spicy) html += "<p>辣度：" + escapeHtml(item.spicy) + "</p>";
+  if (item.satay) html += "<p>沙茶：" + escapeHtml(item.satay) + "</p>";
+  var addons = item.addons || item.extras || [];
+  if (addons && addons.length) {
+    var names = [];
+    for (var i = 0; i < addons.length; i += 1) {
+      var addon = addons[i];
+      if (typeof addon === "string") {
+        names.push(addon);
+      } else {
+        names.push((addon.name || addon.label || "加點") + (Number(addon.price || 0) ? " +$" + Number(addon.price || 0) : ""));
+      }
+    }
+    html += "<p>加點：" + escapeHtml(names.join("、")) + "</p>";
+  }
+  if (item.note) html += "<p>備註：" + escapeHtml(item.note) + "</p>";
+  return html;
+}
+
+window.renderItemDetail = renderItemDetail;
 
 function getDirectOrderIdFromUrl() {
   return "";
@@ -1874,11 +1813,10 @@ function showSubmittedOrderView(order, updateUrl) {
 
 function loadViewingOrderById(orderId, updateUrl) {
   var id = orderId || getSavedViewingOrderId();
-  if (!id) {
+  if (!id || !getQrSessionController().canViewOrder(id)) {
     renderDirectOrderMissing();
     return false;
   }
-  saveCurrentViewingOrderId(id);
   showDirectOrderShell();
   if (topOrderContent) topOrderContent.innerHTML = '<div class="qr-direct-order-card"><div class="empty">讀取訂單中...</div></div>';
   try {
@@ -1901,7 +1839,7 @@ function loadViewingOrderById(orderId, updateUrl) {
 function renderDirectOrderMissing() {
   showDirectOrderShell();
   if (topOrderContent) {
-    topOrderContent.innerHTML = '<div class="qr-direct-order-card"><div class="empty">找不到此訂單或訂單已過期</div></div>';
+    topOrderContent.innerHTML = '<div class="qr-direct-order-card"><div class="empty">目前沒有可查看的訂單。</div></div>';
   }
 }
 
@@ -1941,8 +1879,23 @@ function listenOrderStatus(orderId) {
 
   onValue(orderRef, snapshot => {
     const order = snapshot.val();
-    if (!order) return;
+    if (!order) {
+      if (getQrSessionController().canViewOrder(orderId)) {
+        getQrSessionController().expireForCompletedOrder(orderId);
+      }
+      return;
+    }
     var fullOrder = { id: orderId, ...order };
+    if (
+      getQrSessionController().canViewOrder(orderId) &&
+      (fullOrder.status === "closed" ||
+        fullOrder.status === "done" ||
+        fullOrder.status === "completed" ||
+        fullOrder.closed === true)
+    ) {
+      getQrSessionController().expireForCompletedOrder(orderId);
+      return;
+    }
     var bodyClass = document.body ? " " + String(document.body.className || "") + " " : "";
     var isOrderVisible = bodyClass.indexOf(" qr-direct-order-mode ") >= 0 || bodyClass.indexOf(" qr-tab-order ") >= 0;
     var isSuccessVisible = successPage && (" " + String(successPage.className || "") + " ").indexOf(" hidden ") === -1 && successPage.style.display !== "none";
@@ -2055,15 +2008,7 @@ function loadQrValidMinutes() {
 }
 
 function isQrOrderingExpired() {
-  var minutes = normalizeQrValidMinutes(qrValidMinutes);
-  var lastActivityAt = Number(qrSessionLastActivityAt || 0);
-  if (!lastActivityAt) {
-    try {
-      lastActivityAt = Number(sessionStorage.getItem("enpoint_qr_session_last_activity_at") || sessionStorage.getItem("enpoint_qr_session_started_at") || 0);
-    } catch (e) {}
-  }
-  if (!lastActivityAt) return false;
-  return getNowMs() - lastActivityAt > minutes * 60 * 1000;
+  return getQrSessionController().isExpired();
 }
 
 function showQrOrderingExpired() {
@@ -2197,923 +2142,6 @@ menuList.addEventListener("touchend", function (event) {
 renderCart();
 loadLastOrderIfExists();
 
-// =========================
-// v58-46 舊平板送單強制修正
-// =========================
-
-function legacySubmitOrder(event) {
-  if (!shouldHandleQrOrderAction(event, "submitOrder", 2200)) return false;
-  if (cart.length === 0) {
-    alert("購物車目前是空的");
-    return false;
-  }
-
-  renderConfirmModal();
-  return false;
-}
-
-window.legacySubmitOrder = legacySubmitOrder;
-
-if (submitOrderBtn) {
-  submitOrderBtn.onclick = function (event) {
-    if (event) {
-      event.preventDefault();
-      event.stopPropagation();
-    }
-
-    legacySubmitOrder(event);
-    return false;
-  };
-
-  submitOrderBtn.ontouchend = function (event) {
-    if (event) {
-      event.preventDefault();
-      event.stopPropagation();
-    }
-
-    legacySubmitOrder(event);
-    return false;
-  };
-}
-
-/* QR legacy tablet tap bridge.
-   Older iPad/Android WebKit can show :active on a card but fail the later delegated click path.
-   This bridge records real menu-card touches in capture phase and replays one clean click on the card. */
-(function () {
-  if (typeof window === "undefined" || typeof document === "undefined") return;
-
-  var lastTouchAt = 0;
-  var lastTouchCard = null;
-  var replaying = false;
-  var modalControlReplaying = false;
-  var orderControlReplaying = false;
-  var lastOrderReplayAt = 0;
-  var lastOrderReplayControl = null;
-  var capturedHandlers = [];
-  var touchStartX = 0;
-  var touchStartY = 0;
-  var touchMoved = false;
-
-  if (typeof EventTarget !== "undefined" && EventTarget.prototype && !window.__ENPOINT_QR_EVENT_PATCHED__) {
-    window.__ENPOINT_QR_EVENT_PATCHED__ = true;
-    var nativeAddEventListener = EventTarget.prototype.addEventListener;
-    EventTarget.prototype.addEventListener = function (type, listener, options) {
-      if ((type === "click" || type === "submit") && listener) {
-        capturedHandlers.push({
-          target: this,
-          type: type,
-          listener: listener,
-        });
-      }
-      return nativeAddEventListener.call(this, type, listener, options);
-    };
-  }
-
-  function legacyDebug(message) {
-    window.__ENPOINT_QR_LEGACY_DEBUG__ = message;
-    if (window.location.search.indexOf("qrdebug=1") === -1) return;
-
-    var badge = document.getElementById("qrLegacyDebug");
-    if (!badge) {
-      badge = document.createElement("div");
-      badge.id = "qrLegacyDebug";
-      badge.style.cssText =
-        "position:fixed;left:8px;bottom:8px;z-index:2147483647;background:#111;color:#fff;padding:8px 10px;border-radius:6px;font:12px/1.3 -apple-system,BlinkMacSystemFont,sans-serif;max-width:85vw;box-shadow:0 2px 10px rgba(0,0,0,.25);";
-      document.body.appendChild(badge);
-    }
-    badge.innerHTML = message;
-  }
-
-  window.onerror = function (message, source, line, column, error) {
-    legacyDebug(
-      "js error: " +
-        message +
-        (line ? " @" + line : "") +
-        (error && error.name ? " " + error.name : "")
-    );
-    return false;
-  };
-
-  legacyDebug("legacy patch loaded v58-45");
-
-  if (typeof EventTarget !== "undefined" && EventTarget.prototype && !window.__ENPOINT_QR_EVENT_PATCHED__) {
-    window.__ENPOINT_QR_EVENT_PATCHED__ = true;
-    var nativeAddEventListener = EventTarget.prototype.addEventListener;
-    EventTarget.prototype.addEventListener = function (type, listener, options) {
-      if ((type === "click" || type === "touchend" || type === "pointerup") && listener) {
-        capturedHandlers.push({
-          target: this,
-          type: type,
-          listener: listener,
-        });
-      }
-      return nativeAddEventListener.call(this, type, listener, options);
-    };
-  }
-
-  function hasClass(el, className) {
-    return !!(
-      el &&
-      typeof el.className === "string" &&
-      (" " + el.className + " ").indexOf(" " + className + " ") !== -1
-    );
-  }
-
-  function findMenuCard(target) {
-    var el = target;
-    while (el && el !== document) {
-      if (hasClass(el, "menu-card")) return el;
-      el = el.parentNode;
-    }
-    return null;
-  }
-
-  function getCardId(card) {
-    if (!card) return "";
-    if (card.getAttribute) return card.getAttribute("data-id") || "";
-    return "";
-  }
-
-  function isInsideOrderOrCart(target) {
-    var el = target;
-    while (el && el !== document) {
-      var id = el.id || "";
-      var className = typeof el.className === "string" ? el.className : "";
-      if (
-        id === "submitOrderBTN" ||
-        id === "submitOrderBtn" ||
-        id === "sendOrderBTN" ||
-        id === "checkoutBTN" ||
-        id === "checkoutBtn" ||
-        id === "cartDrawer" ||
-        id === "cartPanel" ||
-        id === "cartModal" ||
-        id === "cartItems" ||
-        id === "qrLegacyModalHost" ||
-        className.indexOf("submit-order") !== -1 ||
-        className.indexOf("send-order") !== -1 ||
-        className.indexOf("checkout-btn") !== -1 ||
-        className.indexOf("cart-drawer") !== -1 ||
-        className.indexOf("cart-panel") !== -1 ||
-        className.indexOf("cart-modal") !== -1
-      ) {
-        return true;
-      }
-      el = el.parentNode;
-    }
-    return false;
-  }
-
-  function isInsideMenuList(target) {
-    var el = target;
-    while (el && el !== document) {
-      var id = el.id || "";
-      var className = typeof el.className === "string" ? el.className : "";
-      if (
-        id === "menuList" ||
-        id === "menu-list" ||
-        id === "menuGrid" ||
-        id === "menu-grid" ||
-        className.indexOf("menu-list") !== -1 ||
-        className.indexOf("menu-grid") !== -1
-      ) {
-        return true;
-      }
-      el = el.parentNode;
-    }
-    return false;
-  }
-
-  function shouldReplayHandler(target) {
-    if (!target) return false;
-    if (target === document || target === window) return true;
-    var id = target.id || "";
-    var className = typeof target.className === "string" ? target.className : "";
-    return (
-      id === "menuList" ||
-      id === "menu-list" ||
-      id === "menuGrid" ||
-      id === "menu-grid" ||
-      className.indexOf("menu-list") !== -1 ||
-      className.indexOf("menu-grid") !== -1 ||
-      className.indexOf("menu-card") !== -1
-    );
-  }
-
-  function shouldReplayModalHandler(target) {
-    if (!target) return false;
-    if (target === document || target === window) return true;
-    var id = target.id || "";
-    var className = typeof target.className === "string" ? target.className : "";
-    return (
-      id === "itemModal" ||
-      id === "item-modal" ||
-      id === "itemDetailModal" ||
-      id === "item-detail-modal" ||
-      id === "qrLegacyModalHost" ||
-      className.indexOf("modal") !== -1 ||
-      className.indexOf("item-modal") !== -1 ||
-      className.indexOf("cart") !== -1 ||
-      className.indexOf("option") !== -1 ||
-      className.indexOf("addon") !== -1
-    );
-  }
-
-  function callOriginalHandlers(card, sourceEvent) {
-    if (replaying) return;
-    replaying = true;
-
-    var fakeEvent = {
-      type: "click",
-      target: card,
-      currentTarget: card,
-      srcElement: card,
-      bubbles: true,
-      cancelable: true,
-      defaultPrevented: false,
-      preventDefault: function () {
-        this.defaultPrevented = true;
-      },
-      stopPropagation: function () {},
-      stopImmediatePropagation: function () {},
-      originalEvent: sourceEvent || null,
-    };
-
-    capturedHandlers.forEach(function (entry) {
-      if (entry.type !== "click" && entry.type !== "touchend" && entry.type !== "pointerup") return;
-      if (!shouldReplayHandler(entry.target)) return;
-      try {
-        fakeEvent.type = entry.type;
-        if (typeof entry.listener === "function") {
-          fakeEvent.currentTarget = entry.target;
-          entry.listener.call(entry.target, fakeEvent);
-        } else if (entry.listener && typeof entry.listener.handleEvent === "function") {
-          fakeEvent.currentTarget = entry.target;
-          entry.listener.handleEvent(fakeEvent);
-        }
-      } catch (err) {
-        window.__ENPOINT_QR_LAST_REPLAY_ERROR__ = err;
-      }
-    });
-
-    replaying = false;
-  }
-
-  function callModalHandlers(target, sourceEvent) {
-    if (replaying) return;
-    replaying = true;
-
-    var fakeEvent = {
-      type: "click",
-      target: target,
-      currentTarget: target,
-      srcElement: target,
-      bubbles: true,
-      cancelable: true,
-      defaultPrevented: false,
-      preventDefault: function () {
-        this.defaultPrevented = true;
-      },
-      stopPropagation: function () {},
-      stopImmediatePropagation: function () {},
-      originalEvent: sourceEvent || null,
-    };
-
-    capturedHandlers.forEach(function (entry) {
-      if (entry.type !== "click" && entry.type !== "touchend" && entry.type !== "pointerup") return;
-      if (!shouldReplayModalHandler(entry.target) && entry.target !== target) return;
-      try {
-        fakeEvent.type = entry.type;
-        fakeEvent.currentTarget = entry.target;
-        if (typeof entry.listener === "function") {
-          entry.listener.call(entry.target, fakeEvent);
-        } else if (entry.listener && typeof entry.listener.handleEvent === "function") {
-          entry.listener.handleEvent(fakeEvent);
-        }
-      } catch (err) {
-        window.__ENPOINT_QR_LAST_MODAL_REPLAY_ERROR__ = err;
-        legacyDebug("modal handler error: " + (err.message || err));
-      }
-    });
-
-    replaying = false;
-  }
-
-  function findLegacyModalControl(target) {
-    var el = target;
-    while (el && el !== document) {
-      var tag = el.tagName ? el.tagName.toLowerCase() : "";
-      var id = el.id || "";
-      var className = typeof el.className === "string" ? el.className : "";
-      if (
-        tag === "button" ||
-        tag === "a" ||
-        tag === "input" ||
-        id.indexOf("cart") !== -1 ||
-        id.indexOf("Cart") !== -1 ||
-        className.indexOf("btn") !== -1 ||
-        className.indexOf("close") !== -1 ||
-        className.indexOf("cart") !== -1
-      ) {
-        return el;
-      }
-      el = el.parentNode;
-    }
-    return null;
-  }
-
-  function isLegacyCloseControl(el) {
-    if (!el) return false;
-    var text = (el.textContent || el.value || "").replace(/\s+/g, "");
-    var id = el.id || "";
-    var className = typeof el.className === "string" ? el.className : "";
-    var dismiss =
-      (el.getAttribute && (el.getAttribute("data-dismiss") || el.getAttribute("data-bs-dismiss"))) || "";
-    return (
-      dismiss === "modal" ||
-      id.indexOf("close") !== -1 ||
-      id.indexOf("Close") !== -1 ||
-      className.indexOf("close") !== -1 ||
-      className.indexOf("btn-close") !== -1 ||
-      text === "×" ||
-      text === "x" ||
-      text === "X" ||
-      text === "取消"
-    );
-  }
-
-  function isLegacyAddToCartControl(el) {
-    if (!el) return false;
-    var text = (el.textContent || el.value || "").replace(/\s+/g, "");
-    var id = el.id || "";
-    var className = typeof el.className === "string" ? el.className : "";
-    var action = (el.getAttribute && (el.getAttribute("data-action") || el.getAttribute("data-role"))) || "";
-    return (
-      id.indexOf("addToCart") !== -1 ||
-      id.indexOf("add-to-cart") !== -1 ||
-      id.indexOf("cart") !== -1 ||
-      className.indexOf("add-to-cart") !== -1 ||
-      className.indexOf("addToCart") !== -1 ||
-      className.indexOf("cart") !== -1 ||
-      action.indexOf("cart") !== -1 ||
-      text.indexOf("加入購物車") !== -1 ||
-      text.indexOf("加入餐車") !== -1 ||
-      text.indexOf("加入") !== -1
-    );
-  }
-
-  function isLegacyOrderControl(el) {
-    if (!el) return false;
-    var text = (el.textContent || el.value || "").replace(/\s+/g, "");
-    var id = el.id || "";
-    var className = typeof el.className === "string" ? el.className : "";
-    var action = (el.getAttribute && (el.getAttribute("data-action") || el.getAttribute("data-role"))) || "";
-    return (
-      id.indexOf("submitOrder") !== -1 ||
-      id.indexOf("submit-order") !== -1 ||
-      id.indexOf("sendOrder") !== -1 ||
-      id.indexOf("send-order") !== -1 ||
-      id.indexOf("checkout") !== -1 ||
-      className.indexOf("submit-order") !== -1 ||
-      className.indexOf("send-order") !== -1 ||
-      className.indexOf("checkout") !== -1 ||
-      action.indexOf("submit") !== -1 ||
-      action.indexOf("order") !== -1 ||
-      action.indexOf("checkout") !== -1 ||
-      text.indexOf("送出訂單") !== -1 ||
-      text.indexOf("送出") !== -1 ||
-      text.indexOf("送單") !== -1 ||
-      text.indexOf("結帳") !== -1 ||
-      text.indexOf("確認訂單") !== -1
-    );
-  }
-
-  function findLegacyOrderControl(target) {
-    var el = target;
-    while (el && el !== document) {
-      var tag = el.tagName ? el.tagName.toLowerCase() : "";
-      if (
-        (tag === "button" || tag === "a" || tag === "input") &&
-        (el.id === "submitOrderBTN" ||
-          el.id === "submitOrderBtn" ||
-          el.id === "sendOrderBTN" ||
-          el.id === "checkoutBTN" ||
-          el.id === "checkoutBtn")
-      ) {
-        return el;
-      }
-      el = el.parentNode;
-    }
-    return null;
-  }
-
-  function dispatchLegacyMouseSequence(control) {
-    ["touchstart", "touchend", "mousedown", "mouseup", "click", "input", "change"].forEach(function (type) {
-      var mouseEvent;
-      if (type.indexOf("touch") === 0 && typeof Event === "function") {
-        mouseEvent = new Event(type, {
-          bubbles: true,
-          cancelable: true,
-        });
-      } else if (typeof MouseEvent === "function" && (type === "mousedown" || type === "mouseup" || type === "click")) {
-        mouseEvent = new MouseEvent(type, {
-          bubbles: true,
-          cancelable: true,
-          view: window,
-        });
-      } else if (typeof Event === "function") {
-        mouseEvent = new Event(type, {
-          bubbles: true,
-          cancelable: true,
-        });
-      } else {
-        if (type === "mousedown" || type === "mouseup" || type === "click") {
-          mouseEvent = document.createEvent("MouseEvents");
-          mouseEvent.initMouseEvent(type, true, true, window, 1, 0, 0, 0, 0, false, false, false, false, 0, null);
-        } else {
-          mouseEvent = document.createEvent("Event");
-          mouseEvent.initEvent(type, true, true);
-        }
-      }
-      control.dispatchEvent(mouseEvent);
-    });
-  }
-
-  function shouldReplayOrderHandler(target, control) {
-    if (!target) return false;
-    if (target === document || target === window) return true;
-    if (target === control) return true;
-
-    var id = target.id || "";
-    var className = typeof target.className === "string" ? target.className : "";
-    return (
-      id.indexOf("cart") !== -1 ||
-      id.indexOf("Cart") !== -1 ||
-      id.indexOf("order") !== -1 ||
-      id.indexOf("Order") !== -1 ||
-      id.indexOf("checkout") !== -1 ||
-      id.indexOf("Checkout") !== -1 ||
-      className.indexOf("cart") !== -1 ||
-      className.indexOf("order") !== -1 ||
-      className.indexOf("checkout") !== -1 ||
-      className.indexOf("footer") !== -1 ||
-      className.indexOf("bar") !== -1
-    );
-  }
-
-  function replayCapturedOrderHandlers(control) {
-    var replayed = 0;
-
-    capturedHandlers.forEach(function (entry) {
-      if (entry.type !== "click" && entry.type !== "submit") return;
-      if (!shouldReplayOrderHandler(entry.target, control)) return;
-
-      var fakeEvent = {
-        type: entry.type,
-        target: control,
-        currentTarget: entry.target,
-        srcElement: control,
-        bubbles: true,
-        cancelable: true,
-        defaultPrevented: false,
-        preventDefault: function () {
-          this.defaultPrevented = true;
-        },
-        stopPropagation: function () {},
-        stopImmediatePropagation: function () {},
-      };
-
-      try {
-        if (typeof entry.listener === "function") {
-          entry.listener.call(entry.target, fakeEvent);
-        } else if (entry.listener && typeof entry.listener.handleEvent === "function") {
-          entry.listener.handleEvent(fakeEvent);
-        }
-        replayed += 1;
-      } catch (err) {
-        window.__ENPOINT_QR_LAST_ORDER_REPLAY_ERROR__ = err;
-        legacyDebug("order handler error: " + (err.message || err));
-      }
-    });
-
-    return replayed;
-  }
-
-  function callKnownOrderFunctions(control) {
-    var names = [
-      "submitOrder",
-      "sendOrder",
-      "placeOrder",
-      "checkout",
-      "confirmOrder",
-      "handleSubmitOrder",
-      "handleSendOrder",
-      "submitCart",
-      "sendCart",
-      "createOrder",
-      "createQrOrder",
-      "submitQrOrder",
-    ];
-    var called = 0;
-
-    names.forEach(function (name) {
-      if (typeof window[name] !== "function") return;
-      try {
-        window[name]({
-          type: "click",
-          target: control,
-          currentTarget: control,
-          preventDefault: function () {},
-          stopPropagation: function () {},
-        });
-        called += 1;
-      } catch (err) {
-        window.__ENPOINT_QR_LAST_ORDER_FUNCTION_ERROR__ = err;
-        legacyDebug("order function error: " + name + " " + (err.message || err));
-      }
-    });
-
-    return called;
-  }
-
-  function callOrderOnclick(control) {
-    if (!control || typeof control.onclick !== "function") return 0;
-    try {
-      control.onclick.call(control, {
-        type: "click",
-        target: control,
-        currentTarget: control,
-        preventDefault: function () {},
-        stopPropagation: function () {},
-      });
-      return 1;
-    } catch (err) {
-      window.__ENPOINT_QR_LAST_ORDER_ONCLICK_ERROR__ = err;
-      legacyDebug("order onclick error: " + (err.message || err));
-      return 0;
-    }
-  }
-
-  function replayLegacyOrderControl(event) {
-    if (orderControlReplaying || modalControlReplaying) return;
-    if (event && event.type && event.type !== "touchend" && event.type !== "click") return;
-
-    var host = document.getElementById("qrLegacyModalHost");
-    if (host && host.style.display !== "none" && host.contains(event.target)) return;
-
-    var control = findLegacyOrderControl(event.target);
-    if (!control) return;
-    lastTouchCard = null;
-
-    var now = Date.now();
-    if (lastOrderReplayControl === control && now - lastOrderReplayAt < 1200) return;
-    lastOrderReplayControl = control;
-    lastOrderReplayAt = now;
-
-    window.setTimeout(function () {
-      orderControlReplaying = true;
-      if (typeof control.click === "function") {
-        try {
-          control.click();
-        } catch (err) {
-          window.__ENPOINT_QR_LAST_ORDER_CLICK_ERROR__ = err;
-        }
-      }
-      dispatchLegacyMouseSequence(control);
-
-      var form = control.form || (control.closest && control.closest("form"));
-      if (form && typeof Event === "function") {
-        var submitEvent = new Event("submit", {
-          bubbles: true,
-          cancelable: true,
-        });
-        form.dispatchEvent(submitEvent);
-        if (typeof form.submit === "function") {
-          try {
-            form.submit();
-          } catch (err) {
-            window.__ENPOINT_QR_LAST_ORDER_SUBMIT_ERROR__ = err;
-          }
-        }
-      }
-
-      var onclickCalled = callOrderOnclick(control);
-      var replayed = replayCapturedOrderHandlers(control);
-      var called = callKnownOrderFunctions(control);
-
-      orderControlReplaying = false;
-      legacyDebug(
-        "order control click: " +
-          (control.tagName || "") +
-          "#" +
-          (control.id || "") +
-          "." +
-          (control.className || "") +
-          " handlers:" +
-          replayed +
-          " onclick:" +
-          onclickCalled +
-          " funcs:" +
-          called
-      );
-    }, 0);
-  }
-
-  function closeLegacyModal() {
-    var host = document.getElementById("qrLegacyModalHost");
-    var modal =
-      document.getElementById("itemModal") ||
-      document.getElementById("item-modal") ||
-      document.getElementById("itemDetailModal") ||
-      document.getElementById("item-detail-modal") ||
-      document.querySelector(".item-modal");
-    var backdrop = document.getElementById("qrLegacyBackdrop");
-
-    if (modal) {
-      modal.removeAttribute("open");
-      modal.setAttribute("aria-hidden", "true");
-      modal.removeAttribute("aria-modal");
-      modal.style.display = "none";
-      modal.className = (modal.className || "").replace(/\bshow-force\b/g, "").replace(/\bshow\b/g, "");
-    }
-    if (host) host.style.display = "none";
-    if (backdrop) backdrop.style.display = "none";
-
-    document.documentElement.className = document.documentElement.className.replace(/\bmodal-open\b/g, "");
-    document.body.className = document.body.className.replace(/\bmodal-open\b/g, "");
-    legacyDebug("legacy modal closed");
-  }
-
-  function replayLegacyModalControl(event) {
-    if (modalControlReplaying) return;
-    var host = document.getElementById("qrLegacyModalHost");
-    if (!host || host.style.display === "none") return;
-    if (!host.contains(event.target)) return;
-
-    var control = findLegacyModalControl(event.target);
-    if (!control) return;
-
-    if (event && event.cancelable) event.preventDefault();
-
-    if (isLegacyCloseControl(control)) {
-      closeLegacyModal();
-      return;
-    }
-
-    var shouldCloseAfterClick = isLegacyAddToCartControl(control);
-
-    window.setTimeout(function () {
-      modalControlReplaying = true;
-      dispatchLegacyMouseSequence(control);
-      modalControlReplaying = false;
-      legacyDebug("modal control click: " + (control.id || control.className || control.tagName));
-      if (shouldCloseAfterClick) {
-        window.setTimeout(function () {
-          closeLegacyModal();
-        }, 180);
-      }
-    }, 0);
-  }
-
-  function modalLooksOpen(modal) {
-    if (!modal) return false;
-    if (modal.hasAttribute && modal.hasAttribute("open")) return true;
-    var className = typeof modal.className === "string" ? modal.className : "";
-    if (className.indexOf("show-force") !== -1) return true;
-    if (modal.style && modal.style.display && modal.style.display !== "none") return true;
-    return false;
-  }
-
-  function forceOpenItemModal(card) {
-    var modal =
-      document.getElementById("itemModal") ||
-      document.getElementById("item-modal") ||
-      document.getElementById("itemDetailModal") ||
-      document.getElementById("item-detail-modal") ||
-      document.querySelector(".item-modal") ||
-      document.querySelector(".itemModal") ||
-      document.querySelector("[data-item-modal]") ||
-      document.querySelector("dialog");
-
-    if (!modal) {
-      legacyDebug("modal not found: " + getCardId(card));
-      return;
-    }
-
-    if (!modal.getAttribute("data-legacy-original-parent") && modal.parentNode) {
-      var originalId = modal.parentNode.id || "";
-      if (!originalId) {
-        originalId = "qrLegacyOriginalParent";
-        modal.parentNode.id = originalId;
-      }
-      modal.setAttribute("data-legacy-original-parent", originalId);
-    }
-
-    var host = document.getElementById("qrLegacyModalHost");
-    if (!host) {
-      host = document.createElement("div");
-      host.id = "qrLegacyModalHost";
-      document.body.appendChild(host);
-    }
-    if (modal.parentNode !== host) {
-      host.appendChild(modal);
-    }
-
-    host.style.display = "block";
-    host.style.position = "fixed";
-    host.style.left = "0";
-    host.style.top = "0";
-    host.style.right = "0";
-    host.style.bottom = "0";
-    host.style.width = "100%";
-    host.style.height = "100%";
-    host.style.zIndex = "2147483000";
-    host.style.overflow = "auto";
-    host.style.webkitOverflowScrolling = "touch";
-    host.style.background = "rgba(0, 0, 0, 0.42)";
-    host.style.pointerEvents = "auto";
-
-    modal.setAttribute("open", "");
-    modal.removeAttribute("hidden");
-    modal.hidden = false;
-    modal.style.display = "block";
-    modal.style.visibility = "visible";
-    modal.style.opacity = "1";
-    modal.style.pointerEvents = "auto";
-    modal.style.position = "relative";
-    modal.style.zIndex = "2147483001";
-    modal.style.left = "auto";
-    modal.style.top = "auto";
-    modal.style.right = "auto";
-    modal.style.bottom = "auto";
-    modal.style.width = "100%";
-    modal.style.minHeight = "100%";
-    modal.style.overflow = "auto";
-    modal.style.background = "transparent";
-    modal.setAttribute("aria-modal", "true");
-    modal.removeAttribute("aria-hidden");
-
-    if ((" " + modal.className + " ").indexOf(" show ") === -1) {
-      modal.className += " show";
-    }
-    if ((" " + modal.className + " ").indexOf(" show-force ") === -1) {
-      modal.className += " show-force";
-    }
-
-    var dialog = modal.querySelector(".modal-dialog") || modal.querySelector("[role='document']");
-    if (dialog) {
-      dialog.style.display = "block";
-      dialog.style.visibility = "visible";
-      dialog.style.opacity = "1";
-      dialog.style.transform = "none";
-      dialog.style.margin = "24px auto";
-      dialog.style.maxWidth = "520px";
-      dialog.style.width = "92%";
-      dialog.style.pointerEvents = "auto";
-    }
-
-    var content = modal.querySelector(".modal-content") || modal.firstElementChild;
-    if (content) {
-      content.style.display = "block";
-      content.style.visibility = "visible";
-      content.style.opacity = "1";
-      content.style.pointerEvents = "auto";
-    }
-
-    var backdrop = document.getElementById("qrLegacyBackdrop");
-    if (!backdrop) {
-      backdrop = document.createElement("div");
-      backdrop.id = "qrLegacyBackdrop";
-      backdrop.className = "modal-backdrop fade show qr-legacy-backdrop";
-      document.body.appendChild(backdrop);
-    }
-    backdrop.style.display = "block";
-
-    document.documentElement.className += " modal-open";
-    document.body.className += " modal-open";
-    legacyDebug("force modal open: " + getCardId(card));
-  }
-
-  function markTap(event) {
-    if (isInsideOrderOrCart(event.target)) return;
-    var card = findMenuCard(event.target);
-    if (!card || !getCardId(card)) return;
-
-    var touch = event.touches && event.touches.length ? event.touches[0] : null;
-    touchMoved = false;
-    if (touch) {
-      touchStartX = touch.clientX || 0;
-      touchStartY = touch.clientY || 0;
-    }
-
-    lastTouchAt = Date.now();
-    lastTouchCard = card;
-    legacyDebug("touch card: " + getCardId(card));
-  }
-
-  function replayClick(event) {
-    if (replaying) return;
-    if (isInsideOrderOrCart(event.target)) return;
-
-    if (event && event.changedTouches && event.changedTouches.length) {
-      var touch = event.changedTouches[0];
-      var dx = Math.abs((touch.clientX || 0) - touchStartX);
-      var dy = Math.abs((touch.clientY || 0) - touchStartY);
-      if (dx > 8 || dy > 8) touchMoved = true;
-    }
-
-    if (touchMoved) {
-      lastTouchCard = null;
-      touchMoved = false;
-      legacyDebug("scroll ignored");
-      return;
-    }
-
-    var card = findMenuCard(event.target) || lastTouchCard;
-    if (!card || !getCardId(card)) return;
-    legacyDebug("replay card: " + getCardId(card));
-
-    if (Date.now() - lastTouchAt > 900) return;
-    window.setTimeout(function () {
-      if (!card.parentNode) return;
-
-      ["mousedown", "mouseup", "click"].forEach(function (type) {
-        var mouseEvent;
-        if (typeof MouseEvent === "function") {
-          mouseEvent = new MouseEvent(type, {
-            bubbles: true,
-            cancelable: true,
-            view: window,
-          });
-        } else {
-          mouseEvent = document.createEvent("MouseEvents");
-          mouseEvent.initMouseEvent(
-            type,
-            true,
-            true,
-            window,
-            1,
-            0,
-            0,
-            0,
-            0,
-            false,
-            false,
-            false,
-            false,
-            0,
-            null
-          );
-        }
-        card.dispatchEvent(mouseEvent);
-      });
-
-      window.setTimeout(function () {
-        forceOpenItemModal(card);
-      }, 120);
-    }, 0);
-  }
-
-  document.addEventListener("touchstart", markTap, true);
-  document.addEventListener("touchend", replayLegacyModalControl, true);
-  document.addEventListener("touchend", replayLegacyOrderControl, true);
-  document.addEventListener("touchend", replayClick, true);
-  document.addEventListener("pointerup", replayLegacyModalControl, true);
-  document.addEventListener("pointerup", replayClick, true);
-  document.addEventListener("mouseup", replayLegacyModalControl, true);
-  document.addEventListener("mouseup", replayClick, true);
-})();
-
-
-// =========================
-// v58-48 最終舊平板送單修正
-// =========================
-
-window.forceLegacySubmitOrder = function (event) {
-  if (event) {
-    event.preventDefault();
-    event.stopPropagation();
-  }
-
-  try {
-    if (!cart || cart.length === 0) {
-      alert("購物車目前是空的");
-      return false;
-    }
-
-    renderConfirmModal();
-
-    confirmModal.classList.remove("hidden");
-    confirmModal.classList.add("show-force");
-
-    return false;
-  } catch (error) {
-    alert("送單失敗：" + error.message);
-    console.error(error);
-    return false;
-  }
-};
-
 /* =========================
    v59-3 QR inline 餐點點擊與浮動購物車
 ========================= */
@@ -3133,842 +2161,8 @@ window.qrOpenMenuItem = function (button, event) {
 };
 
 
-/* =========================
-   v59-5 QR add-to-cart capture fallback
-========================= */
-(function(){
-  if (typeof document === "undefined") return;
-  function isAddBtn(el){
-    while(el && el !== document){
-      if (el.id === "addToCartBtn") return true;
-      el = el.parentNode;
-    }
-    return false;
-  }
-  function hardAdd(e){
-    if (!isAddBtn(e.target || e.srcElement)) return;
-    if (e.preventDefault) e.preventDefault();
-    if (e.stopPropagation) e.stopPropagation();
-    if (typeof window.qrAddCurrentItemToCart === "function") {
-      window.qrAddCurrentItemToCart(e);
-    } else if (typeof window.qrHardAddToCart === "function") {
-      window.qrHardAddToCart(e);
-    }
-  }
-  // v59-7：避免 inline + capture 重複觸發，加入購物車只走按鈕本身的事件
-})();
-
-
-/* =========================
-   v59-8 QR legacy direct submit
-   舊平板：跳過確認 modal，直接用原本資料結構送出
-========================= */
-var qrLegacySubmitting = false;
-var qrLegacySubmitLastAt = 0;
-
-window.qrLegacyDirectSubmitOrder = function (event) {
-  if (event) {
-    if (event.preventDefault) event.preventDefault();
-    if (event.stopPropagation) event.stopPropagation();
-    if (event.stopImmediatePropagation) event.stopImmediatePropagation();
-  }
-
-  if (!ensureQrSessionActive()) return false;
-
-  if (!shouldHandleQrOrderAction(event, "submitOrder", 2200)) return false;
-
-  var nowTime = new Date().getTime();
-  if (qrLegacySubmitting || nowTime - qrLegacySubmitLastAt < 2200) {
-    return false;
-  }
-  if (qrLastSubmitTapAt && nowTime - qrLastSubmitTapAt < 900) return false;
-  qrLastSubmitTapAt = nowTime;
-  qrLegacySubmitLastAt = nowTime;
-
-  try {
-    if (!validateOrderType()) return false;
-    if (!cart || cart.length === 0) {
-      alert("購物車目前是空的");
-      return false;
-    }
-
-    var ok = true;
-    try {
-      ok = window.confirm("確定送出訂單嗎？");
-    } catch (e) {
-      ok = true;
-    }
-    if (!ok) return false;
-
-    qrLegacySubmitting = true;
-    if (submitOrderBtn) {
-      submitOrderBtn.disabled = true;
-      submitOrderBtn.textContent = "送出中...";
-    }
-    if (confirmSubmitBtn) {
-      confirmSubmitBtn.disabled = true;
-      confirmSubmitBtn.textContent = "送出中...";
-    }
-
-    var total = calculateOrderTotal(cart);
-
-    var orderRef = push(ref(db, "orders"));
-    var now = Date.now();
-    var businessDate = getBusinessDate();
-    var meta = getOrderMeta();
-
-    createOrderNumber("qr", { storeId: STORE_ID, businessDate: businessDate })
-      .then(function (orderNumber) {
-        var safeCustomerName = customerNameInput ? customerNameInput.value.trim() : "";
-        var safeOrderNote = orderNoteInput ? orderNoteInput.value.trim() : "";
-
-        var order = {
-          id: orderRef.key,
-          orderNumber: orderNumber,
-          businessDate: businessDate,
-          businessDay: businessDate,
-          storeId: STORE_ID,
-          orderSource: "QR",
-          sourcePrefix: "Q",
-          deviceType: "qr",
-          source: "QR",
-          qrSessionId: qrSessionId,
-          type: meta.type,
-          table: meta.table,
-          customerName: safeCustomerName,
-          customerLabel: meta.customerLabel,
-          note: safeOrderNote,
-          items: cart,
-          total: total,
-          status: "pending_payment",
-          statusText: "等待櫃檯確認付款",
-          paymentStatus: "unpaid",
-          kitchenStatus: "waiting",
-          confirmed: false,
-          paid: false,
-          closed: false,
-          cancelled: false,
-          createdAt: now,
-          updatedAt: now
-        };
-
-        return set(orderRef, order).then(function () {
-          return order;
-        });
-      })
-      .then(function (order) {
-        saveCurrentViewingOrderId(order.id);
-        qrSessionOrderId = order.id;
-        writeQrSessionPatch({
-          status: "submitted",
-          orderId: order.id,
-          submittedAt: getNowMs(),
-          updatedAt: getNowMs()
-        });
-
-        if (confirmModal) {
-          confirmModal.className = (confirmModal.className || "") + " hidden";
-          confirmModal.style.display = "none";
-        }
-        if (itemModal) {
-          itemModal.className = (itemModal.className || "") + " hidden";
-          itemModal.style.display = "none";
-        }
-        try { closeQrCartPanel(); } catch (e) {}
-
-        showSubmittedOrderView(order, true);
-        listenOrderStatus(order.id);
-
-        cart = [];
-        if (customerNameInput) customerNameInput.value = "";
-        if (orderNoteInput) orderNoteInput.value = "";
-        if (!table && currentOrderType === "內用" && qrTableInput) {
-          qrTableInput.value = "";
-        }
-        try { legacyRenderQrCart(); } catch (e) { try { renderCart(); } catch (err) {} }
-      })
-      .catch(function (error) {
-        console.error("QR 送出失敗：", error);
-        alert("送出失敗：" + (error && error.message ? error.message : "請稍後再試。"));
-      })
-      .then(function () {
-        qrLegacySubmitting = false;
-        if (submitOrderBtn) {
-          submitOrderBtn.disabled = false;
-          submitOrderBtn.textContent = "送出訂單";
-        }
-        if (confirmSubmitBtn) {
-          confirmSubmitBtn.disabled = false;
-          confirmSubmitBtn.textContent = "確認送出";
-        }
-      });
-  } catch (error) {
-    qrLegacySubmitting = false;
-    if (submitOrderBtn) {
-      submitOrderBtn.disabled = false;
-      submitOrderBtn.textContent = "送出訂單";
-    }
-    if (confirmSubmitBtn) {
-      confirmSubmitBtn.disabled = false;
-      confirmSubmitBtn.textContent = "確認送出";
-    }
-    console.error("QR 送出失敗：", error);
-    alert("送出失敗：" + (error && error.message ? error.message : error));
-  }
-
-  return false;
-};
-
-if (submitOrderBtn) {
-  submitOrderBtn.onclick = window.qrLegacyDirectSubmitOrder;
-  submitOrderBtn.ontouchend = window.qrLegacyDirectSubmitOrder;
-}
-if (confirmSubmitBtn) {
-  confirmSubmitBtn.onclick = window.qrLegacyDirectSubmitOrder;
-  confirmSubmitBtn.ontouchend = window.qrLegacyDirectSubmitOrder;
-}
-
-
-/* =========================
-   v59-9 QR legacy detail + submit guard
-   修正舊平板送出時找不到 renderItemDetail，並攔截舊的確認彈窗流程
-========================= */
-if (typeof window.renderItemDetail !== "function") {
-  window.renderItemDetail = function(item) {
-    if (!item) return "";
-    var html = "";
-    var itemSize = getQrItemSize(item);
-    if (itemSize) html += "<p>份量：" + itemSize + "</p>";
-    if (item.requiredOption && item.requiredOption.title && item.requiredOption.value) {
-      html += "<p>" + item.requiredOption.title + "：" + item.requiredOption.value + "</p>";
-    }
-    if (item.spicy) html += "<p>辣度：" + item.spicy + "</p>";
-    if (item.satay) html += "<p>沙茶：" + item.satay + "</p>";
-    var addons = item.addons || item.extras || [];
-    if (addons && addons.length) {
-      var names = [];
-      for (var i = 0; i < addons.length; i++) {
-        var a = addons[i];
-        if (typeof a === "string") names.push(a);
-        else names.push((a.name || a.label || "加料") + (Number(a.price || 0) ? " +$" + Number(a.price || 0) : ""));
-      }
-      html += "<p>加料：" + names.join("、") + "</p>";
-    }
-    if (item.note) html += "<p>備註：" + item.note + "</p>";
-    return html;
-  };
-}
-if (typeof renderItemDetail !== "function") {
-  var renderItemDetail = window.renderItemDetail;
-}
-
-(function(){
-  if (typeof document === "undefined") return;
-  function isQrSubmitTarget(el){
-    while(el && el !== document){
-      var id = el.id || "";
-      if (id === "submitOrderBtn" || id === "confirmSubmitBtn") return true;
-      el = el.parentNode;
-    }
-    return false;
-  }
-  function guard(e){
-    if (!isQrSubmitTarget(e.target || e.srcElement)) return;
-    if (e.preventDefault) e.preventDefault();
-    if (e.stopPropagation) e.stopPropagation();
-    if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-    if (typeof window.qrLegacyDirectSubmitOrder === "function") {
-      return window.qrLegacyDirectSubmitOrder(e);
-    }
-    return false;
-  }
-  document.addEventListener("touchend", guard, true);
-  document.addEventListener("click", guard, true);
-})();
-
-
-/* =========================
-   v59-10 QR 剛剛訂單置頂按鈕
-========================= */
-var lastOrderTopBtn = document.getElementById("lastOrderTopBtn");
-
-function showLastOrderTopButton() {
-  if (!lastOrderTopBtn) return;
-  try {
-    var lastOrderId = localStorage.getItem(LAST_ORDER_KEY);
-    if (!lastOrderId) return;
-  } catch (error) {
-    return;
-  }
-  lastOrderTopBtn.className = String(lastOrderTopBtn.className || "").replace(/\bhidden\b/g, "");
-  lastOrderTopBtn.style.display = "block";
-}
-
-function hideLastOrderTopButton() {
-  if (!lastOrderTopBtn) return;
-  if ((" " + lastOrderTopBtn.className + " ").indexOf(" hidden ") === -1) {
-    lastOrderTopBtn.className += " hidden";
-  }
-  lastOrderTopBtn.style.display = "none";
-}
-
-function openLastQrOrderFromTop(event) {
-  if (event) {
-    if (event.preventDefault) event.preventDefault();
-    if (event.stopPropagation) event.stopPropagation();
-  }
-  try {
-    var lastOrderId = localStorage.getItem(LAST_ORDER_KEY);
-    if (!lastOrderId) {
-      alert("目前沒有可查看的訂單");
-      return false;
-    }
-    var orderRef = ref(db, "orders/" + lastOrderId);
-    onValue(orderRef, function(snapshot) {
-      var order = snapshot.exists() ? snapshot.val() : null;
-      if (!order) {
-        alert("找不到訂單資料");
-        return;
-      }
-      var fullOrder = { id: lastOrderId };
-      for (var key in order) {
-        if (Object.prototype.hasOwnProperty.call(order, key)) {
-          fullOrder[key] = order[key];
-        }
-      }
-      showSuccessPage(fullOrder);
-      listenOrderStatus(lastOrderId);
-    }, { onlyOnce: true });
-  } catch (error) {
-    alert("開啟剛剛訂單失敗：" + (error && error.message ? error.message : error));
-  }
-  return false;
-}
-
-if (lastOrderTopBtn) {
-  lastOrderTopBtn.onclick = openLastQrOrderFromTop;
-  lastOrderTopBtn.ontouchend = openLastQrOrderFromTop;
-  showLastOrderTopButton();
-}
-window.openLastQrOrderFromTop = openLastQrOrderFromTop;
-
-(function(){
-  if (!lastOrderTopBtn) return;
-  function isLastOrderBtn(el) {
-    while (el && el !== document) {
-      if (el.id === "lastOrderTopBtn") return true;
-      el = el.parentNode;
-    }
-    return false;
-  }
-  function guard(e) {
-    if (!isLastOrderBtn(e.target || e.srcElement)) return;
-    if (e.preventDefault) e.preventDefault();
-    if (e.stopPropagation) e.stopPropagation();
-    return openLastQrOrderFromTop(e);
-  }
-  document.addEventListener("touchend", guard, true);
-  document.addEventListener("click", guard, true);
-})();
-
-
-/* =========================
-   v59-12 QR 查看訂單修正
-   - 舊 iPad：用 capture 全域攔截
-   - 沒有本機紀錄時：測試模式抓今日最新 QR 訂單
-========================= */
-(function(){
-  var btn = document.getElementById("lastOrderTopBtn");
-  if (!btn) return;
-
-  function forceShowBtn(){
-    btn.className = String(btn.className || "").replace(/\bhidden\b/g, "");
-    btn.style.display = "block";
-    btn.style.visibility = "visible";
-  }
-
-  function showOrderById(orderId){
-    if (!orderId) {
-      alert("目前沒有可查看的訂單");
-      return false;
-    }
-    try {
-      onValue(ref(db, "orders/" + orderId), function(snapshot){
-        var order = snapshot && snapshot.exists && snapshot.exists() ? snapshot.val() : null;
-        if (!order) {
-          alert("找不到訂單資料");
-          return;
-        }
-        var fullOrder = { id: orderId };
-        for (var key in order) {
-          if (Object.prototype.hasOwnProperty.call(order, key)) fullOrder[key] = order[key];
-        }
-        if (orderPage) {
-          orderPage.className = (orderPage.className || "") + " hidden";
-          orderPage.style.display = "none";
-        }
-        if (successPage) {
-          successPage.className = String(successPage.className || "").replace(/\bhidden\b/g, "");
-          successPage.style.display = "block";
-        }
-        showSuccessPage(fullOrder);
-        listenOrderStatus(orderId);
-      }, { onlyOnce: true });
-    } catch (err) {
-      alert("開啟剛剛訂單失敗：" + (err && err.message ? err.message : err));
-    }
-    return false;
-  }
-
-  function openLatestQrOrderFallback(){
-    try {
-      onValue(ref(db, "orders"), function(snapshot){
-        var raw = snapshot && snapshot.exists && snapshot.exists() ? snapshot.val() : null;
-        if (!raw) {
-          alert("目前沒有可查看的 QR 訂單");
-          return;
-        }
-        var today = "";
-        try { today = getBusinessDate(); } catch(e) {}
-        var latestId = "";
-        var latestTime = 0;
-        for (var id in raw) {
-          if (!Object.prototype.hasOwnProperty.call(raw, id)) continue;
-          var o = raw[id] || {};
-          if (o.source && String(o.source).toUpperCase() !== "QR") continue;
-          if (today && o.businessDate && o.businessDate !== today) continue;
-          var t = Number(o.createdAt || o.updatedAt || 0);
-          if (t >= latestTime) {
-            latestTime = t;
-            latestId = id;
-          }
-        }
-        if (!latestId) {
-          alert("目前沒有可查看的 QR 訂單");
-          return;
-        }
-        try { localStorage.setItem(LAST_ORDER_KEY, latestId); } catch(e) {}
-        showOrderById(latestId);
-      }, { onlyOnce: true });
-    } catch (err) {
-      alert("開啟最新 QR 訂單失敗：" + (err && err.message ? err.message : err));
-    }
-    return false;
-  }
-
-  window.openLastQrOrderFromTop = function(event){
-    if (event) {
-      if (event.preventDefault) event.preventDefault();
-      if (event.stopPropagation) event.stopPropagation();
-      if (event.stopImmediatePropagation) event.stopImmediatePropagation();
-    }
-    var lastOrderId = "";
-    try { lastOrderId = localStorage.getItem(LAST_ORDER_KEY) || ""; } catch(e) {}
-    if (lastOrderId) return showOrderById(lastOrderId);
-    return openLatestQrOrderFallback();
-  };
-
-  btn.onclick = window.openLastQrOrderFromTop;
-  btn.ontouchend = window.openLastQrOrderFromTop;
-  btn.onmousedown = window.openLastQrOrderFromTop;
-  forceShowBtn();
-
-  function isBtn(el){
-    while (el && el !== document) {
-      if (el.id === "lastOrderTopBtn") return true;
-      el = el.parentNode;
-    }
-    return false;
-  }
-  function guard(e){
-    if (!isBtn(e.target || e.srcElement)) return;
-    return window.openLastQrOrderFromTop(e);
-  }
-  try { document.addEventListener("touchstart", guard, true); } catch(e) {}
-  try { document.addEventListener("touchend", guard, true); } catch(e) {}
-  try { document.addEventListener("click", guard, true); } catch(e) {}
-})();
-
-
-/* =========================
-   v59-13 QR：查看訂單按鈕保底入口
-========================= */
-(function(){
-  function hasViewLast(){
-    return false;
-  }
-  function openByParam(){
-    if (!hasViewLast()) return;
-    if (window.openLastQrOrderFromTop) {
-      try { window.openLastQrOrderFromTop(null); } catch(e) {}
-    }
-  }
-  openByParam();
-  var btn = document.getElementById("lastOrderTopBtn");
-  if (btn) {
-    btn.style.display = "block";
-    btn.style.visibility = "visible";
-    btn.className = String(btn.className || "").replace(/\bhidden\b/g, "");
-    btn.onclick = function(event){
-      if (window.openLastQrOrderFromTop) return window.openLastQrOrderFromTop(event);
-      return true;
-    };
-    btn.ontouchend = btn.onclick;
-  }
-})();
-
-
-/* =========================
-   v59-14 QR 查看訂單：文字整理
-========================= */
-(function(){
-  var btn = document.getElementById("lastOrderTopBtn");
-  if (!btn) return;
-  btn.innerHTML = "查看訂單";
-  btn.setAttribute("href", "#topOrderPanel");
-  btn.style.display = "inline-block";
-  btn.style.visibility = "visible";
-  btn.className = String(btn.className || "").replace(/\bhidden\b/g, "");
-})();
-
-
-/* =========================
-   v59-17 QR：點餐/查看訂單分頁模式
-========================= */
-(function(){
-  var viewLink = document.getElementById("qrViewOrderPlainLink");
-  var orderLink = document.getElementById("qrOrderTabLink");
-  if (viewLink) {
-    viewLink.innerHTML = "查看訂單";
-    viewLink.setAttribute("href", "javascript:void(0)");
-    viewLink.onclick = null;
-    viewLink.ontouchend = null;
-  }
-  if (orderLink) {
-    orderLink.setAttribute("href", "./index.html");
-  }
-  qrShowMenuMode();
-})();
-
-/* =========================
-   v59-18 QR：點餐 / 查看訂單 真正互斥分頁
-   - 預設只顯示點餐
-   - 按查看訂單只顯示剛剛送出的訂單
-========================= */
-(function(){
-  function hasClass(el, name){
-    return el && (" " + (el.className || "") + " ").indexOf(" " + name + " ") >= 0;
-  }
-  function addClass(el, name){
-    if (el && !hasClass(el, name)) el.className = (el.className ? el.className + " " : "") + name;
-  }
-  function removeClass(el, name){
-    if (el) el.className = (el.className || "").replace(new RegExp("\\b" + name + "\\b", "g"), "").replace(/\s+/g, " ");
-  }
-  function setActive(which){
-    var orderTab = document.getElementById("qrOrderTabLink");
-    var viewTab = document.getElementById("qrViewOrderPlainLink");
-    removeClass(orderTab, "active");
-    removeClass(viewTab, "active");
-    if (which === "order") addClass(viewTab, "active");
-    else addClass(orderTab, "active");
-  }
-  function prevent(e){
-    if (e) {
-      if (e.preventDefault) e.preventDefault();
-      if (e.stopPropagation) e.stopPropagation();
-      e.returnValue = false;
-      e.cancelBubble = true;
-    }
-  }
-  function setBodyMode(mode){
-    var body = document.body;
-    if (!body) return;
-    removeClass(body, "qr-tab-menu");
-    removeClass(body, "qr-tab-order");
-    addClass(body, mode === "order" ? "qr-tab-order" : "qr-tab-menu");
-  }
-  function showMenu(e){
-    prevent(e);
-    removeBodyClass("qr-direct-order-mode");
-    setBodyMode("menu");
-    setActive("menu");
-    if (topOrderPanel) {
-      addClass(topOrderPanel, "hidden");
-      topOrderPanel.style.display = "none";
-    }
-    if (orderPage) {
-      removeClass(orderPage, "hidden");
-      orderPage.style.display = "";
-    }
-    if (successPage) {
-      addClass(successPage, "hidden");
-      successPage.style.display = "none";
-    }
-    if (floatingCartBtn) floatingCartBtn.style.display = "block";
-    return false;
-  }
-  function renderEmptyOrder(){
-    if (topOrderContent && !topOrderContent.innerHTML) {
-      topOrderContent.innerHTML = '<div class="empty">目前還沒有剛剛送出的訂單。</div>';
-    }
-  }
-  function readLastOrder(){
-    var id = "";
-    try { id = localStorage.getItem(LAST_ORDER_KEY) || ""; } catch(e) {}
-    if (!id) {
-      renderEmptyOrder();
-      return;
-    }
-    try {
-      var orderRef = ref(db, "orders/" + id);
-      onValue(orderRef, function(snapshot){
-        var order = snapshot.val();
-        if (!order) {
-          if (topOrderContent) topOrderContent.innerHTML = '<div class="empty">找不到剛剛的訂單。</div>';
-          return;
-        }
-        if (topOrderContent) topOrderContent.innerHTML = buildQrOrderHtml(Object.assign({ id: id }, order));
-        if (orderStatusBox) orderStatusBox.textContent = "狀態：" + getOrderStatusText(order);
-      }, { onlyOnce: true });
-    } catch(err) {
-      if (topOrderContent) topOrderContent.innerHTML = '<div class="empty">讀取訂單失敗：' + (err && err.message ? err.message : err) + '</div>';
-    }
-  }
-  function showOrder(e){
-    prevent(e);
-    setBodyMode("order");
-    setActive("order");
-    if (orderPage) {
-      addClass(orderPage, "hidden");
-      orderPage.style.display = "none";
-    }
-    if (successPage) {
-      addClass(successPage, "hidden");
-      successPage.style.display = "none";
-    }
-    if (floatingCartBtn) floatingCartBtn.style.display = "none";
-    if (topOrderPanel) {
-      removeClass(topOrderPanel, "hidden");
-      topOrderPanel.style.display = "block";
-    }
-    readLastOrder();
-    try { window.scrollTo(0, 0); } catch(e2) {}
-    return false;
-  }
-  // Tab binding is centralized in the v65.2 QR single tab controller below.
-
-  var orderTab = document.getElementById("qrOrderTabLink");
-  var viewTab = document.getElementById("qrViewOrderPlainLink");
-  if (orderTab) {
-    orderTab.href = "javascript:void(0)";
-  }
-  if (viewTab) {
-    viewTab.innerHTML = "查看訂單";
-    viewTab.href = "javascript:void(0)";
-  }
-  showMenu(null);
-})();
-
-/* =====================================================
-   v61-4 QR 回穩版：訂單查詢 60 分鐘時效 + 狀態視覺，不影響 v59 菜單 render
-===================================================== */
-(function(){
-  var LAST_ORDER_KEY_V614 = "enpoint_last_qr_order_id";
-  var LAST_ORDER_TIME_KEY_V614 = "enpoint_last_qr_order_saved_at";
-
-  function now(){ return Date.now ? Date.now() : new Date().getTime(); }
-  function getLookupTtl(){
-    var minutes = normalizeQrOrderLookupMinutes(orderLookupMinutes);
-    if (minutes === 0) return 0;
-    return minutes * 60 * 1000;
-  }
-  function getValidLastOrderId(){
-    try{
-      var id = localStorage.getItem(LAST_ORDER_KEY_V614) || "";
-      var savedAt = Number(localStorage.getItem(LAST_ORDER_TIME_KEY_V614) || 0);
-      if(!id) return "";
-      var ttl = getLookupTtl();
-      if(!savedAt || (ttl > 0 && now() - savedAt > ttl)){
-        localStorage.removeItem(LAST_ORDER_KEY_V614);
-        localStorage.removeItem(LAST_ORDER_TIME_KEY_V614);
-        return "";
-      }
-      return id;
-    }catch(e){ return ""; }
-  }
-
-  window.enpointQrSaveLastOrderV614 = function(orderId){
-    try{
-      localStorage.setItem(LAST_ORDER_KEY_V614, orderId);
-      localStorage.setItem(LAST_ORDER_TIME_KEY_V614, String(now()));
-    }catch(e){}
-  };
-
-  var oldBuild = window.buildQrOrderHtml;
-  function statusInfo(order){
-    var status = (order && (order.kitchenStatus || order.status || order.paymentStatus)) || "pending_payment";
-    if(order && (order.cancelled || status === "cancelled")) return {step:1, icon:"⚠️", title:"訂單已取消", text:"請洽櫃檯重新確認。", cls:"qr-status-cancelled"};
-    if(order && (order.kitchenStatus === "done" || order.status === "done")) return {step:4, icon:"🎉", title:"餐點已完成", text:"請至櫃檯取餐，謝謝您。", cls:"qr-status-done"};
-    if(order && (order.kitchenStatus === "cooking" || order.status === "cooking")) return {step:3, icon:"👨‍🍳", title:"餐點製作中", text:"店家正在為您準備餐點，請稍候。", cls:"qr-status-cooking"};
-    if(order && (order.kitchenStatus === "confirmed" || order.status === "confirmed" || order.paymentStatus === "paid" || order.paid === true)) return {step:2, icon:"🧾", title:"店家已確認", text:"餐點已送至廚房，正在等待製作。", cls:""};
-    return {step:1, icon:"✅", title:"訂單已送出", text:"請至櫃檯確認付款，店員確認後會送廚房。", cls:""};
-  }
-  function progressHtml(step){
-    var names = ["送出", "確認", "製作", "完成"];
-    var width = Math.max(1, Math.min(4, step)) / 4 * 100;
-    var html = '<div class="qr-progress-box"><div class="qr-progress-line"><div style="width:'+width+'%"></div></div><div class="qr-progress-steps">';
-    for(var i=1;i<=4;i++){
-      var cls = i < step ? "done" : (i === step ? "active" : "");
-      html += '<div class="qr-progress-step '+cls+'"><span>'+i+'</span><p>'+names[i-1]+'</p></div>';
-    }
-    html += '</div></div>';
-    return html;
-  }
-  window.buildQrOrderHtml = function(order){
-    var base = "";
-    try { base = oldBuild ? oldBuild(order) : ""; } catch(e) { base = ""; }
-    var info = statusInfo(order || {});
-    var number = (order && (order.orderNumber || order.id)) || "-";
-    var top = ''+
-      '<div class="qr-big-order-number"><span>您的訂單號</span><strong>'+ number +'</strong><p>請用此單號至櫃檯結帳 / 取餐</p></div>'+
-      '<div class="qr-status-card '+info.cls+'"><div class="qr-status-icon">'+info.icon+'</div><div class="qr-status-main"><h3>'+info.title+'</h3><p>'+info.text+'</p></div></div>'+
-      progressHtml(info.step);
-    return top + base;
-  };
-
-  // 攔截送單成功後儲存時間，避免共用 QR 下一位客人看到上一位過久訂單
-  var tryPatchCount = 0;
-  function patchLastOrderSetter(){
-    tryPatchCount++;
-    try{
-      var originalSetItem = localStorage.setItem.bind(localStorage);
-      if(!window.__ENPOINT_QR_LOCALSTORAGE_PATCHED_V614__){
-        window.__ENPOINT_QR_LOCALSTORAGE_PATCHED_V614__ = true;
-        localStorage.setItem = function(key, value){
-          var result = originalSetItem(key, value);
-          if(String(key) === LAST_ORDER_KEY_V614 && value){
-            originalSetItem(LAST_ORDER_TIME_KEY_V614, String(now()));
-          }
-          return result;
-        };
-      }
-    }catch(e){}
-  }
-  patchLastOrderSetter();
-
-  // 重新綁定分頁：點餐一定回到 v59 菜單，不被查看訂單覆蓋
-  function removeClass(el,name){ if(el) el.className = String(el.className||"").replace(new RegExp("\\b"+name+"\\b","g"),"").replace(/\s+/g," "); }
-  function addClass(el,name){ if(el && (" "+String(el.className||"")+" ").indexOf(" "+name+" ")<0) el.className += (el.className?" ":"")+name; }
-  function showMenu(e){
-    if(e){ e.preventDefault&&e.preventDefault(); e.stopPropagation&&e.stopPropagation(); }
-    removeClass(document.body,"qr-direct-order-mode");
-    removeClass(document.body,"qr-tab-order"); addClass(document.body,"qr-tab-menu");
-    var orderPage=document.getElementById("orderPage"), successPage=document.getElementById("successPage"), topOrderPanel=document.getElementById("topOrderPanel"), floatingCartBtn=document.getElementById("floatingCartBtn");
-    removeClass(orderPage,"hidden"); if(orderPage) orderPage.style.display="block";
-    addClass(successPage,"hidden"); if(successPage) successPage.style.display="none";
-    addClass(topOrderPanel,"hidden"); if(topOrderPanel) topOrderPanel.style.display="none";
-    if(floatingCartBtn) floatingCartBtn.style.display="block";
-    try{ if(typeof renderCategories === "function") renderCategories(); if(typeof renderMenu === "function") renderMenu(); }catch(err){ console.error("QR v61-4 render menu failed", err); }
-    return false;
-  }
-  function showOrder(e){
-    if(e){ e.preventDefault&&e.preventDefault(); e.stopPropagation&&e.stopPropagation(); }
-    removeClass(document.body,"qr-tab-menu"); addClass(document.body,"qr-tab-order");
-    var orderPage=document.getElementById("orderPage"), successPage=document.getElementById("successPage"), topOrderPanel=document.getElementById("topOrderPanel"), topOrderContent=document.getElementById("topOrderContent"), floatingCartBtn=document.getElementById("floatingCartBtn");
-    addClass(orderPage,"hidden"); if(orderPage) orderPage.style.display="none";
-    addClass(successPage,"hidden"); if(successPage) successPage.style.display="none";
-    if(floatingCartBtn) floatingCartBtn.style.display="none";
-    removeClass(topOrderPanel,"hidden"); if(topOrderPanel) topOrderPanel.style.display="block";
-    var id = getValidLastOrderId();
-    if(!id){ if(topOrderContent) topOrderContent.innerHTML='<div class="empty">目前沒有可查詢的訂單，或上一筆訂單已超過店家設定時間，請重新點餐。</div>'; return false; }
-    try{
-      onValue(ref(db,"orders/"+id),function(snapshot){
-        var order=snapshot.val();
-        if(!order){ if(topOrderContent) topOrderContent.innerHTML='<div class="empty">找不到剛剛的訂單，請重新點餐。</div>'; return; }
-        if(topOrderContent) topOrderContent.innerHTML=window.buildQrOrderHtml(Object.assign({id:id},order));
-      });
-    }catch(err){ if(topOrderContent) topOrderContent.innerHTML='<div class="empty">讀取訂單失敗，請重新整理。</div>'; }
-    return false;
-  }
-  // Tab binding is centralized in the v65.2 QR single tab controller below.
-  var a=document.getElementById("qrOrderTabLink"), b=document.getElementById("qrViewOrderPlainLink");
-  if(a){ a.href="javascript:void(0)"; }
-  if(b){ b.href="javascript:void(0)"; }
-  showMenu(null);
-})();
-
-/* =========================
-   v64 QR freshness closeout
-========================= */
-(function(){
-  var oldBuildQrOrderHtmlV64 = window.buildQrOrderHtml || buildQrOrderHtml;
-
-  function orderViewExpired(order) {
-    return isOrderLookupExpired(order);
-  }
-
-  window.buildQrOrderHtml = function(order) {
-    if (orderViewExpired(order || {})) {
-      return '<div class="qr-direct-order-card qr-direct-expired-card"><div class="qr-direct-expired-message">此訂單已超過查看時間</div></div>';
-    }
-    return oldBuildQrOrderHtmlV64(order);
-  };
-
-  qrShowMenuMode();
-})();
-
-/* =========================
-   v63 final tab binding: every View Order tab open reloads Firebase by orderId.
-========================= */
-(function(){
-  return;
-  function stop(event){
-    if (event) {
-      if (event.preventDefault) event.preventDefault();
-      if (event.stopPropagation) event.stopPropagation();
-      if (event.stopImmediatePropagation) event.stopImmediatePropagation();
-    }
-  }
-
-  function openMenu(event){
-    stop(event);
-    qrShowMenuMode();
-    try { renderCategories(); renderMenu(); } catch (error) { console.error("QR 點餐頁重繪失敗：", error); }
-    return false;
-  }
-
-  function openOrder(event){
-    stop(event);
-    loadViewingOrderById(getSavedViewingOrderId(), false);
-    return false;
-  }
-
-  // Retired duplicate binding. The v65.2 controller below owns QR tabs.
-
-  var orderTab = document.getElementById("qrOrderTabLink");
-  var viewTab = document.getElementById("qrViewOrderPlainLink");
-  if (orderTab) {
-    orderTab.href = "javascript:void(0)";
-    orderTab.onclick = openMenu;
-    orderTab.ontouchend = openMenu;
-  }
-  if (viewTab) {
-    viewTab.href = "javascript:void(0)";
-    viewTab.onclick = openOrder;
-    viewTab.ontouchend = openOrder;
-  }
-})();
-
 /* v65.2 QR single tab controller */
 (function(){
-  function stopQrTabEvent(event) {
-    if (!event) return;
-    if (event.preventDefault) event.preventDefault();
-    if (event.stopPropagation) event.stopPropagation();
-    if (event.stopImmediatePropagation) event.stopImmediatePropagation();
-  }
-
   function renderQrMenuIfReady() {
     try {
       if (typeof renderCategories === "function") renderCategories();
@@ -3978,40 +2172,17 @@ window.openLastQrOrderFromTop = openLastQrOrderFromTop;
     }
   }
 
-  function openQrMenuTab(event) {
-    stopQrTabEvent(event);
-    qrShowMenuMode();
-    renderQrMenuIfReady();
-    return false;
-  }
-
-  function openQrOrderTab(event) {
-    stopQrTabEvent(event);
-    loadViewingOrderById(getSavedViewingOrderId(), false);
-    return false;
-  }
-
-  function bindQrTabLinks() {
-    var orderTab = document.getElementById("qrOrderTabLink");
-    var viewTab = document.getElementById("qrViewOrderPlainLink");
-    if (orderTab) {
-      orderTab.href = "javascript:void(0)";
-      orderTab.onclick = openQrMenuTab;
-      orderTab.ontouchend = openQrMenuTab;
+  var qrTabController = createQrTabController({
+    onMenu: function() {
+      qrShowMenuMode();
+      renderQrMenuIfReady();
+    },
+    onOrder: function() {
+      loadViewingOrderById(getSavedViewingOrderId(), false);
     }
-    if (viewTab) {
-      viewTab.href = "javascript:void(0)";
-      viewTab.onclick = openQrOrderTab;
-      viewTab.ontouchend = openQrOrderTab;
-    }
-  }
+  });
 
-  window.qrShowMenuTab = openQrMenuTab;
-  window.qrShowOrderTab = openQrOrderTab;
-  bindQrTabLinks();
-  openQrMenuTab(null);
-
-  window.addEventListener("pageshow", function(event) {
-    if (event && event.persisted) openQrMenuTab(null);
-  }, false);
+  window.qrShowMenuTab = qrTabController.openMenu;
+  window.qrShowOrderTab = qrTabController.openOrder;
+  qrTabController.start();
 })();
