@@ -3861,14 +3861,19 @@ async function finishOrderByPOS(orderId, options) {
 
   try {
     var now = Date.now();
-    await update(ref(db, "orders/" + orderId), {
+    var doneUpdates = {
       status: "done",
       statusText: options.statusText || "餐點已完成",
       kitchenStatus: "done",
       completedAt: now,
       doneAt: now,
       updatedAt: now
-    });
+    };
+    await update(ref(db, "orders/" + orderId), doneUpdates);
+    ordersData[orderId] = Object.assign({}, order, doneUpdates);
+    renderAllOrders();
+    renderStats();
+    renderRealtimeBadges();
     await invalidateQrSessionForOrder(order, "order_done");
   } catch (error) {
     console.error(options.errorLogText || "完成訂單失敗：", error);
