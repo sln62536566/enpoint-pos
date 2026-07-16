@@ -250,7 +250,7 @@ const defaultSettings = {
   showTestOrders: true,
   enableSound: true,
   soundType: "classic",
-  soundVolume: 80,
+  soundVolume: 100,
   autoSwitchCartAfterAdd: false
 };
 
@@ -711,7 +711,7 @@ function playNewQrOrderBeep(forcePlay) {
 
   try {
     var now = audioContext.currentTime || 0;
-    var volume = Math.min(1, Math.max(0, Number(posSettings.soundVolume || 0) / 100)) * 0.32;
+    var volume = Math.min(0.72, Math.max(0, Number(posSettings.soundVolume || 0) / 100) * 0.72);
     if (volume <= 0) return;
     var soundType = isValidSoundType(posSettings.soundType) ? posSettings.soundType : defaultSettings.soundType;
     if (soundType === "double") soundType = "classic";
@@ -1124,6 +1124,8 @@ function renderFeatureModuleSettings() {
       var next = getFeatureModuleSettings();
       next[this.getAttribute("data-module")] = this.checked === true;
       saveFeatureModuleSettings(next);
+      renderAllOrders();
+      renderStats();
     };
   }
 }
@@ -1527,6 +1529,18 @@ function isUnpaid(order) {
   if (!order) return false;
   if (isPaid(order) || isCancelled(order)) return false;
   return order.paymentStatus === "unpaid" || order.paid === false;
+}
+
+function canCompleteOrderInPos(order) {
+  return (
+    order &&
+    !isBusinessDayClosed() &&
+    !isKdsEnabled() &&
+    isPaid(order) &&
+    !isDone(order) &&
+    !isClosed(order) &&
+    !isCancelled(order)
+  );
 }
 
 function getPaymentStatusText(order) {
@@ -3004,18 +3018,53 @@ function clearCart() {
 ========================= */
 
 async function submitOrder() {
-  return submitOrderCore(false, "paid");
+  return checkoutOrder(false);
 }
 
 async function submitUnpaidOrder() {
-  return submitOrderCore(false, "unpaid");
+  return sendUnpaidOrder();
 }
 
 async function submitTestOrder() {
-  return submitOrderCore(true, "paid");
+  return checkoutOrder(true);
 }
 
-async function submitOrderCore(isTestMode, paymentMode) {
+function getCartSubmissionSummary() {
+  var total = calculateOrderTotal(cart);
+  var orderNote = posOrderNoteInput ? posOrderNoteInput.value.trim() : "";
+  var itemsText = cart.map(function(item, index) {
+    var detail = formatOrderOptionLines(item, { moduleName: "pos" }).join("｜");
+    return (index + 1) + ". " + itemDisplayName(item) + " × " + itemQty(item) + "｜小計 " + money(calculateOrderItemPrice(item).subtotal) + (detail ? "\n   " + detail : "");
+  }).join("\n\n");
+
+  return {
+    total: total,
+    orderNote: orderNote,
+    itemsText: itemsText
+  };
+}
+
+function buildCheckoutConfirmText(summary, isTestMode) {
+  return (isTestMode ? "【測試訂單】\n此單會送到廚房、可完整跑流程，但不會計入營收與收班。\n\n" : "") +
+    "確認結帳並送出？\n\n" +
+    "類型：" + currentOrderType + (currentOrderType === "內用" ? "｜" + selectedTable + "桌" : "｜外帶") + "\n\n" +
+    "餐點：\n" + summary.itemsText + "\n\n" +
+    "總計：" + money(summary.total) + "\n\n" +
+    "確認已收款後，按「確定」會直接送廚房。";
+}
+
+function buildUnpaidConfirmText(summary) {
+  return "確認送出未結帳訂單？\n\n" +
+    "此訂單將直接送至廚房，\n" +
+    "付款狀態將維持：\n" +
+    "【未付款】\n\n" +
+    "可稍後再至今日訂單完成收款。\n\n" +
+    "類型：" + currentOrderType + (currentOrderType === "內用" ? "｜" + selectedTable + "桌" : "｜外帶") + "\n\n" +
+    "餐點：\n" + summary.itemsText + "\n\n" +
+    "總計：" + money(summary.total);
+}
+
+function canStartPosSubmission(isTestMode, paymentMode) {
   if (submittingPosOrder) return;
   if (!isTestMode && submitOrderBtn && submitOrderBtn.disabled) return;
   if (!isTestMode && paymentMode === "unpaid" && submitUnpaidOrderBtn && submitUnpaidOrderBtn.disabled) return;
@@ -3030,32 +3079,77 @@ async function submitOrderCore(isTestMode, paymentMode) {
     return;
   }
 
-  const total = calculateOrderTotal(cart);
-  const isUnpaidMode = paymentMode === "unpaid" && !isTestMode;
-  const isPaidMode = !isUnpaidMode;
-  const orderNote = posOrderNoteInput ? posOrderNoteInput.value.trim() : "";
-  const orderNumberPreview = "系統送出後產生";
-  const itemsText = cart.map((item, index) => {
-    const detail = formatOrderOptionLines(item, { moduleName: "pos" }).join("｜");
+  return true;
+}
 
-    return `${index + 1}. ${itemDisplayName(item)} × ${itemQty(item)}｜小計 ${money(calculateOrderItemPrice(item).subtotal)}${detail ? `\n   ${detail}` : ""}`;
-  }).join("\n\n");
-
-  const checkoutText = `${isTestMode ? "【測試訂單】\n此單會送到廚房、可完整跑流程，但不會計入營收與收班。\n\n" : ""}確認結帳並送出？\n\n類型：${currentOrderType}${currentOrderType === "內用" ? `｜${selectedTable}桌` : "｜外帶"}\n\n餐點：\n${itemsText}\n\n總計：${money(total)}\n\n確認已收款後，按「確定」會直接送廚房。`;
-
-  const ok = confirm(checkoutText);
+async function checkoutOrder(isTestMode) {
+  if (!canStartPosSubmission(isTestMode, "paid")) return;
+  var summary = getCartSubmissionSummary();
+  var ok = confirm(buildCheckoutConfirmText(summary, isTestMode));
   if (!ok) return;
 
-  submittingPosOrder = true;
-  if (isTestMode) {
-    if (submitTestOrderBtn) submitTestOrderBtn.disabled = true;
-  } else {
-    if (submitOrderBtn) submitOrderBtn.disabled = true;
-    if (submitUnpaidOrderBtn) submitUnpaidOrderBtn.disabled = true;
+  return submitOrderCore({
+    isTestMode: isTestMode,
+    paymentMode: "paid",
+    summary: summary,
+    loadingText: isTestMode ? "測試送出中..." : "送出中...",
+    successText: isTestMode ? "測試訂單已送出" : "結帳完成，已送出",
+    errorLogText: isTestMode ? "測試訂單送出失敗：" : "結帳送出失敗：",
+    errorAlertText: isTestMode ? "測試訂單送出失敗\n請稍後再試。" : "結帳送出失敗\n請稍後再試。"
+  });
+}
+
+async function sendUnpaidOrder() {
+  if (!canStartPosSubmission(false, "unpaid")) return;
+  var summary = getCartSubmissionSummary();
+  var ok = confirm(buildUnpaidConfirmText(summary));
+  if (!ok) return;
+
+  return submitOrderCore({
+    isTestMode: false,
+    paymentMode: "unpaid",
+    summary: summary,
+    loadingText: "未結帳送單中...",
+    successText: "未結帳訂單已送出",
+    errorLogText: "未結帳訂單送出失敗：",
+    errorAlertText: "未結帳訂單送出失敗\n請稍後再試。"
+  });
+}
+
+function setPosSubmissionUi(options, active) {
+  var isTestMode = options.isTestMode === true;
+  var paymentMode = options.paymentMode || "paid";
+  if (active) {
+    submittingPosOrder = true;
+    if (isTestMode) {
+      if (submitTestOrderBtn) submitTestOrderBtn.disabled = true;
+    } else {
+      if (submitOrderBtn) submitOrderBtn.disabled = true;
+      if (submitUnpaidOrderBtn) submitUnpaidOrderBtn.disabled = true;
+    }
+    if (!isTestMode && paymentMode === "paid" && submitOrderBtn) submitOrderBtn.textContent = options.loadingText || "送出中...";
+    if (!isTestMode && paymentMode === "unpaid" && submitUnpaidOrderBtn) submitUnpaidOrderBtn.textContent = options.loadingText || "未結帳送單中...";
+    if (isTestMode && submitTestOrderBtn) submitTestOrderBtn.textContent = options.loadingText || "測試送出中...";
+    return;
   }
-  if (!isTestMode && isPaidMode && submitOrderBtn) submitOrderBtn.textContent = "送出中...";
-  if (!isTestMode && isUnpaidMode && submitUnpaidOrderBtn) submitUnpaidOrderBtn.textContent = "未結帳送單中...";
-  if (isTestMode && submitTestOrderBtn) submitTestOrderBtn.textContent = "測試送出中...";
+
+  submittingPosOrder = false;
+  if (submitOrderBtn) submitOrderBtn.disabled = false;
+  if (submitUnpaidOrderBtn) submitUnpaidOrderBtn.disabled = false;
+  if (submitTestOrderBtn) submitTestOrderBtn.disabled = posSettings.showTestOrders !== true;
+  if (submitOrderBtn) submitOrderBtn.textContent = "結帳並送單";
+  if (submitUnpaidOrderBtn) submitUnpaidOrderBtn.textContent = "未結帳送單";
+  if (submitTestOrderBtn) submitTestOrderBtn.textContent = "測試訂單";
+  applyShowTestOrdersSetting();
+}
+
+async function submitOrderCore(options) {
+  var isTestMode = options.isTestMode === true;
+  var isUnpaidMode = options.paymentMode === "unpaid" && !isTestMode;
+  var isPaidMode = !isUnpaidMode;
+  var summary = options.summary || getCartSubmissionSummary();
+
+  setPosSubmissionUi(options, true);
 
   try {
     const newOrderRef = push(ordersRef);
@@ -3088,9 +3182,9 @@ async function submitOrderCore(isTestMode, paymentMode) {
       isTestOrder: isTestMode,
       revenueExcluded: isTestMode,
       testOrderNote: isTestMode ? "POS 建立的測試訂單，不計入營收 / 收班 / 報表" : "",
-      note: orderNote,
+      note: summary.orderNote,
       items: cart,
-      total,
+      total: summary.total,
       status: getOrderStatusForSubmission(),
       statusText: isTestMode ? "測試訂單：已送廚房，不計營收" : (isUnpaidMode ? "未結帳，已送廚房" : (STORE_MODE === "pro" ? "已結帳，餐點製作中" : "已結帳，已送廚房")),
       paymentStatus: paymentFields.paymentStatus,
@@ -3108,24 +3202,17 @@ async function submitOrderCore(isTestMode, paymentMode) {
 
     await set(newOrderRef, order);
 
-    alert(`${isTestMode ? "測試訂單已送出" : (isUnpaidMode ? "未結帳訂單已送出" : "結帳完成，已送出")}：${order.customerLabel}\n單號：${orderNumber}`);
+    alert((options.successText || "訂單已送出") + "：" + order.customerLabel + "\n單號：" + orderNumber);
 
     cart = [];
     if (posOrderNoteInput) posOrderNoteInput.value = "";
     renderCart();
   } catch (error) {
-    console.error("結帳送出失敗：", error);
-    alert("結帳送出失敗");
+    console.error(options.errorLogText || "訂單送出失敗：", error);
+    alert(options.errorAlertText || "訂單送出失敗\n請稍後再試。");
   }
 
-  submittingPosOrder = false;
-  if (submitOrderBtn) submitOrderBtn.disabled = false;
-  if (submitUnpaidOrderBtn) submitUnpaidOrderBtn.disabled = false;
-  if (submitTestOrderBtn) submitTestOrderBtn.disabled = posSettings.showTestOrders !== true;
-  if (submitOrderBtn) submitOrderBtn.textContent = "結帳並送單";
-  if (submitUnpaidOrderBtn) submitUnpaidOrderBtn.textContent = "未結帳送單";
-  if (submitTestOrderBtn) submitTestOrderBtn.textContent = "測試訂單";
-  applyShowTestOrdersSetting();
+  setPosSubmissionUi(options, false);
 }
 
 /* =========================
@@ -3153,6 +3240,7 @@ function renderOrderCard(order) {
   const canCancel = !locked && !isPaid(order) && !isCancelled(order) && !isClosed(order);
   const canVoid = !locked && !isCancelled(order) && (isPaid(order) || isDone(order) || isClosed(order) || isTestOrder(order));
   const canClose = !locked && isDone(order) && !isClosed(order) && !isCancelled(order) && !isTestOrder(order);
+  const canCompleteInPos = canCompleteOrderInPos(order);
   const editable = !locked && canEditOrder(order);
 
   return `
@@ -3191,7 +3279,9 @@ function renderOrderCard(order) {
 
         ${canConfirm ? `<button class="primary-btn" onclick="confirmPaidAndProcess('${order.id}')">確認收款</button>` : ""}
 
-        ${STORE_MODE === "pro" && order.status === "cooking" ? `<button class="primary-btn" onclick="markOrderDoneByPOS('${order.id}')">POS 標記完成</button>` : ""}
+        ${canCompleteInPos ? `<button class="primary-btn" onclick="completeOrderByPOS('${order.id}')">完成訂單</button>` : ""}
+
+        ${STORE_MODE === "pro" && order.status === "cooking" && !canCompleteInPos ? `<button class="primary-btn" onclick="markOrderDoneByPOS('${order.id}')">POS 標記完成</button>` : ""}
 
         ${canClose ? `<button class="primary-btn" onclick="closeOrder('${order.id}')">結案</button>` : ""}
 
@@ -3757,32 +3847,50 @@ function invalidateQrSessionForOrder(order, reason) {
   });
 }
 
-async function markOrderDoneByPOS(orderId) {
-  const order = ordersData[orderId];
+async function finishOrderByPOS(orderId, options) {
+  var order = ordersData[orderId];
+  options = options || {};
 
   if (!order) {
     alert("找不到這筆訂單");
     return;
   }
 
-  const ok = confirm(`確認「${getCustomerLabel(order)}」餐點已完成？`);
+  var ok = confirm(options.confirmText || ("確認「" + getCustomerLabel(order) + "」餐點已完成？"));
   if (!ok) return;
 
   try {
-    const now = Date.now();
-    await update(ref(db, `orders/${orderId}`), {
+    var now = Date.now();
+    await update(ref(db, "orders/" + orderId), {
       status: "done",
-      statusText: "餐點已完成，等待 POS 結案",
-      kitchenStatus: "not_required",
+      statusText: options.statusText || "餐點已完成",
+      kitchenStatus: "done",
       completedAt: now,
       doneAt: now,
       updatedAt: now
     });
     await invalidateQrSessionForOrder(order, "order_done");
   } catch (error) {
-    console.error("標記完成失敗：", error);
-    alert("標記完成失敗");
+    console.error(options.errorLogText || "完成訂單失敗：", error);
+    alert(options.errorAlertText || "完成訂單失敗\n請稍後再試。");
   }
+}
+
+async function completeOrderByPOS(orderId) {
+  return finishOrderByPOS(orderId, {
+    confirmText: "確認是否完成製作？",
+    statusText: "餐點已完成",
+    errorLogText: "完成訂單失敗：",
+    errorAlertText: "完成訂單失敗\n請稍後再試。"
+  });
+}
+
+async function markOrderDoneByPOS(orderId) {
+  return finishOrderByPOS(orderId, {
+    statusText: "餐點已完成，等待 POS 結案",
+    errorLogText: "標記完成失敗：",
+    errorAlertText: "標記完成失敗"
+  });
 }
 
 async function closeOrder(orderId) {
@@ -4637,6 +4745,7 @@ window.openCartItemEditModal = openCartItemEditModal;
 
 window.confirmPaidAndProcess = confirmPaidAndProcess;
 window.confirmPaidAndSendKitchen = confirmPaidAndProcess;
+window.completeOrderByPOS = completeOrderByPOS;
 window.markOrderDoneByPOS = markOrderDoneByPOS;
 window.closeOrder = closeOrder;
 window.cancelOrder = cancelOrder;
