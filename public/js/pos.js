@@ -846,11 +846,11 @@ function stopOrderAlertForOrder(orderId) {
 function rebuildSoundTypeOptions() {
   if (!soundTypeSelect || soundTypeSelect.getAttribute("data-v655-ready") === "true") return;
   soundTypeSelect.innerHTML = [
-    '<option value="classic">Classic</option>',
-    '<option value="restaurant">Restaurant</option>',
-    '<option value="cafe">Cafe</option>',
-    '<option value="modern">Modern</option>',
-    '<option value="night-market">Night Market</option>'
+    '<option value="classic">經典</option>',
+    '<option value="restaurant">餐廳</option>',
+    '<option value="cafe">咖啡館</option>',
+    '<option value="modern">現代</option>',
+    '<option value="night-market">夜市</option>'
   ].join("");
   soundTypeSelect.setAttribute("data-v655-ready", "true");
 }
@@ -999,7 +999,7 @@ function initSettingsCenter() {
     buildSettingsEntry("store", "🏪", "店家與桌位", "店名、桌數、店內使用設定"),
     buildSettingsEntry("order", "🛒", "點餐流程", "出餐時間、測試單與點餐行為"),
     buildSettingsEntry("qr", "📱", "QR 點餐", "QR 有效時間與查詢時間"),
-    buildSettingsEntry("sound", "🔔", "通知與音效", "EnPoint Sound Center 與重複提醒"),
+    buildSettingsEntry("sound", "🔔", "通知與音效", "音效中心與重複提醒"),
     buildSettingsEntry("print", "🖨️", "列印與出單", "出單、貼紙與列印失敗預留"),
     buildSettingsEntry("modules", "🧩", "功能模組", "SaaS、會員、電子發票、外送平台"),
     buildSettingsEntry("system", "⚙️", "系統與裝置", "全螢幕、喇叭與裝置預留")
@@ -1009,7 +1009,7 @@ function initSettingsCenter() {
   modal.id = "settingsCenterModal";
   modal.className = "settings-center-modal hidden";
   modal.innerHTML = '<div class="settings-center-dialog" role="dialog" aria-modal="true" aria-labelledby="settingsCenterTitle">' +
-    '<div class="settings-center-header"><button type="button" id="settingsCenterBackBtn" class="settings-center-icon-btn" aria-label="返回">‹</button><div><h3 id="settingsCenterTitle">設定中心</h3><p id="settingsCenterSubtitle">Settings Center</p></div><button type="button" id="settingsCenterCloseBtn" class="settings-center-icon-btn" aria-label="關閉">×</button></div>' +
+    '<div class="settings-center-header"><button type="button" id="settingsCenterBackBtn" class="settings-center-icon-btn" aria-label="返回">‹</button><div><h3 id="settingsCenterTitle">設定中心</h3><p id="settingsCenterSubtitle">設定中心</p></div><button type="button" id="settingsCenterCloseBtn" class="settings-center-icon-btn" aria-label="關閉">×</button></div>' +
     '<div id="settingsCenterBody" class="settings-center-body"></div>' +
     '<div class="settings-center-footer"><button type="button" id="settingsCenterFooterBackBtn" class="secondary-btn">返回</button><button type="button" id="settingsCenterFooterCloseBtn" class="primary-btn">關閉</button></div>' +
     '</div>';
@@ -1060,13 +1060,13 @@ function openSettingsSection(section) {
   var modal = document.getElementById("settingsCenterModal");
   if (!modal) return;
   var titles = {
-    store: ["店家與桌位", "Store & Tables"],
-    order: ["點餐流程", "Ordering Flow"],
-    qr: ["QR 點餐", "QR Ordering"],
-    sound: ["通知與音效", "EnPoint Sound Center"],
-    print: ["列印與出單", "Print & Tickets"],
-    modules: ["功能模組", "Feature Modules"],
-    system: ["系統與裝置", "System & Devices"]
+    store: ["店家與桌位", "店家與桌位"],
+    order: ["點餐流程", "點餐流程"],
+    qr: ["QR 點餐", "QR 點餐"],
+    sound: ["通知與音效", "音效中心"],
+    print: ["列印與出單", "列印與出單"],
+    modules: ["功能模組", "功能模組"],
+    system: ["系統與裝置", "系統與裝置"]
   };
   settingsModalCurrentSection = section || "store";
   var title = titles[settingsModalCurrentSection] || titles.store;
@@ -1114,11 +1114,11 @@ function buildSoundCenterPanel() {
     ["print-fail", "列印失敗"],
     ["delivery", "外送平台"]
   ];
-  card.innerHTML = '<div class="settings-card-title"><span>🔔 EnPoint Sound Center</span><small>提示音、音效主題、事件音效與未處理訂單重複提醒</small></div>' +
+  card.innerHTML = '<div class="settings-card-title"><span>🔔 音效中心</span><small>提示音、音效主題、事件音效與未處理訂單重複提醒</small></div>' +
     '<div class="sound-center-repeat-grid">' +
     '<label class="feature-module-row"><span>啟用重複提醒</span><input id="repeatAlertEnabledInput" type="checkbox" ' + (posSettings.repeatAlertEnabled ? "checked" : "") + ' /></label>' +
     '<label><span>提醒間隔</span><select id="repeatAlertIntervalInput" class="settings-input"><option value="10">10 秒</option><option value="15">15 秒</option><option value="20">20 秒</option><option value="30">30 秒</option><option value="45">45 秒</option><option value="60">60 秒</option></select></label>' +
-    '<label><span>最大提醒次數</span><select id="repeatAlertMaxInput" class="settings-input"><option value="1">1 次</option><option value="3">3 次</option><option value="5">5 次</option><option value="10">10 次</option><option value="infinite">無限提醒</option></select></label>' +
+    '<label><span>最大提醒次數</span><select id="repeatAlertMaxInput" class="settings-input"><option value="1">1 次</option><option value="3">3 次</option><option value="5">5 次</option><option value="10">10 次</option><option value="infinite">持續提醒直到確認</option></select></label>' +
     '</div>' +
     '<div class="sound-event-list" id="soundEventList">' +
     events.map(function(item) {
@@ -1202,11 +1202,11 @@ function bindSoundCenterControls() {
 
 function getSoundThemeLabel(theme) {
   var labels = {
-    classic: "Classic",
-    restaurant: "Restaurant",
-    cafe: "Cafe",
-    modern: "Modern",
-    "night-market": "Night Market"
+    classic: "經典",
+    restaurant: "餐廳",
+    cafe: "咖啡館",
+    modern: "現代",
+    "night-market": "夜市"
   };
   return labels[theme] || labels.classic;
 }
@@ -1215,33 +1215,33 @@ function buildSoundCenterPanelV656() {
   var card = document.createElement("section");
   card.className = "settings-card settings-sound-center-card sound-center-v656";
   var events = [
-    ["new-order", "New Order"],
-    ["payment", "Payment"],
-    ["cooking", "Cooking"],
-    ["done", "Done"],
-    ["cancel", "Cancel"],
-    ["error", "Error"]
+    ["new-order", "新訂單"],
+    ["payment", "收款成功"],
+    ["cooking", "製作中"],
+    ["done", "製作完成"],
+    ["cancel", "已取消"],
+    ["error", "錯誤提示"]
   ];
-  card.innerHTML = '<div class="settings-card-title"><span>Sound Center</span><small>Master volume, theme sound pack, test playback, repeat reminder, and silent hours.</small></div>' +
+  card.innerHTML = '<div class="settings-card-title"><span>🔔 音效中心</span><small>音量、音效主題、試聽、重複提醒與靜音時段。</small></div>' +
     '<div class="sound-center-control-stack">' +
-      '<label class="sound-center-field sound-volume-field"><span>Master Volume</span><div class="sound-volume-readout"><b>0%</b><span id="soundCenterVolumeValue">100%</span><b>200%</b></div><input id="soundCenterVolumeInput" class="settings-input settings-range-input" type="range" min="0" max="200" step="25" /></label>' +
-      '<label class="sound-center-field"><span>Theme</span><select id="soundThemeSelect" class="settings-input"><option value="classic">Classic</option><option value="restaurant">Restaurant</option><option value="cafe">Cafe</option><option value="modern">Modern</option><option value="night-market">Night Market</option></select></label>' +
+      '<label class="sound-center-field sound-volume-field"><span>音量</span><div class="sound-volume-readout"><b>0%</b><span id="soundCenterVolumeValue">100%</span><b>200%</b></div><input id="soundCenterVolumeInput" class="settings-input settings-range-input" type="range" min="0" max="200" step="25" /></label>' +
+      '<label class="sound-center-field"><span>音效主題</span><select id="soundThemeSelect" class="settings-input"><option value="classic">經典</option><option value="restaurant">餐廳</option><option value="cafe">咖啡館</option><option value="modern">現代</option><option value="night-market">夜市</option></select></label>' +
     '</div>' +
     '<div class="sound-event-list sound-pack-event-list" id="soundEventList">' +
       events.map(function(item) {
-        return '<div class="sound-event-row sound-pack-row"><div><strong>' + item[1] + '</strong><small>Theme: <span data-sound-row-theme>' + getSoundThemeLabel(posSettings.soundType) + '</span></small></div><button type="button" class="secondary-btn sound-test-btn" data-sound-test="' + item[0] + '">▶ Test</button></div>';
+        return '<div class="sound-event-row sound-pack-row"><div><strong>' + item[1] + '</strong><small>音效主題：<span data-sound-row-theme>' + getSoundThemeLabel(posSettings.soundType) + '</span></small></div><button type="button" class="secondary-btn sound-test-btn" data-sound-test="' + item[0] + '">▶ 試聽</button></div>';
       }).join("") +
     '</div>' +
     '<div class="sound-center-control-stack">' +
-      '<label class="sound-center-field"><span>Repeat Reminder</span><select id="repeatAlertIntervalInput" class="settings-input"><option value="off">OFF</option><option value="10">10 秒</option><option value="15">15 秒</option><option value="20">20 秒</option><option value="30">30 秒</option><option value="45">45 秒</option><option value="60">60 秒</option><option value="90">90 秒</option><option value="120">120 秒</option><option value="custom">自訂秒數</option></select></label>' +
+      '<label class="sound-center-field"><span>重複提醒</span><select id="repeatAlertIntervalInput" class="settings-input"><option value="off">關閉</option><option value="10">10 秒</option><option value="15">15 秒</option><option value="20">20 秒</option><option value="30">30 秒</option><option value="45">45 秒</option><option value="60">60 秒</option><option value="90">90 秒</option><option value="120">120 秒</option><option value="custom">自訂秒數</option></select></label>' +
       '<label class="sound-center-field" id="repeatCustomSecondsField"><span>自訂秒數</span><input id="repeatAlertCustomInput" class="settings-input" type="number" min="1" max="3600" step="1" /></label>' +
-      '<label class="sound-center-field"><span>Max Reminder</span><select id="repeatAlertMaxInput" class="settings-input"><option value="1">1 次</option><option value="3">3 次</option><option value="5">5 次</option><option value="10">10 次</option><option value="until-confirmed">直到有人確認</option></select></label>' +
+      '<label class="sound-center-field"><span>最大提醒次數</span><select id="repeatAlertMaxInput" class="settings-input"><option value="1">1 次</option><option value="3">3 次</option><option value="5">5 次</option><option value="10">10 次</option><option value="until-confirmed">持續提醒直到確認</option></select></label>' +
     '</div>' +
     '<div class="sound-center-silent-box">' +
-      '<div class="settings-card-title"><span>Silent Hours</span><small>進入時間後全部提示音停止，離開時間後恢復。</small></div>' +
-      '<div class="silent-hours-grid"><label class="sound-center-field"><span>開始</span><input id="silentHoursStartInput" class="settings-input" type="time" /></label><div class="silent-hours-arrow">↓</div><label class="sound-center-field"><span>結束</span><input id="silentHoursEndInput" class="settings-input" type="time" /></label><label class="feature-module-row silent-hours-toggle"><span>啟用靜音時段</span><input id="silentHoursEnabledInput" type="checkbox" /></label></div>' +
+      '<div class="settings-card-title"><span>靜音時段</span><small>進入時間後全部提示音停止，離開時間後恢復。</small></div>' +
+      '<div class="silent-hours-grid"><label class="sound-center-field"><span>開始時間</span><input id="silentHoursStartInput" class="settings-input" type="time" /></label><div class="silent-hours-arrow">↓</div><label class="sound-center-field"><span>結束時間</span><input id="silentHoursEndInput" class="settings-input" type="time" /></label><label class="feature-module-row silent-hours-toggle"><span>啟用靜音時段</span><input id="silentHoursEnabledInput" type="checkbox" /></label></div>' +
     '</div>' +
-    '<div class="settings-future-note">API reserved only: Uber Eats Theme, foodpanda Theme, custom MP3, external speaker, multi-store settings, schedule, and Do Not Disturb.</div>';
+    '<div class="settings-future-note">僅預留 API：Uber Eats 音效主題、foodpanda 音效主題、自訂 MP3、外接喇叭、多店設定、排程與勿擾模式。</div>';
   return card;
 }
 
@@ -4257,7 +4257,7 @@ editItemModal.addEventListener("click", event => {
 });
 
 /* =========================
-   Confirm / Cancel / Close
+   確認 / 取消 / 結案
 ========================= */
 
 async function confirmPaidAndProcess(orderId) {

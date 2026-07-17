@@ -41,7 +41,7 @@ const DEFAULT_SOUND_CENTER_SETTINGS = {
 
 const SOUND_PACKS = {
   classic: {
-    label: "Classic",
+    label: "經典",
     events: {
       "new-order": [[880, 0, 0.18, 1], [1175, 0.24, 0.18, 0.9]],
       payment: [[659, 0, 0.12, 0.78], [880, 0.16, 0.18, 0.9]],
@@ -52,7 +52,7 @@ const SOUND_PACKS = {
     }
   },
   restaurant: {
-    label: "Restaurant",
+    label: "餐廳",
     events: {
       "new-order": [[784, 0, 0.22, 1], [988, 0.28, 0.22, 0.92]],
       payment: [[587, 0, 0.15, 0.76], [784, 0.19, 0.2, 0.84]],
@@ -63,7 +63,7 @@ const SOUND_PACKS = {
     }
   },
   cafe: {
-    label: "Cafe",
+    label: "咖啡館",
     events: {
       "new-order": [[659, 0, 0.2, 0.88], [880, 0.28, 0.24, 0.82], [1047, 0.62, 0.18, 0.68]],
       payment: [[523, 0, 0.16, 0.66], [784, 0.22, 0.18, 0.74]],
@@ -74,7 +74,7 @@ const SOUND_PACKS = {
     }
   },
   modern: {
-    label: "Modern",
+    label: "現代",
     events: {
       "new-order": [[988, 0, 0.1, 1], [1319, 0.14, 0.13, 0.92], [1568, 0.31, 0.13, 0.86]],
       payment: [[740, 0, 0.1, 0.74], [1175, 0.16, 0.16, 0.78]],
@@ -85,7 +85,7 @@ const SOUND_PACKS = {
     }
   },
   "night-market": {
-    label: "Night Market",
+    label: "夜市",
     events: {
       "new-order": [[1047, 0, 0.1, 1], [1047, 0.16, 0.1, 1], [784, 0.36, 0.22, 0.9]],
       payment: [[784, 0, 0.12, 0.78], [1047, 0.17, 0.16, 0.82]],
@@ -237,7 +237,7 @@ function play(eventName, options) {
     });
     return true;
   } catch (error) {
-    console.warn("EnPoint Sound Center playback failed", error);
+    console.warn("恩點音效中心播放失敗", error);
     return false;
   }
 }
