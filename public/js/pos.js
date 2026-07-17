@@ -260,7 +260,11 @@ const defaultSettings = {
   soundVolume: 100,
   repeatAlertEnabled: true,
   repeatAlertInterval: 15,
+  repeatAlertCustomSeconds: 15,
   repeatAlertMaxCount: 3,
+  silentHoursEnabled: false,
+  silentHoursStart: "22:00",
+  silentHoursEnd: "07:00",
   autoSwitchCartAfterAdd: false
 };
 
@@ -484,8 +488,19 @@ function readSoundTypeSetting(key, fallback) {
 
 function readRepeatMaxCountSetting() {
   var value = localStorage.getItem("repeatAlertMaxCount");
-  if (value === "infinite") return "infinite";
+  if (value === "infinite" || value === "until-confirmed") return "until-confirmed";
   return readNumberSetting("repeatAlertMaxCount", defaultSettings.repeatAlertMaxCount, 1, 99);
+}
+
+function readRepeatIntervalSetting() {
+  var value = localStorage.getItem("repeatAlertInterval");
+  if (value === "off" || value === "custom") return value;
+  return readNumberSetting("repeatAlertInterval", defaultSettings.repeatAlertInterval, 1, 3600);
+}
+
+function readTimeSetting(key, fallback) {
+  var value = localStorage.getItem(key) || fallback;
+  return /^\d{2}:\d{2}$/.test(value) ? value : fallback;
 }
 
 function isValidSoundType(value) {
@@ -525,8 +540,12 @@ function loadSettings() {
     soundType: readSoundTypeSetting("soundType", defaultSettings.soundType),
     soundVolume: readNumberSetting("soundVolume", defaultSettings.soundVolume, 0, 200),
     repeatAlertEnabled: readBooleanSetting("repeatAlertEnabled", defaultSettings.repeatAlertEnabled),
-    repeatAlertInterval: readNumberSetting("repeatAlertInterval", defaultSettings.repeatAlertInterval, 1, 3600),
+    repeatAlertInterval: readRepeatIntervalSetting(),
+    repeatAlertCustomSeconds: readNumberSetting("repeatAlertCustomSeconds", defaultSettings.repeatAlertCustomSeconds, 1, 3600),
     repeatAlertMaxCount: readRepeatMaxCountSetting(),
+    silentHoursEnabled: readBooleanSetting("silentHoursEnabled", defaultSettings.silentHoursEnabled),
+    silentHoursStart: readTimeSetting("silentHoursStart", defaultSettings.silentHoursStart),
+    silentHoursEnd: readTimeSetting("silentHoursEnd", defaultSettings.silentHoursEnd),
     autoSwitchCartAfterAdd: readBooleanSetting("autoSwitchCartAfterAdd", defaultSettings.autoSwitchCartAfterAdd)
   };
 }
@@ -580,13 +599,18 @@ function syncSoundSettingsToFirebase() {
 }
 
 function syncSoundCenterSettings() {
+  var repeatMode = posSettings.repeatAlertEnabled === true ? String(posSettings.repeatAlertInterval || defaultSettings.repeatAlertInterval) : "off";
+  if (repeatMode === "custom") repeatMode = "custom";
   configureSoundCenter({
     enabled: posSettings.enableSound === true,
     masterVolume: Math.min(200, Math.max(0, Math.floor(Number(posSettings.soundVolume) || 0))),
     theme: isValidSoundType(posSettings.soundType) ? posSettings.soundType : defaultSettings.soundType,
-    repeatEnabled: posSettings.repeatAlertEnabled === true,
-    repeatIntervalSeconds: Math.min(3600, Math.max(1, Math.floor(Number(posSettings.repeatAlertInterval) || defaultSettings.repeatAlertInterval))),
-    repeatMaxCount: posSettings.repeatAlertMaxCount === "infinite" ? "infinite" : Math.min(99, Math.max(1, Math.floor(Number(posSettings.repeatAlertMaxCount) || defaultSettings.repeatAlertMaxCount)))
+    repeatMode: repeatMode,
+    repeatCustomSeconds: Math.min(3600, Math.max(1, Math.floor(Number(posSettings.repeatAlertCustomSeconds) || defaultSettings.repeatAlertCustomSeconds))),
+    repeatMaxCount: posSettings.repeatAlertMaxCount === "until-confirmed" || posSettings.repeatAlertMaxCount === "infinite" ? "until-confirmed" : Math.min(10, Math.max(1, Math.floor(Number(posSettings.repeatAlertMaxCount) || defaultSettings.repeatAlertMaxCount))),
+    silentHoursEnabled: posSettings.silentHoursEnabled === true,
+    silentStart: posSettings.silentHoursStart || defaultSettings.silentHoursStart,
+    silentEnd: posSettings.silentHoursEnd || defaultSettings.silentHoursEnd
   });
 }
 
@@ -637,6 +661,8 @@ function watchSharedSettings() {
     posSettings.soundType = value;
     saveSetting("soundType", value);
     if (soundTypeSelect && document.activeElement !== soundTypeSelect) soundTypeSelect.value = value;
+    renderSoundCenterControlsV656();
+    syncSoundCenterSettings();
   });
 
   onValue(soundVolumeRef, snapshot => {
@@ -686,6 +712,10 @@ function renderSoundVolume() {
   }
   if (soundVolumeInput && document.activeElement !== soundVolumeInput) soundVolumeInput.value = volume;
   if (soundVolumeValue) soundVolumeValue.textContent = String(volume) + "%";
+  var soundCenterVolumeValue = document.getElementById("soundCenterVolumeValue");
+  var soundCenterVolumeInput = document.getElementById("soundCenterVolumeInput");
+  if (soundCenterVolumeValue) soundCenterVolumeValue.textContent = String(volume) + "%";
+  if (soundCenterVolumeInput && document.activeElement !== soundCenterVolumeInput) soundCenterVolumeInput.value = String(volume);
 }
 
 function unlockPosOrderSound() {
@@ -728,11 +758,15 @@ function isTodayTabActive() {
 }
 
 function getRepeatAlertIntervalMs() {
+  if (posSettings.repeatAlertEnabled !== true || posSettings.repeatAlertInterval === "off") return 0;
+  if (posSettings.repeatAlertInterval === "custom") {
+    return Math.min(3600, Math.max(1, Math.floor(Number(posSettings.repeatAlertCustomSeconds) || defaultSettings.repeatAlertCustomSeconds))) * 1000;
+  }
   return Math.min(3600, Math.max(1, Math.floor(Number(posSettings.repeatAlertInterval) || defaultSettings.repeatAlertInterval))) * 1000;
 }
 
 function getRepeatAlertMaxCount() {
-  return posSettings.repeatAlertMaxCount === "infinite" ? "infinite" : Math.min(99, Math.max(1, Math.floor(Number(posSettings.repeatAlertMaxCount) || defaultSettings.repeatAlertMaxCount)));
+  return posSettings.repeatAlertMaxCount === "until-confirmed" || posSettings.repeatAlertMaxCount === "infinite" ? "until-confirmed" : Math.min(10, Math.max(1, Math.floor(Number(posSettings.repeatAlertMaxCount) || defaultSettings.repeatAlertMaxCount)));
 }
 
 function isOrderStillAwaitingAttention(order) {
@@ -773,9 +807,9 @@ function startOrderAlertSound(orderId) {
     return;
   }
   pendingNewOrderAlert = true;
-  orderAlertPlayCount = 1;
-  playNewQrOrderBeep();
-  if (orderAlertIntervalId || posSettings.repeatAlertEnabled !== true) return;
+  orderAlertPlayCount = playNewQrOrderBeep() ? 1 : 0;
+  var repeatIntervalMs = getRepeatAlertIntervalMs();
+  if (orderAlertIntervalId || repeatIntervalMs <= 0) return;
   orderAlertIntervalId = window.setInterval(function() {
     var maxCount = getRepeatAlertMaxCount();
     if (!pendingNewOrderAlert || posSettings.enableSound !== true || !reconcilePendingOrderAlerts()) {
@@ -786,13 +820,14 @@ function startOrderAlertSound(orderId) {
       stopOrderAlertSound();
       return;
     }
-    if (maxCount !== "infinite" && orderAlertPlayCount >= maxCount) {
+    if (maxCount !== "until-confirmed" && orderAlertPlayCount >= maxCount) {
       stopOrderAlertSound();
       return;
     }
-    orderAlertPlayCount += 1;
-    playNewQrOrderBeep();
-  }, getRepeatAlertIntervalMs());
+    if (playNewQrOrderBeep()) {
+      orderAlertPlayCount += 1;
+    }
+  }, repeatIntervalMs);
 }
 
 function stopOrderAlertSound() {
@@ -907,7 +942,7 @@ function renderSettings() {
   setSwitchState(enableSoundToggle, posSettings.enableSound);
   setSwitchState(autoSwitchCartToggle, posSettings.autoSwitchCartAfterAdd);
   renderFeatureModuleSettings();
-  renderSoundCenterControls();
+  renderSoundCenterControlsV656();
 }
 
 function findSettingsCardByControl(controlId) {
@@ -955,10 +990,8 @@ function initSettingsCenter() {
   moveSettingsCard(sections.qr, "orderLookupMinutesInput");
   moveSettingsCard(sections.order, "showTestOrdersToggle");
   moveSettingsCard(sections.sound, "enableSoundToggle");
-  moveSettingsCard(sections.sound, "soundTypeSelect");
-  moveSettingsCard(sections.sound, "soundVolumeInput");
   moveSettingsCard(sections.order, "autoSwitchCartToggle");
-  sections.sound.appendChild(buildSoundCenterPanel());
+  sections.sound.appendChild(buildSoundCenterPanelV656());
   sections.print.appendChild(buildReservedSettingsCard("列印與出單", "出單機、廚房單、客人單、貼紙與列印失敗音效的設定區。"));
   sections.modules.appendChild(buildReservedSettingsCard("功能模組", "QR、KDS、列印、會員、電子發票、外送平台都會放在這裡管理。"));
   sections.system.appendChild(buildReservedSettingsCard("系統與裝置", "裝置、喇叭、勿擾模式、排程靜音與多店音效設定的預留區。"));
@@ -1091,8 +1124,8 @@ function buildSoundCenterPanel() {
     '</div>' +
     '<div class="sound-event-list" id="soundEventList">' +
     events.map(function(item) {
-      var value = settings.eventSounds[item[0]] || item[0];
-      return '<div class="sound-event-row"><span>' + item[1] + '</span><select class="settings-input" data-sound-event="' + item[0] + '">' +
+      var value = item[0];
+      return '<div class="sound-event-row"><span>' + item[1] + '</span><select class="settings-input" data-legacy-sound-event="' + item[0] + '">' +
         soundOptions.map(function(option) {
           return '<option value="' + option[0] + '"' + (value === option[0] ? " selected" : "") + '>' + option[1] + '</option>';
         }).join("") +
@@ -1142,14 +1175,15 @@ function bindSoundCenterControls() {
       syncSoundCenterSettings();
     }, false);
   }
-  var eventSelects = document.querySelectorAll("[data-sound-event]");
+  var eventSelects = document.querySelectorAll("[data-legacy-sound-event]");
   for (var i = 0; i < eventSelects.length; i += 1) {
     (function(select) {
       if (select.getAttribute("data-bound") === "true") return;
       select.setAttribute("data-bound", "true");
       select.addEventListener("change", function() {
         var settings = getSoundCenterSettings();
-        settings.eventSounds[select.getAttribute("data-sound-event")] = select.value;
+        settings.legacySoundEvents = settings.legacySoundEvents || {};
+        settings.legacySoundEvents[select.getAttribute("data-legacy-sound-event")] = select.value;
         configureSoundCenter(settings);
       }, false);
     })(eventSelects[i]);
@@ -1162,7 +1196,189 @@ function bindSoundCenterControls() {
       addLegacyTapListener(button, function(event) {
         if (event && event.preventDefault) event.preventDefault();
         unlockPosOrderSound();
-        playSound(button.getAttribute("data-sound-test"), { force: true });
+        playSound(button.getAttribute("data-sound-test"), { force: true, ignoreSilentHours: true });
+      });
+    })(testButtons[j]);
+  }
+}
+
+function getSoundThemeLabel(theme) {
+  var labels = {
+    classic: "Classic",
+    restaurant: "Restaurant",
+    cafe: "Cafe",
+    modern: "Modern",
+    "night-market": "Night Market"
+  };
+  return labels[theme] || labels.classic;
+}
+
+function buildSoundCenterPanelV656() {
+  var card = document.createElement("section");
+  card.className = "settings-card settings-sound-center-card sound-center-v656";
+  var events = [
+    ["new-order", "New Order"],
+    ["payment", "Payment"],
+    ["cooking", "Cooking"],
+    ["done", "Done"],
+    ["cancel", "Cancel"],
+    ["error", "Error"]
+  ];
+  card.innerHTML = '<div class="settings-card-title"><span>Sound Center</span><small>Master volume, theme sound pack, test playback, repeat reminder, and silent hours.</small></div>' +
+    '<div class="sound-center-control-stack">' +
+      '<label class="sound-center-field sound-volume-field"><span>Master Volume</span><div class="sound-volume-readout"><b>0%</b><span id="soundCenterVolumeValue">100%</span><b>200%</b></div><input id="soundCenterVolumeInput" class="settings-input settings-range-input" type="range" min="0" max="200" step="25" /></label>' +
+      '<label class="sound-center-field"><span>Theme</span><select id="soundThemeSelect" class="settings-input"><option value="classic">Classic</option><option value="restaurant">Restaurant</option><option value="cafe">Cafe</option><option value="modern">Modern</option><option value="night-market">Night Market</option></select></label>' +
+    '</div>' +
+    '<div class="sound-event-list sound-pack-event-list" id="soundEventList">' +
+      events.map(function(item) {
+        return '<div class="sound-event-row sound-pack-row"><div><strong>' + item[1] + '</strong><small>Theme: <span data-sound-row-theme>' + getSoundThemeLabel(posSettings.soundType) + '</span></small></div><button type="button" class="secondary-btn sound-test-btn" data-sound-test="' + item[0] + '">▶ Test</button></div>';
+      }).join("") +
+    '</div>' +
+    '<div class="sound-center-control-stack">' +
+      '<label class="sound-center-field"><span>Repeat Reminder</span><select id="repeatAlertIntervalInput" class="settings-input"><option value="off">OFF</option><option value="10">10 秒</option><option value="15">15 秒</option><option value="20">20 秒</option><option value="30">30 秒</option><option value="45">45 秒</option><option value="60">60 秒</option><option value="90">90 秒</option><option value="120">120 秒</option><option value="custom">自訂秒數</option></select></label>' +
+      '<label class="sound-center-field" id="repeatCustomSecondsField"><span>自訂秒數</span><input id="repeatAlertCustomInput" class="settings-input" type="number" min="1" max="3600" step="1" /></label>' +
+      '<label class="sound-center-field"><span>Max Reminder</span><select id="repeatAlertMaxInput" class="settings-input"><option value="1">1 次</option><option value="3">3 次</option><option value="5">5 次</option><option value="10">10 次</option><option value="until-confirmed">直到有人確認</option></select></label>' +
+    '</div>' +
+    '<div class="sound-center-silent-box">' +
+      '<div class="settings-card-title"><span>Silent Hours</span><small>進入時間後全部提示音停止，離開時間後恢復。</small></div>' +
+      '<div class="silent-hours-grid"><label class="sound-center-field"><span>開始</span><input id="silentHoursStartInput" class="settings-input" type="time" /></label><div class="silent-hours-arrow">↓</div><label class="sound-center-field"><span>結束</span><input id="silentHoursEndInput" class="settings-input" type="time" /></label><label class="feature-module-row silent-hours-toggle"><span>啟用靜音時段</span><input id="silentHoursEnabledInput" type="checkbox" /></label></div>' +
+    '</div>' +
+    '<div class="settings-future-note">API reserved only: Uber Eats Theme, foodpanda Theme, custom MP3, external speaker, multi-store settings, schedule, and Do Not Disturb.</div>';
+  return card;
+}
+
+function renderSoundCenterControlsV656() {
+  var soundThemeSelect = document.getElementById("soundThemeSelect");
+  var soundCenterVolumeInput = document.getElementById("soundCenterVolumeInput");
+  var soundCenterVolumeValue = document.getElementById("soundCenterVolumeValue");
+  var repeatIntervalInput = document.getElementById("repeatAlertIntervalInput");
+  var repeatCustomInput = document.getElementById("repeatAlertCustomInput");
+  var repeatCustomField = document.getElementById("repeatCustomSecondsField");
+  var repeatMaxInput = document.getElementById("repeatAlertMaxInput");
+  var silentEnabledInput = document.getElementById("silentHoursEnabledInput");
+  var silentStartInput = document.getElementById("silentHoursStartInput");
+  var silentEndInput = document.getElementById("silentHoursEndInput");
+  var themeLabel = getSoundThemeLabel(posSettings.soundType);
+  if (soundThemeSelect) soundThemeSelect.value = posSettings.soundType || defaultSettings.soundType;
+  if (soundCenterVolumeInput && document.activeElement !== soundCenterVolumeInput) soundCenterVolumeInput.value = String(posSettings.soundVolume || 0);
+  if (soundCenterVolumeValue) soundCenterVolumeValue.textContent = String(posSettings.soundVolume || 0) + "%";
+  if (repeatIntervalInput) repeatIntervalInput.value = String(posSettings.repeatAlertInterval || defaultSettings.repeatAlertInterval);
+  if (repeatCustomInput) repeatCustomInput.value = String(posSettings.repeatAlertCustomSeconds || defaultSettings.repeatAlertCustomSeconds);
+  if (repeatCustomField) repeatCustomField.style.display = posSettings.repeatAlertInterval === "custom" ? "" : "none";
+  if (repeatMaxInput) repeatMaxInput.value = String(posSettings.repeatAlertMaxCount || defaultSettings.repeatAlertMaxCount);
+  if (silentEnabledInput) silentEnabledInput.checked = posSettings.silentHoursEnabled === true;
+  if (silentStartInput) silentStartInput.value = posSettings.silentHoursStart || defaultSettings.silentHoursStart;
+  if (silentEndInput) silentEndInput.value = posSettings.silentHoursEnd || defaultSettings.silentHoursEnd;
+  var themeNodes = document.querySelectorAll("[data-sound-row-theme]");
+  for (var i = 0; i < themeNodes.length; i += 1) themeNodes[i].textContent = themeLabel;
+  bindSoundCenterControlsV656();
+}
+
+function bindTimeSetting(input, key) {
+  if (!input || input.getAttribute("data-bound") === "true") return;
+  input.setAttribute("data-bound", "true");
+  input.addEventListener("change", function() {
+    var value = input.value || (key === "silentHoursStart" ? defaultSettings.silentHoursStart : defaultSettings.silentHoursEnd);
+    posSettings[key] = value;
+    saveSetting(key, value);
+    syncSoundCenterSettings();
+  }, false);
+}
+
+function bindSoundCenterControlsV656() {
+  var soundThemeSelect = document.getElementById("soundThemeSelect");
+  var soundCenterVolumeInput = document.getElementById("soundCenterVolumeInput");
+  var repeatIntervalInput = document.getElementById("repeatAlertIntervalInput");
+  var repeatCustomInput = document.getElementById("repeatAlertCustomInput");
+  var repeatMaxInput = document.getElementById("repeatAlertMaxInput");
+  var silentEnabledInput = document.getElementById("silentHoursEnabledInput");
+  var silentStartInput = document.getElementById("silentHoursStartInput");
+  var silentEndInput = document.getElementById("silentHoursEndInput");
+
+  if (soundThemeSelect && soundThemeSelect.getAttribute("data-bound") !== "true") {
+    soundThemeSelect.setAttribute("data-bound", "true");
+    soundThemeSelect.addEventListener("change", function() {
+      posSettings.soundType = isValidSoundType(soundThemeSelect.value) ? soundThemeSelect.value : defaultSettings.soundType;
+      if (soundTypeSelect) soundTypeSelect.value = posSettings.soundType;
+      saveSetting("soundType", posSettings.soundType);
+      renderSoundCenterControlsV656();
+      syncSoundCenterSettings();
+      syncSoundSettingsToFirebase();
+    }, false);
+  }
+
+  if (soundCenterVolumeInput && soundCenterVolumeInput.getAttribute("data-bound") !== "true") {
+    soundCenterVolumeInput.setAttribute("data-bound", "true");
+    soundCenterVolumeInput.addEventListener("input", function() {
+      posSettings.soundVolume = Math.min(200, Math.max(0, Math.floor(Number(soundCenterVolumeInput.value) || 0)));
+      posSettings.soundVolume = Math.round(posSettings.soundVolume / 25) * 25;
+      renderSoundVolume();
+      syncSoundCenterSettings();
+    }, false);
+    soundCenterVolumeInput.addEventListener("change", function() {
+      posSettings.soundVolume = Math.min(200, Math.max(0, Math.floor(Number(soundCenterVolumeInput.value) || 0)));
+      posSettings.soundVolume = Math.round(posSettings.soundVolume / 25) * 25;
+      saveSetting("soundVolume", posSettings.soundVolume);
+      renderSoundVolume();
+      syncSoundCenterSettings();
+      syncSoundSettingsToFirebase();
+    }, false);
+  }
+
+  if (repeatIntervalInput && repeatIntervalInput.getAttribute("data-bound") !== "true") {
+    repeatIntervalInput.setAttribute("data-bound", "true");
+    repeatIntervalInput.addEventListener("change", function() {
+      var value = repeatIntervalInput.value;
+      posSettings.repeatAlertInterval = value === "off" || value === "custom" ? value : Math.min(3600, Math.max(1, Math.floor(Number(value) || defaultSettings.repeatAlertInterval)));
+      posSettings.repeatAlertEnabled = posSettings.repeatAlertInterval !== "off";
+      saveSetting("repeatAlertInterval", posSettings.repeatAlertInterval);
+      saveSetting("repeatAlertEnabled", posSettings.repeatAlertEnabled);
+      renderSoundCenterControlsV656();
+      if (posSettings.repeatAlertEnabled !== true) stopOrderAlertSound();
+      syncSoundCenterSettings();
+    }, false);
+  }
+
+  if (repeatCustomInput && repeatCustomInput.getAttribute("data-bound") !== "true") {
+    repeatCustomInput.setAttribute("data-bound", "true");
+    repeatCustomInput.addEventListener("change", function() {
+      posSettings.repeatAlertCustomSeconds = Math.min(3600, Math.max(1, Math.floor(Number(repeatCustomInput.value) || defaultSettings.repeatAlertCustomSeconds)));
+      repeatCustomInput.value = String(posSettings.repeatAlertCustomSeconds);
+      saveSetting("repeatAlertCustomSeconds", posSettings.repeatAlertCustomSeconds);
+      syncSoundCenterSettings();
+    }, false);
+  }
+
+  if (repeatMaxInput && repeatMaxInput.getAttribute("data-bound") !== "true") {
+    repeatMaxInput.setAttribute("data-bound", "true");
+    repeatMaxInput.addEventListener("change", function() {
+      posSettings.repeatAlertMaxCount = repeatMaxInput.value === "until-confirmed" ? "until-confirmed" : Math.min(10, Math.max(1, Math.floor(Number(repeatMaxInput.value) || defaultSettings.repeatAlertMaxCount)));
+      saveSetting("repeatAlertMaxCount", posSettings.repeatAlertMaxCount);
+      syncSoundCenterSettings();
+    }, false);
+  }
+
+  if (silentEnabledInput && silentEnabledInput.getAttribute("data-bound") !== "true") {
+    silentEnabledInput.setAttribute("data-bound", "true");
+    silentEnabledInput.addEventListener("change", function() {
+      posSettings.silentHoursEnabled = silentEnabledInput.checked === true;
+      saveSetting("silentHoursEnabled", posSettings.silentHoursEnabled);
+      syncSoundCenterSettings();
+    }, false);
+  }
+
+  bindTimeSetting(silentStartInput, "silentHoursStart");
+  bindTimeSetting(silentEndInput, "silentHoursEnd");
+
+  var testButtons = document.querySelectorAll("[data-sound-test]");
+  for (var j = 0; j < testButtons.length; j += 1) {
+    (function(button) {
+      if (button.getAttribute("data-bound") === "true") return;
+      button.setAttribute("data-bound", "true");
+      addLegacyTapListener(button, function(event) {
+        if (event && event.preventDefault) event.preventDefault();
+        unlockPosOrderSound();
+        playSound(button.getAttribute("data-sound-test"), { force: true, ignoreSilentHours: true });
       });
     })(testButtons[j]);
   }
@@ -4885,6 +5101,7 @@ if (soundTypeSelect) {
     posSettings.soundType = isValidSoundType(nextType) ? nextType : defaultSettings.soundType;
     soundTypeSelect.value = posSettings.soundType;
     saveSetting("soundType", posSettings.soundType);
+    renderSoundCenterControlsV656();
     syncSoundCenterSettings();
     syncSoundSettingsToFirebase();
   });
@@ -4894,6 +5111,8 @@ if (soundVolumeInput) {
   soundVolumeInput.addEventListener("input", () => {
     posSettings.soundVolume = Math.min(200, Math.max(0, Math.floor(Number(soundVolumeInput.value) || 0)));
     if (soundVolumeValue) soundVolumeValue.textContent = String(posSettings.soundVolume) + "%";
+    var soundCenterVolumeValue = document.getElementById("soundCenterVolumeValue");
+    if (soundCenterVolumeValue) soundCenterVolumeValue.textContent = String(posSettings.soundVolume) + "%";
     syncSoundCenterSettings();
   });
 
