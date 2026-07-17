@@ -4961,3 +4961,98 @@ body.settings-center-open{
   .pos-menu-manage-tools input,.pos-menu-manage-tools button{width:100%;margin-bottom:8px}
   .pos-menu-manage-subtabs button{flex:1 1 160px}
 }
+
+/* v65.6.2 legacy iPad Settings final fix */
+#settingsTab,
+#settingsTab.active{
+  height:100% !important;
+  min-height:0 !important;
+  max-height:none !important;
+  overflow-y:auto !important;
+  overflow-x:hidden !important;
+  -webkit-overflow-scrolling:touch !important;
+  touch-action:pan-y !important;
+  padding-bottom:120px !important;
+  padding-bottom:calc(120px + env(safe-area-inset-bottom)) !important;
+}
+
+#settingsTab .settings-layout{
+  height:auto !important;
+  min-height:100% !important;
+  max-height:none !important;
+  overflow:visible !important;
+  padding-bottom:140px !important;
+  padding-bottom:calc(140px + env(safe-area-inset-bottom)) !important;
+}
+
+#settingsTab .settings-center-grid{
+  height:auto !important;
+  min-height:0 !important;
+  max-height:none !important;
+  overflow-y:auto !important;
+  overflow-x:hidden !important;
+  -webkit-overflow-scrolling:touch !important;
+  padding-bottom:120px !important;
+  padding-bottom:calc(120px + env(safe-area-inset-bottom)) !important;
+}
+
+#settingsTab .settings-section-body,
+#settingsTab .settings-section-body.active{
+  height:auto !important;
+  min-height:0 !important;
+  max-height:none !important;
+  overflow:visible !important;
+}
+
+.settings-center-modal{
+  position:fixed !important;
+  top:8px !important;
+  right:8px !important;
+  bottom:8px !important;
+  left:8px !important;
+  height:auto !important;
+  max-height:none !important;
+  padding:0 !important;
+  overflow:hidden !important;
+  align-items:stretch !important;
+  justify-content:center !important;
+}
+
+.settings-center-modal.hidden{
+  display:none !important;
+}
+
+.settings-center-dialog{
+  width:100% !important;
+  max-width:980px !important;
+  height:auto !important;
+  min-height:0 !important;
+  max-height:none !important;
+  display:flex !important;
+  flex-direction:column !important;
+  overflow:hidden !important;
+}
+
+.settings-center-header,
+.settings-center-footer{
+  flex:0 0 auto !important;
+}
+
+.settings-center-body{
+  flex:1 1 auto !important;
+  min-height:0 !important;
+  height:auto !important;
+  max-height:none !important;
+  overflow-y:auto !important;
+  overflow-x:hidden !important;
+  -webkit-overflow-scrolling:touch !important;
+  touch-action:pan-y !important;
+  padding-bottom:120px !important;
+  padding-bottom:calc(120px + env(safe-area-inset-bottom)) !important;
+}
+
+.settings-center-body .settings-sound-center-card{
+  min-height:0 !important;
+  overflow:visible !important;
+  margin-bottom:120px !important;
+}
