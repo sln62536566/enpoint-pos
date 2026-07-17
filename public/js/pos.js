@@ -427,9 +427,6 @@ for (var posTabIndex = 0; posTabIndex < tabButtons.length; posTabIndex += 1) {
       for (var j = 0; j < tabPanels.length; j += 1) {
         setLegacyClassActive(tabPanels[j], "active", tabPanels[j].id === target);
       }
-      if (target === "todayTab") {
-        stopOrderAlertSound();
-      }
     });
   })(tabButtons[posTabIndex]);
 }
@@ -771,19 +768,28 @@ function getRepeatAlertMaxCount() {
 
 function isOrderStillAwaitingAttention(order) {
   if (!order || !isQrOrderForSound(order)) return false;
-  if (order.confirmed === true || order.accepted === true || order.cancelled === true || order.closed === true) return false;
+  if (order.confirmed === true || order.accepted === true || order.paid === true || order.cancelled === true || order.closed === true) return false;
   var status = String(order.status || "").toLowerCase();
   var kitchenStatus = String(order.kitchenStatus || "").toLowerCase();
+  var paymentStatus = String(order.paymentStatus || "").toLowerCase();
   return status !== "confirmed" &&
+    status !== "accepted" &&
+    status !== "paid" &&
     status !== "cooking" &&
     status !== "done" &&
     status !== "completed" &&
     status !== "closed" &&
     status !== "cancelled" &&
     kitchenStatus !== "confirmed" &&
+    kitchenStatus !== "accepted" &&
+    kitchenStatus !== "paid" &&
     kitchenStatus !== "cooking" &&
     kitchenStatus !== "done" &&
-    kitchenStatus !== "cancelled";
+    kitchenStatus !== "completed" &&
+    kitchenStatus !== "closed" &&
+    kitchenStatus !== "cancelled" &&
+    paymentStatus !== "paid" &&
+    paymentStatus !== "cancelled";
 }
 
 function reconcilePendingOrderAlerts() {
@@ -802,10 +808,6 @@ function reconcilePendingOrderAlerts() {
 function startOrderAlertSound(orderId) {
   if (!posSettings || posSettings.enableSound !== true) return;
   if (orderId) pendingAlertOrderIds[orderId] = true;
-  if (isTodayTabActive()) {
-    playNewQrOrderBeep();
-    return;
-  }
   pendingNewOrderAlert = true;
   orderAlertPlayCount = playNewQrOrderBeep() ? 1 : 0;
   var repeatIntervalMs = getRepeatAlertIntervalMs();
@@ -813,10 +815,6 @@ function startOrderAlertSound(orderId) {
   orderAlertIntervalId = window.setInterval(function() {
     var maxCount = getRepeatAlertMaxCount();
     if (!pendingNewOrderAlert || posSettings.enableSound !== true || !reconcilePendingOrderAlerts()) {
-      stopOrderAlertSound();
-      return;
-    }
-    if (isTodayTabActive()) {
       stopOrderAlertSound();
       return;
     }
