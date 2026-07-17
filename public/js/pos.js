@@ -25,6 +25,13 @@ import {
   formatOrderOptionLines
 } from "./order-option-display.js";
 
+import {
+  playSound,
+  configureSoundCenter,
+  getSoundCenterSettings,
+  unlockSoundCenter
+} from "./sound-center.js";
+
 
 /* =========================
    v59-5 EARLY POS LEGACY OPEN
@@ -251,6 +258,9 @@ const defaultSettings = {
   enableSound: true,
   soundType: "classic",
   soundVolume: 100,
+  repeatAlertEnabled: true,
+  repeatAlertInterval: 15,
+  repeatAlertMaxCount: 3,
   autoSwitchCartAfterAdd: false
 };
 
@@ -258,13 +268,15 @@ let posSettings = loadSettings();
 let tables = buildTables(posSettings.tableCount);
 let orderSoundKnownIds = {};
 let orderSoundReady = false;
-let posAudioContext = null;
-let posSoundUnlocked = false;
 let pendingNewOrderAlert = false;
 let orderAlertIntervalId = null;
+let pendingAlertOrderIds = {};
+let orderAlertPlayCount = 0;
 let submittingPosOrder = false;
 let AudioManager = null;
 let PaymentStatusManager = null;
+let settingsCenterReady = false;
+let settingsModalCurrentSection = "";
 
 function renderPosFoodButton(item) {
   return renderPosFoodButtonV64(item);
@@ -470,8 +482,18 @@ function readSoundTypeSetting(key, fallback) {
   return isValidSoundType(value) ? value : fallback;
 }
 
+function readRepeatMaxCountSetting() {
+  var value = localStorage.getItem("repeatAlertMaxCount");
+  if (value === "infinite") return "infinite";
+  return readNumberSetting("repeatAlertMaxCount", defaultSettings.repeatAlertMaxCount, 1, 99);
+}
+
 function isValidSoundType(value) {
   return value === "classic" ||
+    value === "restaurant" ||
+    value === "cafe" ||
+    value === "modern" ||
+    value === "night-market" ||
     value === "harmony" ||
     value === "breeze" ||
     value === "bell" ||
@@ -501,7 +523,10 @@ function loadSettings() {
     showTestOrders: readBooleanSetting("showTestOrders", defaultSettings.showTestOrders),
     enableSound: readBooleanSetting("enableSound", defaultSettings.enableSound),
     soundType: readSoundTypeSetting("soundType", defaultSettings.soundType),
-    soundVolume: readNumberSetting("soundVolume", defaultSettings.soundVolume, 0, 100),
+    soundVolume: readNumberSetting("soundVolume", defaultSettings.soundVolume, 0, 200),
+    repeatAlertEnabled: readBooleanSetting("repeatAlertEnabled", defaultSettings.repeatAlertEnabled),
+    repeatAlertInterval: readNumberSetting("repeatAlertInterval", defaultSettings.repeatAlertInterval, 1, 3600),
+    repeatAlertMaxCount: readRepeatMaxCountSetting(),
     autoSwitchCartAfterAdd: readBooleanSetting("autoSwitchCartAfterAdd", defaultSettings.autoSwitchCartAfterAdd)
   };
 }
@@ -551,6 +576,17 @@ function syncSoundSettingsToFirebase() {
   });
   set(soundVolumeRef, Number(posSettings.soundVolume || 0)).catch(error => {
     console.error("同步提示音音量失敗：", error);
+  });
+}
+
+function syncSoundCenterSettings() {
+  configureSoundCenter({
+    enabled: posSettings.enableSound === true,
+    masterVolume: Math.min(200, Math.max(0, Math.floor(Number(posSettings.soundVolume) || 0))),
+    theme: isValidSoundType(posSettings.soundType) ? posSettings.soundType : defaultSettings.soundType,
+    repeatEnabled: posSettings.repeatAlertEnabled === true,
+    repeatIntervalSeconds: Math.min(3600, Math.max(1, Math.floor(Number(posSettings.repeatAlertInterval) || defaultSettings.repeatAlertInterval))),
+    repeatMaxCount: posSettings.repeatAlertMaxCount === "infinite" ? "infinite" : Math.min(99, Math.max(1, Math.floor(Number(posSettings.repeatAlertMaxCount) || defaultSettings.repeatAlertMaxCount)))
   });
 }
 
@@ -606,11 +642,12 @@ function watchSharedSettings() {
   onValue(soundVolumeRef, snapshot => {
     const value = snapshot && snapshot.exists && snapshot.exists() ? snapshot.val() : null;
     if (value === null || value === undefined) return;
-    const volume = Math.min(100, Math.max(0, Math.floor(Number(value) || 0)));
+    const volume = Math.min(200, Math.max(0, Math.floor(Number(value) || 0)));
     if (volume === posSettings.soundVolume) return;
     posSettings.soundVolume = volume;
     saveSetting("soundVolume", volume);
     renderSoundVolume();
+    syncSoundCenterSettings();
   });
 }
 
@@ -641,30 +678,18 @@ function applyShowTestOrdersSetting() {
 }
 
 function renderSoundVolume() {
-  var volume = Math.min(100, Math.max(0, Math.floor(Number(posSettings.soundVolume) || 0)));
-  if (soundVolumeInput && document.activeElement !== soundVolumeInput) soundVolumeInput.value = volume;
-  if (soundVolumeValue) soundVolumeValue.textContent = String(volume);
-}
-
-function getPosAudioContext() {
-  if (posAudioContext) return posAudioContext;
-  var AudioContextCtor = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContextCtor) return null;
-  try {
-    posAudioContext = new AudioContextCtor();
-  } catch (error) {
-    posAudioContext = null;
+  var volume = Math.min(200, Math.max(0, Math.floor(Number(posSettings.soundVolume) || 0)));
+  if (soundVolumeInput) {
+    soundVolumeInput.setAttribute("min", "0");
+    soundVolumeInput.setAttribute("max", "200");
+    soundVolumeInput.setAttribute("step", "25");
   }
-  return posAudioContext;
+  if (soundVolumeInput && document.activeElement !== soundVolumeInput) soundVolumeInput.value = volume;
+  if (soundVolumeValue) soundVolumeValue.textContent = String(volume) + "%";
 }
 
 function unlockPosOrderSound() {
-  var audioContext = getPosAudioContext();
-  if (!audioContext) return;
-  if (audioContext.state === "suspended" && audioContext.resume) {
-    audioContext.resume().catch(function() {});
-  }
-  posSoundUnlocked = true;
+  unlockSoundCenter();
 }
 
 function initPosOrderSoundUnlock() {
@@ -677,91 +702,8 @@ function initPosOrderSoundUnlock() {
   document.addEventListener("touchend", unlockOnce, false);
 }
 
-function playTone(audioContext, frequency, start, duration, volume) {
-  var gain = audioContext.createGain();
-  var oscillator = audioContext.createOscillator();
-  oscillator.type = "sine";
-  oscillator.frequency.setValueAtTime(frequency, start);
-  gain.gain.setValueAtTime(0.0001, start);
-  gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, volume), start + 0.02);
-  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
-  oscillator.connect(gain);
-  gain.connect(audioContext.destination);
-  oscillator.start(start);
-  oscillator.stop(start + duration + 0.02);
-}
-
 function playNewQrOrderBeep(forcePlay) {
-  if (!posSettings || (posSettings.enableSound !== true && !forcePlay)) return;
-  var audioContext = getPosAudioContext();
-  if (!audioContext) return;
-
-  if (!posSoundUnlocked) {
-    unlockPosOrderSound();
-  }
-
-  if (audioContext.state === "suspended") {
-    if (audioContext.resume) audioContext.resume().catch(function() {});
-    if (!forcePlay) return;
-  }
-
-  if (audioContext.state === "suspended") {
-    return;
-  }
-
-  try {
-    var now = audioContext.currentTime || 0;
-    var volume = Math.min(0.72, Math.max(0, Number(posSettings.soundVolume || 0) / 100) * 0.72);
-    if (volume <= 0) return;
-    var soundType = isValidSoundType(posSettings.soundType) ? posSettings.soundType : defaultSettings.soundType;
-    if (soundType === "double") soundType = "classic";
-    if (soundType === "dingdong" || soundType === "doorbell" || soundType === "warm") soundType = "harmony";
-    if (soundType === "fastDingdong" || soundType === "triple" || soundType === "bright") soundType = "breeze";
-    if (soundType === "longShort" || soundType === "pro") soundType = "bell";
-    if (soundType === "urgent" || soundType === "rapidShort" || soundType === "kitchen") soundType = "pulse";
-
-    if (soundType === "classic" || soundType === "short") {
-      playTone(audioContext, 880, now, 0.18, volume);
-      playTone(audioContext, 1175, now + 0.24, 0.18, volume * 0.9);
-      return;
-    }
-
-    if (soundType === "harmony") {
-      playTone(audioContext, 659, now, 0.28, volume * 0.95);
-      playTone(audioContext, 784, now + 0.28, 0.32, volume);
-      playTone(audioContext, 988, now + 0.68, 0.3, volume * 0.8);
-      return;
-    }
-
-    if (soundType === "breeze") {
-      playTone(audioContext, 988, now, 0.11, volume);
-      playTone(audioContext, 1319, now + 0.14, 0.13, volume * 0.9);
-      playTone(audioContext, 1568, now + 0.31, 0.13, volume * 0.85);
-      playTone(audioContext, 1319, now + 0.55, 0.18, volume * 0.75);
-      return;
-    }
-
-    if (soundType === "bell") {
-      playTone(audioContext, 740, now, 0.16, volume);
-      playTone(audioContext, 932, now + 0.21, 0.16, volume);
-      playTone(audioContext, 1175, now + 0.54, 0.42, volume * 0.85);
-      return;
-    }
-
-    if (soundType === "pulse") {
-      playTone(audioContext, 1047, now, 0.1, volume);
-      playTone(audioContext, 1047, now + 0.16, 0.1, volume);
-      playTone(audioContext, 784, now + 0.36, 0.22, volume);
-      playTone(audioContext, 1047, now + 0.78, 0.1, volume);
-      playTone(audioContext, 784, now + 1.0, 0.28, volume);
-      return;
-    }
-
-    playTone(audioContext, 880, now, 0.18, volume);
-    playTone(audioContext, 1175, now + 0.24, 0.18, volume * 0.9);
-  } catch (error) {
-    console.warn("POS order sound failed", error);
-  }
+  return playSound("new-order", { force: forcePlay === true });
 }
 
 AudioManager = {
@@ -785,17 +727,58 @@ function isTodayTabActive() {
   return !!(panel && (" " + (panel.className || "") + " ").indexOf(" active ") !== -1);
 }
 
-function startOrderAlertSound() {
+function getRepeatAlertIntervalMs() {
+  return Math.min(3600, Math.max(1, Math.floor(Number(posSettings.repeatAlertInterval) || defaultSettings.repeatAlertInterval))) * 1000;
+}
+
+function getRepeatAlertMaxCount() {
+  return posSettings.repeatAlertMaxCount === "infinite" ? "infinite" : Math.min(99, Math.max(1, Math.floor(Number(posSettings.repeatAlertMaxCount) || defaultSettings.repeatAlertMaxCount)));
+}
+
+function isOrderStillAwaitingAttention(order) {
+  if (!order || !isQrOrderForSound(order)) return false;
+  if (order.confirmed === true || order.accepted === true || order.cancelled === true || order.closed === true) return false;
+  var status = String(order.status || "").toLowerCase();
+  var kitchenStatus = String(order.kitchenStatus || "").toLowerCase();
+  return status !== "confirmed" &&
+    status !== "cooking" &&
+    status !== "done" &&
+    status !== "completed" &&
+    status !== "closed" &&
+    status !== "cancelled" &&
+    kitchenStatus !== "confirmed" &&
+    kitchenStatus !== "cooking" &&
+    kitchenStatus !== "done" &&
+    kitchenStatus !== "cancelled";
+}
+
+function reconcilePendingOrderAlerts() {
+  var hasPending = false;
+  Object.keys(pendingAlertOrderIds).forEach(function(orderId) {
+    if (isOrderStillAwaitingAttention(ordersData[orderId])) {
+      hasPending = true;
+      return;
+    }
+    delete pendingAlertOrderIds[orderId];
+  });
+  if (!hasPending) stopOrderAlertSound();
+  return hasPending;
+}
+
+function startOrderAlertSound(orderId) {
   if (!posSettings || posSettings.enableSound !== true) return;
+  if (orderId) pendingAlertOrderIds[orderId] = true;
   if (isTodayTabActive()) {
     playNewQrOrderBeep();
     return;
   }
   pendingNewOrderAlert = true;
+  orderAlertPlayCount = 1;
   playNewQrOrderBeep();
-  if (orderAlertIntervalId) return;
+  if (orderAlertIntervalId || posSettings.repeatAlertEnabled !== true) return;
   orderAlertIntervalId = window.setInterval(function() {
-    if (!pendingNewOrderAlert || posSettings.enableSound !== true) {
+    var maxCount = getRepeatAlertMaxCount();
+    if (!pendingNewOrderAlert || posSettings.enableSound !== true || !reconcilePendingOrderAlerts()) {
       stopOrderAlertSound();
       return;
     }
@@ -803,32 +786,45 @@ function startOrderAlertSound() {
       stopOrderAlertSound();
       return;
     }
+    if (maxCount !== "infinite" && orderAlertPlayCount >= maxCount) {
+      stopOrderAlertSound();
+      return;
+    }
+    orderAlertPlayCount += 1;
     playNewQrOrderBeep();
-  }, 1600);
+  }, getRepeatAlertIntervalMs());
 }
 
 function stopOrderAlertSound() {
   pendingNewOrderAlert = false;
+  pendingAlertOrderIds = {};
+  orderAlertPlayCount = 0;
   if (orderAlertIntervalId) {
     window.clearInterval(orderAlertIntervalId);
     orderAlertIntervalId = null;
   }
 }
 
+function stopOrderAlertForOrder(orderId) {
+  if (orderId && pendingAlertOrderIds[orderId]) delete pendingAlertOrderIds[orderId];
+  reconcilePendingOrderAlerts();
+}
+
 function rebuildSoundTypeOptions() {
-  if (!soundTypeSelect || soundTypeSelect.getAttribute("data-v64-ready") === "true") return;
+  if (!soundTypeSelect || soundTypeSelect.getAttribute("data-v655-ready") === "true") return;
   soundTypeSelect.innerHTML = [
     '<option value="classic">Classic</option>',
-    '<option value="harmony">Harmony</option>',
-    '<option value="breeze">Breeze</option>',
-    '<option value="bell">Bell</option>',
-    '<option value="pulse">Pulse</option>'
+    '<option value="restaurant">Restaurant</option>',
+    '<option value="cafe">Cafe</option>',
+    '<option value="modern">Modern</option>',
+    '<option value="night-market">Night Market</option>'
   ].join("");
-  soundTypeSelect.setAttribute("data-v64-ready", "true");
+  soundTypeSelect.setAttribute("data-v655-ready", "true");
 }
 
 function processNewQrOrderSound(nextOrdersData) {
   var entries = Object.entries(nextOrdersData || {});
+  var previousOrdersData = ordersData || {};
 
   if (!orderSoundReady) {
     entries.forEach(function(entry) {
@@ -841,10 +837,22 @@ function processNewQrOrderSound(nextOrdersData) {
   entries.forEach(function(entry) {
     var id = entry[0];
     var order = entry[1];
+    if (pendingAlertOrderIds[id] && !isOrderStillAwaitingAttention(order)) {
+      delete pendingAlertOrderIds[id];
+    }
+    if (previousOrdersData[id] && isOrderStillAwaitingAttention(previousOrdersData[id]) && !isOrderStillAwaitingAttention(order)) {
+      delete pendingAlertOrderIds[id];
+    }
+  });
+  if (pendingNewOrderAlert) reconcilePendingOrderAlerts();
+
+  entries.forEach(function(entry) {
+    var id = entry[0];
+    var order = entry[1];
     if (orderSoundKnownIds[id]) return;
     orderSoundKnownIds[id] = true;
-    if (isQrOrderForSound(order)) {
-      startOrderAlertSound();
+    if (isOrderStillAwaitingAttention(order)) {
+      startOrderAlertSound(id);
     }
   });
 }
@@ -870,6 +878,7 @@ function switchOrderSubtab(target) {
 }
 
 function renderSettings() {
+  initSettingsCenter();
   if (storeNameInput) storeNameInput.value = posSettings.storeName;
   if (tableCountInput) tableCountInput.value = posSettings.tableCount;
   if (prepTimeInput) prepTimeInput.value = posSettings.prepTime;
@@ -880,12 +889,17 @@ function renderSettings() {
   if (posSettings.soundType === "bright") posSettings.soundType = "breeze";
   if (posSettings.soundType === "pro") posSettings.soundType = "bell";
   if (posSettings.soundType === "kitchen") posSettings.soundType = "pulse";
-  if (posSettings.soundType !== "classic" && posSettings.soundType !== "harmony" && posSettings.soundType !== "breeze" && posSettings.soundType !== "bell" && posSettings.soundType !== "pulse") {
+  if (posSettings.soundType === "harmony") posSettings.soundType = "restaurant";
+  if (posSettings.soundType === "breeze") posSettings.soundType = "modern";
+  if (posSettings.soundType === "bell") posSettings.soundType = "cafe";
+  if (posSettings.soundType === "pulse") posSettings.soundType = "night-market";
+  if (posSettings.soundType !== "classic" && posSettings.soundType !== "restaurant" && posSettings.soundType !== "cafe" && posSettings.soundType !== "modern" && posSettings.soundType !== "night-market") {
     posSettings.soundType = "classic";
     saveSetting("soundType", posSettings.soundType);
   }
   if (soundTypeSelect) soundTypeSelect.value = posSettings.soundType || defaultSettings.soundType;
   renderSoundVolume();
+  syncSoundCenterSettings();
 
   applyStoreName();
   applyShowTestOrdersSetting();
@@ -893,6 +907,265 @@ function renderSettings() {
   setSwitchState(enableSoundToggle, posSettings.enableSound);
   setSwitchState(autoSwitchCartToggle, posSettings.autoSwitchCartAfterAdd);
   renderFeatureModuleSettings();
+  renderSoundCenterControls();
+}
+
+function findSettingsCardByControl(controlId) {
+  var control = document.getElementById(controlId);
+  while (control && control !== document.body) {
+    if ((" " + (control.className || "") + " ").indexOf(" settings-card ") !== -1) return control;
+    control = control.parentNode;
+  }
+  return null;
+}
+
+function createSettingsSection(id) {
+  var section = document.createElement("div");
+  section.id = id;
+  section.className = "settings-section-body";
+  return section;
+}
+
+function moveSettingsCard(section, controlId) {
+  var card = findSettingsCardByControl(controlId);
+  if (section && card) section.appendChild(card);
+}
+
+function initSettingsCenter() {
+  if (settingsCenterReady) return;
+  var layout = document.querySelector("#settingsTab .settings-layout");
+  var grid = document.querySelector("#settingsTab .settings-grid");
+  if (!layout || !grid) return;
+
+  var sections = {
+    store: createSettingsSection("settingsSectionStore"),
+    order: createSettingsSection("settingsSectionOrder"),
+    qr: createSettingsSection("settingsSectionQr"),
+    sound: createSettingsSection("settingsSectionSound"),
+    print: createSettingsSection("settingsSectionPrint"),
+    modules: createSettingsSection("settingsSectionModules"),
+    system: createSettingsSection("settingsSectionSystem")
+  };
+
+  moveSettingsCard(sections.system, "fullscreenBtn");
+  moveSettingsCard(sections.store, "storeNameInput");
+  moveSettingsCard(sections.store, "tableCountInput");
+  moveSettingsCard(sections.order, "prepTimeInput");
+  moveSettingsCard(sections.qr, "qrValidMinutesInput");
+  moveSettingsCard(sections.qr, "orderLookupMinutesInput");
+  moveSettingsCard(sections.order, "showTestOrdersToggle");
+  moveSettingsCard(sections.sound, "enableSoundToggle");
+  moveSettingsCard(sections.sound, "soundTypeSelect");
+  moveSettingsCard(sections.sound, "soundVolumeInput");
+  moveSettingsCard(sections.order, "autoSwitchCartToggle");
+  sections.sound.appendChild(buildSoundCenterPanel());
+  sections.print.appendChild(buildReservedSettingsCard("列印與出單", "出單機、廚房單、客人單、貼紙與列印失敗音效的設定區。"));
+  sections.modules.appendChild(buildReservedSettingsCard("功能模組", "QR、KDS、列印、會員、電子發票、外送平台都會放在這裡管理。"));
+  sections.system.appendChild(buildReservedSettingsCard("系統與裝置", "裝置、喇叭、勿擾模式、排程靜音與多店音效設定的預留區。"));
+
+  grid.className = "settings-center-grid";
+  grid.innerHTML = [
+    buildSettingsEntry("store", "🏪", "店家與桌位", "店名、桌數、店內使用設定"),
+    buildSettingsEntry("order", "🛒", "點餐流程", "出餐時間、測試單與點餐行為"),
+    buildSettingsEntry("qr", "📱", "QR 點餐", "QR 有效時間與查詢時間"),
+    buildSettingsEntry("sound", "🔔", "通知與音效", "EnPoint Sound Center 與重複提醒"),
+    buildSettingsEntry("print", "🖨️", "列印與出單", "出單、貼紙與列印失敗預留"),
+    buildSettingsEntry("modules", "🧩", "功能模組", "SaaS、會員、電子發票、外送平台"),
+    buildSettingsEntry("system", "⚙️", "系統與裝置", "全螢幕、喇叭與裝置預留")
+  ].join("");
+
+  var modal = document.createElement("div");
+  modal.id = "settingsCenterModal";
+  modal.className = "settings-center-modal hidden";
+  modal.innerHTML = '<div class="settings-center-dialog" role="dialog" aria-modal="true" aria-labelledby="settingsCenterTitle">' +
+    '<div class="settings-center-header"><button type="button" id="settingsCenterBackBtn" class="settings-center-icon-btn" aria-label="返回">‹</button><div><h3 id="settingsCenterTitle">設定中心</h3><p id="settingsCenterSubtitle">Settings Center</p></div><button type="button" id="settingsCenterCloseBtn" class="settings-center-icon-btn" aria-label="關閉">×</button></div>' +
+    '<div id="settingsCenterBody" class="settings-center-body"></div>' +
+    '<div class="settings-center-footer"><button type="button" id="settingsCenterFooterBackBtn" class="secondary-btn">返回</button><button type="button" id="settingsCenterFooterCloseBtn" class="primary-btn">關閉</button></div>' +
+    '</div>';
+  layout.appendChild(modal);
+
+  var body = modal.querySelector("#settingsCenterBody");
+  Object.keys(sections).forEach(function(key) {
+    body.appendChild(sections[key]);
+  });
+
+  var entryButtons = grid.querySelectorAll("[data-settings-section]");
+  for (var i = 0; i < entryButtons.length; i += 1) {
+    (function(button) {
+      addLegacyTapListener(button, function(event) {
+        if (event && event.preventDefault) event.preventDefault();
+        openSettingsSection(button.getAttribute("data-settings-section"));
+      });
+    })(entryButtons[i]);
+  }
+
+  ["settingsCenterBackBtn", "settingsCenterCloseBtn", "settingsCenterFooterBackBtn", "settingsCenterFooterCloseBtn"].forEach(function(id) {
+    var button = document.getElementById(id);
+    addLegacyTapListener(button, function(event) {
+      if (event && event.preventDefault) event.preventDefault();
+      closeSettingsSection();
+    });
+  });
+
+  settingsCenterReady = true;
+}
+
+function buildSettingsEntry(section, icon, title, subtitle) {
+  return '<button type="button" class="settings-center-entry" data-settings-section="' + section + '">' +
+    '<span class="settings-center-entry-icon">' + icon + '</span>' +
+    '<span><strong>' + title + '</strong><small>' + subtitle + '</small></span>' +
+    '<b>›</b>' +
+    '</button>';
+}
+
+function buildReservedSettingsCard(title, text) {
+  var card = document.createElement("section");
+  card.className = "settings-card settings-reserved-card";
+  card.innerHTML = '<div class="settings-card-title"><span>' + title + '</span><small>' + text + '</small></div>';
+  return card;
+}
+
+function openSettingsSection(section) {
+  var modal = document.getElementById("settingsCenterModal");
+  if (!modal) return;
+  var titles = {
+    store: ["店家與桌位", "Store & Tables"],
+    order: ["點餐流程", "Ordering Flow"],
+    qr: ["QR 點餐", "QR Ordering"],
+    sound: ["通知與音效", "EnPoint Sound Center"],
+    print: ["列印與出單", "Print & Tickets"],
+    modules: ["功能模組", "Feature Modules"],
+    system: ["系統與裝置", "System & Devices"]
+  };
+  settingsModalCurrentSection = section || "store";
+  var title = titles[settingsModalCurrentSection] || titles.store;
+  var titleEl = document.getElementById("settingsCenterTitle");
+  var subEl = document.getElementById("settingsCenterSubtitle");
+  if (titleEl) titleEl.textContent = title[0];
+  if (subEl) subEl.textContent = title[1];
+  var bodies = modal.querySelectorAll(".settings-section-body");
+  for (var i = 0; i < bodies.length; i += 1) {
+    setLegacyClassActive(bodies[i], "active", bodies[i].id === "settingsSection" + settingsModalCurrentSection.charAt(0).toUpperCase() + settingsModalCurrentSection.slice(1));
+  }
+  setLegacyClassActive(modal, "hidden", false);
+  setLegacyClassActive(document.body, "settings-center-open", true);
+}
+
+function closeSettingsSection() {
+  var modal = document.getElementById("settingsCenterModal");
+  if (modal) setLegacyClassActive(modal, "hidden", true);
+  setLegacyClassActive(document.body, "settings-center-open", false);
+  settingsModalCurrentSection = "";
+}
+
+function buildSoundCenterPanel() {
+  var card = document.createElement("section");
+  card.className = "settings-card settings-sound-center-card";
+  var settings = getSoundCenterSettings();
+  var events = [
+    ["new-order", "新訂單"],
+    ["qr-order", "QR 訂單"],
+    ["pos-order", "POS 點餐"],
+    ["payment", "收款完成"],
+    ["kds-done", "廚房完成"],
+    ["cancel", "作廢"],
+    ["print-fail", "列印失敗"],
+    ["uber-eats", "Uber Eats（預留）"],
+    ["foodpanda", "foodpanda（預留）"]
+  ];
+  var soundOptions = [
+    ["new-order", "新訂單"],
+    ["qr-order", "QR 訂單"],
+    ["pos-order", "POS 點餐"],
+    ["payment", "收款完成"],
+    ["kds-done", "廚房完成"],
+    ["cancel", "作廢"],
+    ["print-fail", "列印失敗"],
+    ["delivery", "外送平台"]
+  ];
+  card.innerHTML = '<div class="settings-card-title"><span>🔔 EnPoint Sound Center</span><small>提示音、音效主題、事件音效與未處理訂單重複提醒</small></div>' +
+    '<div class="sound-center-repeat-grid">' +
+    '<label class="feature-module-row"><span>啟用重複提醒</span><input id="repeatAlertEnabledInput" type="checkbox" ' + (posSettings.repeatAlertEnabled ? "checked" : "") + ' /></label>' +
+    '<label><span>提醒間隔</span><select id="repeatAlertIntervalInput" class="settings-input"><option value="10">10 秒</option><option value="15">15 秒</option><option value="20">20 秒</option><option value="30">30 秒</option><option value="45">45 秒</option><option value="60">60 秒</option></select></label>' +
+    '<label><span>最大提醒次數</span><select id="repeatAlertMaxInput" class="settings-input"><option value="1">1 次</option><option value="3">3 次</option><option value="5">5 次</option><option value="10">10 次</option><option value="infinite">無限提醒</option></select></label>' +
+    '</div>' +
+    '<div class="sound-event-list" id="soundEventList">' +
+    events.map(function(item) {
+      var value = settings.eventSounds[item[0]] || item[0];
+      return '<div class="sound-event-row"><span>' + item[1] + '</span><select class="settings-input" data-sound-event="' + item[0] + '">' +
+        soundOptions.map(function(option) {
+          return '<option value="' + option[0] + '"' + (value === option[0] ? " selected" : "") + '>' + option[1] + '</option>';
+        }).join("") +
+        '</select><button type="button" class="secondary-btn sound-test-btn" data-sound-test="' + item[0] + '">▶ 播放</button></div>';
+    }).join("") +
+    '</div>' +
+    '<div class="settings-future-note">預留：自訂 MP3/WAV、Uber Eats、foodpanda、多店音效、Bluetooth/USB Speaker、勿擾模式、排程靜音。</div>';
+  return card;
+}
+
+function renderSoundCenterControls() {
+  var repeatEnabledInput = document.getElementById("repeatAlertEnabledInput");
+  var repeatIntervalInput = document.getElementById("repeatAlertIntervalInput");
+  var repeatMaxInput = document.getElementById("repeatAlertMaxInput");
+  if (repeatEnabledInput) repeatEnabledInput.checked = posSettings.repeatAlertEnabled === true;
+  if (repeatIntervalInput) repeatIntervalInput.value = String(posSettings.repeatAlertInterval || defaultSettings.repeatAlertInterval);
+  if (repeatMaxInput) repeatMaxInput.value = String(posSettings.repeatAlertMaxCount || defaultSettings.repeatAlertMaxCount);
+  bindSoundCenterControls();
+}
+
+function bindSoundCenterControls() {
+  var repeatEnabledInput = document.getElementById("repeatAlertEnabledInput");
+  var repeatIntervalInput = document.getElementById("repeatAlertIntervalInput");
+  var repeatMaxInput = document.getElementById("repeatAlertMaxInput");
+  if (repeatEnabledInput && repeatEnabledInput.getAttribute("data-bound") !== "true") {
+    repeatEnabledInput.setAttribute("data-bound", "true");
+    repeatEnabledInput.addEventListener("change", function() {
+      posSettings.repeatAlertEnabled = repeatEnabledInput.checked === true;
+      saveSetting("repeatAlertEnabled", posSettings.repeatAlertEnabled);
+      syncSoundCenterSettings();
+      if (posSettings.repeatAlertEnabled !== true) stopOrderAlertSound();
+    }, false);
+  }
+  if (repeatIntervalInput && repeatIntervalInput.getAttribute("data-bound") !== "true") {
+    repeatIntervalInput.setAttribute("data-bound", "true");
+    repeatIntervalInput.addEventListener("change", function() {
+      posSettings.repeatAlertInterval = Math.min(3600, Math.max(1, Math.floor(Number(repeatIntervalInput.value) || defaultSettings.repeatAlertInterval)));
+      saveSetting("repeatAlertInterval", posSettings.repeatAlertInterval);
+      syncSoundCenterSettings();
+    }, false);
+  }
+  if (repeatMaxInput && repeatMaxInput.getAttribute("data-bound") !== "true") {
+    repeatMaxInput.setAttribute("data-bound", "true");
+    repeatMaxInput.addEventListener("change", function() {
+      posSettings.repeatAlertMaxCount = repeatMaxInput.value === "infinite" ? "infinite" : Math.min(99, Math.max(1, Math.floor(Number(repeatMaxInput.value) || defaultSettings.repeatAlertMaxCount)));
+      saveSetting("repeatAlertMaxCount", posSettings.repeatAlertMaxCount);
+      syncSoundCenterSettings();
+    }, false);
+  }
+  var eventSelects = document.querySelectorAll("[data-sound-event]");
+  for (var i = 0; i < eventSelects.length; i += 1) {
+    (function(select) {
+      if (select.getAttribute("data-bound") === "true") return;
+      select.setAttribute("data-bound", "true");
+      select.addEventListener("change", function() {
+        var settings = getSoundCenterSettings();
+        settings.eventSounds[select.getAttribute("data-sound-event")] = select.value;
+        configureSoundCenter(settings);
+      }, false);
+    })(eventSelects[i]);
+  }
+  var testButtons = document.querySelectorAll("[data-sound-test]");
+  for (var j = 0; j < testButtons.length; j += 1) {
+    (function(button) {
+      if (button.getAttribute("data-bound") === "true") return;
+      button.setAttribute("data-bound", "true");
+      addLegacyTapListener(button, function(event) {
+        if (event && event.preventDefault) event.preventDefault();
+        unlockPosOrderSound();
+        playSound(button.getAttribute("data-sound-test"), { force: true });
+      });
+    })(testButtons[j]);
+  }
 }
 
 function loadHeldCarts() {
@@ -1065,7 +1338,7 @@ async function restoreHeldCart(id) {
 }
 
 function ensureFeatureModuleSettings() {
-  var settingsGrid = document.querySelector("#settingsTab .settings-grid");
+  var settingsGrid = document.getElementById("settingsSectionModules") || document.querySelector("#settingsTab .settings-grid");
   if (!settingsGrid || document.getElementById("featureModuleSettings")) return;
   var section = document.createElement("section");
   section.id = "featureModuleSettings";
@@ -4601,6 +4874,7 @@ if (enableSoundToggle) {
     saveSetting("enableSound", posSettings.enableSound);
     setSwitchState(enableSoundToggle, posSettings.enableSound);
     if (posSettings.enableSound !== true) stopOrderAlertSound();
+    syncSoundCenterSettings();
     syncSoundSettingsToFirebase();
   });
 }
@@ -4611,20 +4885,23 @@ if (soundTypeSelect) {
     posSettings.soundType = isValidSoundType(nextType) ? nextType : defaultSettings.soundType;
     soundTypeSelect.value = posSettings.soundType;
     saveSetting("soundType", posSettings.soundType);
+    syncSoundCenterSettings();
     syncSoundSettingsToFirebase();
   });
 }
 
 if (soundVolumeInput) {
   soundVolumeInput.addEventListener("input", () => {
-    posSettings.soundVolume = Math.min(100, Math.max(0, Math.floor(Number(soundVolumeInput.value) || 0)));
-    if (soundVolumeValue) soundVolumeValue.textContent = String(posSettings.soundVolume);
+    posSettings.soundVolume = Math.min(200, Math.max(0, Math.floor(Number(soundVolumeInput.value) || 0)));
+    if (soundVolumeValue) soundVolumeValue.textContent = String(posSettings.soundVolume) + "%";
+    syncSoundCenterSettings();
   });
 
   soundVolumeInput.addEventListener("change", () => {
-    posSettings.soundVolume = Math.min(100, Math.max(0, Math.floor(Number(soundVolumeInput.value) || 0)));
+    posSettings.soundVolume = Math.min(200, Math.max(0, Math.floor(Number(soundVolumeInput.value) || 0)));
     saveSetting("soundVolume", posSettings.soundVolume);
     renderSoundVolume();
+    syncSoundCenterSettings();
     syncSoundSettingsToFirebase();
   });
 }
@@ -4632,16 +4909,7 @@ if (soundVolumeInput) {
 if (testSoundBtn) {
   addLegacyTapListener(testSoundBtn, function(event) {
     if (event && event.preventDefault) event.preventDefault();
-    var audioContext = getPosAudioContext();
-    posSoundUnlocked = true;
-    if (audioContext && audioContext.state === "suspended" && audioContext.resume) {
-      audioContext.resume().then(function() {
-        playNewQrOrderBeep(true);
-      }).catch(function() {
-        playNewQrOrderBeep(true);
-      });
-      return;
-    }
+    unlockPosOrderSound();
     playNewQrOrderBeep(true);
   });
 }

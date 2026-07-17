@@ -4297,6 +4297,255 @@ body.hide-test-order-button #orderTab #submitTestOrderBtn{
   box-shadow:none !important;
 }
 
+/* v65.5 Settings Center */
+.settings-center-grid{
+  display:grid !important;
+  grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+  gap:14px !important;
+  padding:18px !important;
+}
+
+.settings-center-entry{
+  min-height:108px !important;
+  border:1px solid var(--ep-line, #e6d2b5) !important;
+  border-radius:8px !important;
+  background:#fffdf9 !important;
+  color:var(--ep-text, #2b2118) !important;
+  display:flex !important;
+  align-items:center !important;
+  gap:14px !important;
+  padding:16px !important;
+  text-align:left !important;
+  cursor:pointer !important;
+  box-shadow:0 5px 14px rgba(67,40,18,.08) !important;
+}
+
+.settings-center-entry-icon{
+  width:44px !important;
+  height:44px !important;
+  flex:0 0 44px !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  border-radius:8px !important;
+  background:#2b2118 !important;
+  color:#f5c542 !important;
+  font-size:22px !important;
+}
+
+.settings-center-entry span:nth-child(2){
+  flex:1 1 auto !important;
+  min-width:0 !important;
+  display:flex !important;
+  flex-direction:column !important;
+  gap:5px !important;
+}
+
+.settings-center-entry strong{
+  font-size:20px !important;
+  line-height:1.2 !important;
+}
+
+.settings-center-entry small{
+  color:var(--ep-muted, #8a7560) !important;
+  font-size:13px !important;
+  font-weight:800 !important;
+  line-height:1.35 !important;
+}
+
+.settings-center-entry b{
+  font-size:26px !important;
+  color:#8a6b45 !important;
+}
+
+.settings-center-modal.hidden{
+  display:none !important;
+}
+
+.settings-center-modal{
+  position:fixed !important;
+  inset:0 !important;
+  z-index:9000 !important;
+  background:rgba(17,17,17,.72) !important;
+  display:flex !important;
+  align-items:stretch !important;
+  justify-content:center !important;
+  padding:18px !important;
+}
+
+body.settings-center-open{
+  overflow:hidden !important;
+}
+
+.settings-center-dialog{
+  width:min(980px,100%) !important;
+  max-height:100% !important;
+  background:#fffaf2 !important;
+  color:#2b2118 !important;
+  border:1px solid #e6d2b5 !important;
+  border-radius:8px !important;
+  display:flex !important;
+  flex-direction:column !important;
+  overflow:hidden !important;
+  box-shadow:0 20px 60px rgba(0,0,0,.28) !important;
+}
+
+.settings-center-header,
+.settings-center-footer{
+  flex:0 0 auto !important;
+  display:flex !important;
+  align-items:center !important;
+  gap:12px !important;
+  padding:14px 16px !important;
+  background:#fffdf9 !important;
+  border-bottom:1px solid #e6d2b5 !important;
+}
+
+.settings-center-footer{
+  justify-content:flex-end !important;
+  border-top:1px solid #e6d2b5 !important;
+  border-bottom:none !important;
+}
+
+.settings-center-header div{
+  flex:1 1 auto !important;
+  min-width:0 !important;
+}
+
+.settings-center-header h3{
+  font-size:22px !important;
+  line-height:1.2 !important;
+  color:#2b2118 !important;
+}
+
+.settings-center-header p{
+  color:#8a7560 !important;
+  font-weight:800 !important;
+  margin-top:3px !important;
+}
+
+.settings-center-icon-btn{
+  width:44px !important;
+  height:44px !important;
+  flex:0 0 44px !important;
+  border:1px solid #d9bd93 !important;
+  border-radius:8px !important;
+  background:#fff7e6 !important;
+  color:#2b2118 !important;
+  font-size:28px !important;
+  font-weight:900 !important;
+  cursor:pointer !important;
+  line-height:1 !important;
+}
+
+.settings-center-body{
+  flex:1 1 auto !important;
+  overflow-y:auto !important;
+  -webkit-overflow-scrolling:touch !important;
+  padding:16px !important;
+}
+
+.settings-section-body{
+  display:none !important;
+}
+
+.settings-section-body.active{
+  display:grid !important;
+  grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+  gap:14px !important;
+}
+
+.settings-section-body.active .settings-sound-center-card{
+  grid-column:1 / -1 !important;
+}
+
+.settings-sound-center-card{
+  gap:16px !important;
+}
+
+.sound-center-repeat-grid{
+  display:grid !important;
+  grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+  gap:12px !important;
+}
+
+.sound-center-repeat-grid label{
+  display:flex !important;
+  flex-direction:column !important;
+  gap:8px !important;
+  color:#2b2118 !important;
+  font-weight:900 !important;
+}
+
+.sound-event-list{
+  display:flex !important;
+  flex-direction:column !important;
+  gap:10px !important;
+}
+
+.sound-event-row{
+  display:grid !important;
+  grid-template-columns:minmax(120px,1fr) minmax(180px,1.2fr) auto !important;
+  gap:10px !important;
+  align-items:center !important;
+  padding:10px !important;
+  border:1px solid #ead7bc !important;
+  border-radius:8px !important;
+  background:#fffdf9 !important;
+}
+
+.sound-event-row > span{
+  color:#2b2118 !important;
+  font-weight:900 !important;
+}
+
+.sound-test-btn{
+  min-width:86px !important;
+  white-space:nowrap !important;
+}
+
+.settings-future-note{
+  padding:12px !important;
+  border:1px dashed #d9bd93 !important;
+  border-radius:8px !important;
+  color:#6f5a43 !important;
+  background:#fff7e6 !important;
+  font-weight:800 !important;
+  line-height:1.45 !important;
+}
+
+@supports not (display: grid){
+  .settings-center-grid,
+  .settings-section-body.active,
+  .sound-center-repeat-grid,
+  .sound-event-row{
+    display:block !important;
+  }
+
+  .settings-center-entry,
+  .settings-section-body.active .settings-card,
+  .sound-center-repeat-grid label,
+  .sound-event-row{
+    margin-bottom:12px !important;
+  }
+}
+
+@media (max-width: 760px){
+  .settings-center-grid,
+  .settings-section-body.active,
+  .sound-center-repeat-grid{
+    grid-template-columns:1fr !important;
+  }
+
+  .settings-center-modal{
+    padding:8px !important;
+  }
+
+  .sound-event-row{
+    grid-template-columns:1fr !important;
+  }
+}
+
 /* v63-5 bugfix: always show POS order subtabs on old tablets */
 #orderTab.active{
   overflow-y:auto !important;
