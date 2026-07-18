@@ -1,3 +1,5 @@
+import { PrinterProfile } from "./printer-profile.js";
+
 const STORAGE_DEFAULTS = Object.freeze({
   printerMode: "manual",
   printerProvider: "browser",
@@ -76,8 +78,14 @@ function saveSettings(nextSettings) {
   return readSettings();
 }
 
-function getProvider() {
-  const selected = readSettings().printerProvider;
+function getProfile(type) {
+  if (type === "kitchen") return PrinterProfile.getKitchenPrinter();
+  if (type === "label") return PrinterProfile.getLabelPrinter();
+  return PrinterProfile.getCustomerPrinter();
+}
+
+function getProvider(type) {
+  const selected = getProfile(type).provider;
   return providers[selected] || providers.browser;
 }
 
@@ -87,15 +95,18 @@ function createJob(type, order) {
   if (typeof builder !== "function" || typeof adapters.buildDocument !== "function") {
     throw new Error("Printer Center 尚未完成票券轉接初始化");
   }
-  const settings = readSettings();
+  const profile = getProfile(type);
   const label = type === "customer" ? "客人單" : "廚房單";
   const title = `${label} #${order.orderNumber || order.id || ""}`;
   return {
     type,
     order,
-    copies: settings.copies,
-    paperWidth: settings.paperWidth,
-    documentHtml: adapters.buildDocument(title, builder(order), settings)
+    profile,
+    provider: profile.provider,
+    copies: profile.copies,
+    paperWidth: profile.paperWidth,
+    autoPrint: profile.autoPrint,
+    documentHtml: adapters.buildDocument(title, builder(order), profile)
   };
 }
 
@@ -104,7 +115,7 @@ function print(type, order) {
     const job = createJob(type, order);
     lastOrder = order;
     lastType = type;
-    return getProvider().print(job);
+    return getProvider(type).print(job);
   } catch (error) {
     return Promise.reject(error);
   }
@@ -115,6 +126,7 @@ export const PrinterCenter = {
   init(options = {}) {
     adapters = Object.assign({}, adapters, options);
     readSettings();
+    PrinterProfile.load();
     initialized = true;
     return this;
   },
@@ -152,7 +164,7 @@ export const PrinterCenter = {
     return print(lastType, order);
   },
   detectPrinter() {
-    return getProvider().detect();
+    return getProvider(lastType).detect();
   },
   getLastOrder() {
     return lastOrder;

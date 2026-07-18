@@ -33,6 +33,7 @@ import {
 } from "./sound-center.js";
 
 import { PrinterCenter } from "./printer-center.js";
+import { PrinterProfile } from "./printer-profile.js";
 
 
 /* =========================
@@ -1002,7 +1003,7 @@ function initSettingsCenter() {
     buildSettingsEntry("order", "🛒", "點餐流程", "出餐時間、測試單與點餐行為"),
     buildSettingsEntry("qr", "📱", "QR 點餐", "QR 有效時間與查詢時間"),
     buildSettingsEntry("sound", "🔔", "通知與音效", "音效中心與重複提醒"),
-    buildSettingsEntry("print", "🖨️", "列印與出單", "出單、貼紙與列印失敗預留"),
+    buildSettingsEntry("print", "🖨️", "印表機設定", "廚房、客人與貼紙印表機 Profile"),
     buildSettingsEntry("modules", "🧩", "功能模組", "SaaS、會員、電子發票、外送平台"),
     buildSettingsEntry("system", "⚙️", "系統與裝置", "全螢幕、喇叭與裝置預留")
   ].join("");
@@ -1060,46 +1061,64 @@ function buildReservedSettingsCard(title, text) {
 
 function buildPrinterCenterPanel() {
   var card = document.createElement("section");
-  card.className = "settings-card settings-sound-center-card printer-center-card";
-  card.innerHTML = '<div class="settings-card-title"><span>🖨️ 列印與出單</span><small>統一管理廚房單、客人單與列印裝置</small></div>' +
-    '<div class="printer-center-grid">' +
-      '<fieldset class="printer-mode-field"><legend>列印模式</legend><label><input type="radio" name="printerMode" value="manual"> 手動</label><label><input type="radio" name="printerMode" value="auto"> 自動</label></fieldset>' +
-      '<label class="sound-center-field"><span>目前印表機</span><select id="printerProviderInput" class="settings-input"><option value="browser">Browser（預設）</option><option value="usb" disabled>USB（尚未提供）</option><option value="bluetooth" disabled>Bluetooth（尚未提供）</option><option value="network" disabled>Network（尚未提供）</option></select></label>' +
-      '<label class="sound-center-field"><span>紙張</span><select id="paperWidthInput" class="settings-input"><option value="58">58mm</option><option value="80">80mm</option></select></label>' +
-      '<label class="sound-center-field"><span>列印份數</span><select id="printerCopiesInput" class="settings-input"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></label>' +
-    '</div><div class="printer-center-status"><span>目前印表機</span><strong id="printerNameValue">Browser</strong></div>' +
+  card.className = "settings-card settings-sound-center-card printer-center-card printer-profile-center";
+  card.innerHTML = '<div class="settings-card-title"><span>🖨️ 印表機設定</span><small>廚房單、客人單與貼紙可使用獨立列印設定</small></div>' +
+    '<div class="printer-profile-list">' +
+      buildPrinterProfileCard("Kitchen", "🖨️", "廚房印表機", false) +
+      buildPrinterProfileCard("Customer", "🧾", "客人印表機", false) +
+      buildPrinterProfileCard("Label", "🏷️", "貼紙印表機", true) +
+    '</div>' +
     '<div class="printer-center-actions"><button type="button" id="printerTestBtn" class="secondary-btn">測試列印</button><button type="button" id="printerDetectBtn" class="secondary-btn">重新搜尋印表機</button><button type="button" id="printerReprintBtn" class="primary-btn">重印最後一張</button></div>';
   window.setTimeout(bindPrinterCenterControls, 0);
   return card;
 }
 
+function buildPrinterProfileCard(profileName, icon, title, reserved) {
+  return '<section class="printer-profile-card" data-printer-profile="' + profileName + '">' +
+    '<div class="printer-profile-heading"><strong>' + icon + ' ' + title + '</strong>' + (reserved ? '<small>預留</small>' : '') + '</div>' +
+    '<div class="printer-profile-fields">' +
+      '<label><span>Provider</span><select class="settings-input" data-profile-field="provider"><option value="browser">Browser</option><option value="usb">USB</option><option value="bluetooth">Bluetooth</option><option value="network">Network</option></select></label>' +
+      '<label><span>紙張</span><select class="settings-input" data-profile-field="paperWidth"><option value="58">58mm</option><option value="80">80mm</option></select></label>' +
+      '<label><span>列印份數</span><select class="settings-input" data-profile-field="copies"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></label>' +
+      '<label class="printer-profile-toggle"><span>自動列印</span><input type="checkbox" data-profile-field="autoPrint"><b data-profile-auto-label>OFF</b></label>' +
+    '</div></section>';
+}
+
 function bindPrinterCenterControls() {
-  var settings = PrinterCenter.getSettings();
-  var modes = document.querySelectorAll('input[name="printerMode"]');
-  var provider = document.getElementById("printerProviderInput");
-  var paper = document.getElementById("paperWidthInput");
-  var copies = document.getElementById("printerCopiesInput");
-  var name = document.getElementById("printerNameValue");
-  for (var i = 0; i < modes.length; i += 1) {
-    modes[i].checked = modes[i].value === settings.printerMode;
-    modes[i].addEventListener("change", function(event) {
-      var auto = event.target.value === "auto";
-      PrinterCenter.saveSettings({ printerMode: event.target.value, autoPrint: auto });
-    });
-  }
-  if (provider) provider.value = settings.printerProvider;
-  if (paper) paper.value = settings.paperWidth;
-  if (copies) copies.value = String(settings.copies);
-  if (name) name.textContent = settings.printerName;
-  if (provider) provider.addEventListener("change", function() { PrinterCenter.saveSettings({ printerProvider: provider.value, printerName: provider.options[provider.selectedIndex].text.replace("（預設）", "") }); });
-  if (paper) paper.addEventListener("change", function() { PrinterCenter.saveSettings({ paperWidth: paper.value }); });
-  if (copies) copies.addEventListener("change", function() { PrinterCenter.saveSettings({ copies: copies.value }); });
+  var profiles = PrinterProfile.load();
+  var cards = document.querySelectorAll("[data-printer-profile]");
+  for (var i = 0; i < cards.length; i += 1) bindPrinterProfileCard(cards[i], profiles);
   var test = document.getElementById("printerTestBtn");
   var detect = document.getElementById("printerDetectBtn");
   var reprint = document.getElementById("printerReprintBtn");
   if (test) test.addEventListener("click", function() { PrinterCenter.testPrint().catch(showPrinterError); });
-  if (detect) detect.addEventListener("click", function() { PrinterCenter.detectPrinter().then(function(devices) { if (name) name.textContent = devices.length ? devices[0].name : "未找到印表機"; }).catch(showPrinterError); });
+  if (detect) detect.addEventListener("click", function() { PrinterCenter.detectPrinter().then(function(devices) { alert(devices.length ? "找到印表機：" + devices[0].name : "未找到印表機"); }).catch(showPrinterError); });
   if (reprint) reprint.addEventListener("click", function() { PrinterCenter.reprint().catch(showPrinterError); });
+}
+
+function bindPrinterProfileCard(card, profiles) {
+  var profileName = card.getAttribute("data-printer-profile");
+  var profile = profiles[profileName];
+  var fields = card.querySelectorAll("[data-profile-field]");
+  for (var i = 0; i < fields.length; i += 1) {
+    (function(field) {
+      var key = field.getAttribute("data-profile-field");
+      if (key === "autoPrint") field.checked = profile.autoPrint === true;
+      else field.value = String(profile[key]);
+      updatePrinterAutoLabel(card);
+      field.addEventListener("change", function() {
+        var value = key === "autoPrint" ? field.checked : field.value;
+        PrinterProfile.save(profileName, (function() { var change = {}; change[key] = value; return change; })());
+        updatePrinterAutoLabel(card);
+      });
+    })(fields[i]);
+  }
+}
+
+function updatePrinterAutoLabel(card) {
+  var input = card.querySelector('[data-profile-field="autoPrint"]');
+  var label = card.querySelector("[data-profile-auto-label]");
+  if (label) label.textContent = input && input.checked ? "ON" : "OFF";
 }
 
 function showPrinterError(error) {
@@ -1114,7 +1133,7 @@ function openSettingsSection(section) {
     order: ["點餐流程", "點餐流程"],
     qr: ["QR 點餐", "QR 點餐"],
     sound: ["通知與音效", "音效中心"],
-    print: ["列印與出單", "列印與出單"],
+    print: ["印表機設定", "Printer Profile"],
     modules: ["功能模組", "功能模組"],
     system: ["系統與裝置", "系統與裝置"]
   };
