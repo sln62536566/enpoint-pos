@@ -1,6 +1,5 @@
 import { PrinterProfile } from "./printer-profile.js";
 import { PrintQueue } from "./print-queue.js";
-import { PrinterStatus } from "./printer-status.js";
 
 const STORAGE_DEFAULTS = Object.freeze({
   printerMode: "manual",
@@ -98,11 +97,7 @@ function createJob(type, order) {
     throw new Error("Printer Center 尚未完成票券轉接初始化");
   }
   const profile = getProfile(type);
-  PrinterStatus.get(profile.id);
-  if (!profile.enabled) {
-    PrinterStatus.setStatus(profile.id, "offline");
-    throw new Error(`${profile.name} 已停用`);
-  }
+  if (!profile.enabled) throw new Error(`${profile.name} 已停用`);
   const label = type === "customer" ? "客人單" : "廚房單";
   const title = `${label} #${order.orderNumber || order.id || ""}`;
   return {

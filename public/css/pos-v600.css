@@ -5147,7 +5147,7 @@ body.settings-center-open{
 
 .printer-profile-status{
   display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(120px,1fr));
+  grid-template-columns:repeat(5,minmax(0,1fr));
   gap:8px;
   margin-top:12px;
   padding:10px 12px;
@@ -5164,41 +5164,6 @@ body.settings-center-open{
   white-space:nowrap;
 }
 
-.printer-live-status{
-  display:flex;
-  align-items:center;
-  gap:7px;
-}
-
-.printer-live-status b{
-  flex:0 0 auto;
-  width:10px;
-  height:10px;
-  border-radius:50%;
-  background:#94a3b8;
-}
-
-.printer-live-status.status-ready{color:#15803d}
-.printer-live-status.status-ready b{background:#22c55e}
-.printer-live-status.status-offline,
-.printer-live-status.status-disabled{color:#64748b}
-.printer-live-status.status-offline b,
-.printer-live-status.status-disabled b{background:#94a3b8}
-.printer-live-status.status-connecting{color:#a16207}
-.printer-live-status.status-connecting b{background:#eab308}
-.printer-live-status.status-printing{color:#1d4ed8}
-.printer-live-status.status-printing b{background:#3b82f6}
-.printer-live-status.status-busy{color:#c2410c}
-.printer-live-status.status-busy b{background:#f97316}
-.printer-live-status.status-error,
-.printer-last-error{color:#b91c1c !important}
-.printer-live-status.status-error b{background:#ef4444}
-
-.printer-last-print,
-.printer-last-error{
-  grid-column:span 2;
-}
-
 @media (max-width:900px){
   .printer-profile-fields{
     grid-template-columns:repeat(2,minmax(0,1fr));
@@ -5207,81 +5172,6 @@ body.settings-center-open{
   .printer-profile-status{
     grid-template-columns:repeat(2,minmax(0,1fr));
   }
-}
-
-/* v66.4 Modal / Select scroll lock and layer order */
-html{
-  overscroll-behavior:none;
-}
-
-body.modal-scroll-locked{
-  overflow:hidden !important;
-  touch-action:none !important;
-  overscroll-behavior:none !important;
-  -webkit-overflow-scrolling:auto !important;
-}
-
-body.modal-scroll-locked > *:not(.modal):not(.settings-center-modal):not(.app-loading-screen){
-  overscroll-behavior:none;
-}
-
-.dropdown-menu,
-.select-dropdown,
-[role="listbox"]{
-  z-index:900 !important;
-  max-height:min(60vh,420px);
-  overflow-y:auto;
-  overscroll-behavior:contain;
-  -webkit-overflow-scrolling:touch;
-  touch-action:pan-y;
-}
-
-.modal-backdrop,
-.dialog-backdrop{
-  z-index:5000 !important;
-  pointer-events:auto !important;
-}
-
-.modal,
-.settings-center-modal{
-  z-index:6000 !important;
-  overscroll-behavior:contain !important;
-  pointer-events:auto !important;
-}
-
-.modal-card,
-.settings-center-dialog,
-[role="dialog"]{
-  z-index:6100 !important;
-  overscroll-behavior:contain !important;
-  -webkit-overflow-scrolling:touch;
-  pointer-events:auto !important;
-}
-
-.modal-card,
-.settings-center-body{
-  touch-action:pan-y !important;
-}
-
-.modal input,
-.modal textarea,
-.modal select,
-.settings-center-modal input,
-.settings-center-modal textarea,
-.settings-center-modal select{
-  max-width:100%;
-  touch-action:manipulation;
-}
-
-.toast,
-[role="status"]{
-  z-index:7000 !important;
-}
-
-.app-loading-screen,
-.loading-screen,
-[data-loading-overlay]{
-  z-index:8000 !important;
 }
 
 @media (max-width:560px){

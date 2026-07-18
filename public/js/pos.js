@@ -35,164 +35,6 @@ import {
 import { PrinterCenter } from "./printer-center.js";
 import { PrinterProfile } from "./printer-profile.js";
 import { PrintQueue } from "./print-queue.js";
-import { PrinterStatus } from "./printer-status.js";
-
-var posInitTraceLastCheckpoint = "[INIT 00] Before Module Evaluation";
-
-function posInitTrace(number, label) {
-  posInitTraceLastCheckpoint = "[INIT " + String(number).padStart(2, "0") + "] " + label;
-  console.log(posInitTraceLastCheckpoint);
-}
-
-function posInitTraceError(error, details) {
-  var traceError = error instanceof Error ? error : new Error(String(error || "Unknown initialization error"));
-  var traceDetails = details || {};
-  var stackLocation = String(traceError.stack || "").match(/((?:https?:\/\/|file:\/\/\/)[^\s)]+|[^\s()]+\.js):(\d+):(\d+)/);
-  console.error("[INIT ERROR]", {
-    message: traceError.message,
-    stack: traceError.stack || null,
-    file: traceDetails.file || (stackLocation ? stackLocation[1] : null),
-    line: traceDetails.line || (stackLocation ? Number(stackLocation[2]) : null),
-    column: traceDetails.column || (stackLocation ? Number(stackLocation[3]) : null)
-  });
-  console.error("[INIT STOP]", {
-    stoppedAt: posInitTraceLastCheckpoint,
-    reason: traceError.message,
-    stack: traceError.stack || null
-  });
-}
-
-window.onerror = function(message, source, lineno, colno, error) {
-  posInitTraceError(error || new Error(String(message || "Unknown window error")), {
-    file: source,
-    line: lineno,
-    column: colno
-  });
-  return false;
-};
-
-window.addEventListener("unhandledrejection", function(event) {
-  var reason = event && event.reason;
-  var rejectionError = reason instanceof Error ? reason : new Error(String(reason || "Unhandled promise rejection"));
-  posInitTraceError(rejectionError, { file: null, line: null, column: null });
-});
-
-posInitTrace(1, "HTML Loaded");
-posInitTrace(2, "Module Evaluation");
-posInitTrace(3, "Firebase Imported");
-posInitTrace(4, "Menu Studio Imported");
-posInitTrace(5, "Order Price Imported");
-posInitTrace(6, "Order Option Imported");
-posInitTrace(7, "Sound Center Imported");
-posInitTrace(8, "PrinterStatus Ready");
-posInitTrace(9, "PrinterProfile Ready");
-posInitTrace(10, "PrintQueue Ready");
-posInitTrace(11, "PrinterCenter Imported");
-
-const ModalManager = (function() {
-  var locks = {};
-  var savedBodyStyle = "";
-  var savedScrollX = 0;
-  var savedScrollY = 0;
-  var observer = null;
-
-  function hasLocks() {
-    for (var key in locks) if (Object.prototype.hasOwnProperty.call(locks, key)) return true;
-    return false;
-  }
-
-  function lock(key) {
-    var lockKey = key || "manual";
-    if (locks[lockKey]) return;
-    var wasLocked = hasLocks();
-    locks[lockKey] = true;
-    if (wasLocked || !document.body) return;
-    savedScrollX = window.pageXOffset || document.documentElement.scrollLeft || 0;
-    savedScrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
-    savedBodyStyle = document.body.getAttribute("style") || "";
-    document.body.classList.add("modal-scroll-locked");
-    document.body.style.position = "fixed";
-    document.body.style.top = "-" + savedScrollY + "px";
-    document.body.style.left = "-" + savedScrollX + "px";
-    document.body.style.right = "0";
-    document.body.style.width = "100%";
-    document.body.style.overflow = "hidden";
-    document.body.style.touchAction = "none";
-    document.body.style.overscrollBehavior = "none";
-  }
-
-  function unlock(key) {
-    delete locks[key || "manual"];
-    if (hasLocks() || !document.body) return;
-    document.body.setAttribute("style", savedBodyStyle);
-    document.body.classList.remove("modal-scroll-locked");
-    window.scrollTo(savedScrollX, savedScrollY);
-  }
-
-  function isVisible(element) {
-    if (!element || element.classList.contains("hidden") || element.getAttribute("aria-hidden") === "true") return false;
-    if (element.getClientRects && element.getClientRects().length === 0) return false;
-    var style = window.getComputedStyle ? window.getComputedStyle(element) : null;
-    return !style || (style.display !== "none" && style.visibility !== "hidden");
-  }
-
-  function syncLayers() {
-    var modalNodes = document.querySelectorAll(".modal, .settings-center-modal, [role=dialog]");
-    var modalVisible = false;
-    for (var i = 0; i < modalNodes.length; i += 1) if (isVisible(modalNodes[i])) { modalVisible = true; break; }
-    if (modalVisible) lock("modal-open"); else unlock("modal-open");
-    var dropdownNodes = document.querySelectorAll(".dropdown-menu, .select-dropdown, [role=listbox]");
-    var dropdownVisible = false;
-    for (var j = 0; j < dropdownNodes.length; j += 1) if (isVisible(dropdownNodes[j])) { dropdownVisible = true; break; }
-    if (dropdownVisible) lock("dropdown-open"); else unlock("dropdown-open");
-  }
-
-  function activeModal() {
-    var nodes = document.querySelectorAll(".modal, .settings-center-modal, [role=dialog]");
-    for (var i = nodes.length - 1; i >= 0; i -= 1) if (isVisible(nodes[i])) return nodes[i];
-    return null;
-  }
-
-  function trapFocus(event) {
-    if (event.key === "Escape") {
-      if (locks["select-open"]) unlock("select-open");
-      var opened = activeModal();
-      if (!opened) return;
-      var close = opened.querySelector("[aria-label=關閉], .modal-close-btn, [id*=Close], [id*=cancel], [id*=Cancel]");
-      if (close && typeof close.click === "function") close.click();
-      event.preventDefault();
-      return;
-    }
-    if (event.key !== "Tab") return;
-    var modal = activeModal();
-    if (!modal) return;
-    var nodes = modal.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
-    var focusable = [];
-    for (var i = 0; i < nodes.length; i += 1) if (isVisible(nodes[i])) focusable.push(nodes[i]);
-    if (!focusable.length) { event.preventDefault(); modal.setAttribute("tabindex", "-1"); modal.focus(); return; }
-    var first = focusable[0];
-    var last = focusable[focusable.length - 1];
-    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-  }
-
-  function init() {
-    if (observer || !document.body) return;
-    document.addEventListener("focusin", function(event) { if (event.target && event.target.tagName === "SELECT") lock("select-open"); }, true);
-    document.addEventListener("focusout", function(event) { if (event.target && event.target.tagName === "SELECT") window.setTimeout(function() { unlock("select-open"); }, 0); }, true);
-    document.addEventListener("change", function(event) { if (event.target && event.target.tagName === "SELECT") window.setTimeout(function() { unlock("select-open"); }, 0); }, true);
-    document.addEventListener("keydown", trapFocus, true);
-    if (window.MutationObserver) {
-      observer = new MutationObserver(syncLayers);
-      observer.observe(document.body, { attributes: true, attributeFilter: ["class", "style", "aria-hidden"], childList: true, subtree: true });
-    }
-    syncLayers();
-  }
-
-  return { lock: lock, unlock: unlock, init: init, sync: syncLayers };
-})();
-
-window.ModalManager = ModalManager;
 
 
 /* =========================
@@ -366,7 +208,6 @@ const qrSessionControlRef = ref(db, "qrSessionControl");
 let menuData = {};
 let categoriesData = {};
 let ordersData = {};
-let menuRenderLastCheckpoint = "Not Started";
 let customOptionGroupsData = {};
 let customGroupsData = {};
 let currentCategory = "全部";
@@ -461,14 +302,6 @@ function safePosInit(name, task) {
   try {
     return task();
   } catch (error) {
-    if (name === "menu" || name === "categories" || name === "customOptionGroups" || name === "customGroups") {
-      console.error("[RENDER ERROR]", {
-        message: error && error.message ? error.message : String(error),
-        stack: error && error.stack ? error.stack : null,
-        lastSuccessfulCheckpoint: menuRenderLastCheckpoint
-      });
-    }
-    posInitTraceError(error, { file: "public/js/pos.js", line: null, column: null });
     console.error("POS 初始化區塊失敗：", name, error);
     return null;
   }
@@ -480,18 +313,6 @@ function safePosInit(name, task) {
 
 onValue(menuRef, snapshot => {
   menuData = snapshot.exists() ? snapshot.val() : {};
-  var menuSnapshotItems = Object.entries(menuData || {}).map(function(entry) {
-    return entry[1] || {};
-  });
-  var menuSnapshotCategories = new Set(menuSnapshotItems.map(function(item) {
-    return getItemCategory(item);
-  }));
-  console.log("[DATA 01] Menu Listener Triggered", {
-    snapshotExists: snapshot.exists(),
-    categoryCount: menuSnapshotCategories.size,
-    itemCount: menuSnapshotItems.length
-  });
-  menuRenderLastCheckpoint = "[DATA 01] Menu Listener Triggered";
   safePosInit("menu", function() {
     renderCategories();
     renderMenu();
@@ -538,8 +359,6 @@ onValue(ordersRef, snapshot => {
   });
 });
 
-posInitTrace(12, "Firebase Listener Register");
-
 renderTableButtons();
 ensurePosMenuStudioUi();
 renderCart();
@@ -547,8 +366,6 @@ renderStoreModeNotice();
 renderSettings();
 initPosOrderSoundUnlock();
 watchSharedSettings();
-posInitTrace(13, "UI Render");
-posInitTrace(14, "hideAppLoadingScreen()");
 hideAppLoadingScreen();
 
 function hideAppLoadingScreen() {
@@ -1290,7 +1107,6 @@ function bindPrinterCenterControls() {
   if (resumeQueue) resumeQueue.addEventListener("click", function() { PrintQueue.resume(); });
   if (clearQueue) clearQueue.addEventListener("click", function() { PrintQueue.clear(); });
   PrintQueue.onStatusChanged(renderPrintQueueStatus);
-  PrinterStatus.subscribe(renderPrinterStatusUpdate);
   renderPrintQueueStatus({ current: PrintQueue.getCurrent(), pending: PrintQueue.getPending().length, busy: PrintQueue.isBusy(), paused: PrintQueue.isPaused() });
 }
 
@@ -1324,7 +1140,6 @@ function bindPrinterProfileCard(card, profiles) {
       field.addEventListener("change", function() {
         var value = key === "autoPrint" || key === "enabled" ? field.checked : field.value;
         var updated = PrinterProfile.update(profileName, (function() { var change = {}; change[key] = value; return change; })());
-        if (key === "enabled") PrinterStatus.setStatus(updated.id, updated.enabled ? "ready" : "offline");
         updatePrinterProfileCard(card, updated);
       });
     })(fields[i]);
@@ -1344,23 +1159,9 @@ function updatePrinterProfileCard(card, profile) {
 function renderPrinterProfileStatus(card, profile) {
   var status = card.querySelector("[data-profile-status]");
   if (!status || !profile) return;
-  var printerState = PrinterStatus.get(profile.id);
-  var displayStatus = profile.enabled ? printerState.status : "disabled";
-  var statusLabels = { ready: "Ready", offline: "Offline", connecting: "Connecting", printing: "Printing", busy: "Busy", error: "Error", disabled: "Disabled" };
-  var lastPrint = printerState.lastPrintTime ? formatPrinterStatusTime(printerState.lastPrintTime) : "尚無紀錄";
-  status.innerHTML = '<span class="printer-live-status status-' + displayStatus + '"><b></b>' + statusLabels[displayStatus] + '</span><span>Provider：' + profile.provider + '</span><span>Paper：' + (profile.paperSize === "40x30" ? "40×30" : profile.paperSize + "mm") + '</span><span>Copies：' + profile.copies + '</span><span>AutoPrint：' + (profile.autoPrint ? "ON" : "OFF") + '</span><span>Queue：' + printerState.queueLength + '</span><span class="printer-last-print">最後列印：' + lastPrint + '</span>' + (printerState.lastError ? '<span class="printer-last-error">錯誤：' + escapeHtml(printerState.lastError) + '</span>' : '');
-}
-
-function renderPrinterStatusUpdate(printerState) {
-  var card = document.querySelector('[data-printer-profile="' + printerState.id.charAt(0).toUpperCase() + printerState.id.slice(1) + '"]');
-  if (card) renderPrinterProfileStatus(card, PrinterProfile.get(printerState.id));
-}
-
-function formatPrinterStatusTime(time) {
-  var date = new Date(Number(time));
-  if (isNaN(date.getTime())) return "尚無紀錄";
-  function pad(value) { return String(value).length < 2 ? "0" + value : String(value); }
-  return date.getFullYear() + "/" + pad(date.getMonth() + 1) + "/" + pad(date.getDate()) + " " + pad(date.getHours()) + ":" + pad(date.getMinutes());
+  var current = PrintQueue.getCurrent();
+  var queueText = current && current.profile && current.profile.id === profile.id ? "列印中" : "待命";
+  status.innerHTML = '<span>Provider：' + profile.provider + '</span><span>Paper：' + (profile.paperSize === "40x30" ? "40×30" : profile.paperSize + "mm") + '</span><span>Copies：' + profile.copies + '</span><span>AutoPrint：' + (profile.autoPrint ? "ON" : "OFF") + '</span><span>Queue：' + queueText + '</span>';
 }
 
 function showPrinterError(error) {
@@ -2779,94 +2580,8 @@ if (categoryList) {
 // 端別：POS 點餐端 pos.js
 // 用途：「全部」改成依分類分區顯示
 // =====================================================
-function getMenuTraceElementStatus(element) {
-  var style = element && window.getComputedStyle ? window.getComputedStyle(element) : null;
-  var rect = element && element.getBoundingClientRect ? element.getBoundingClientRect() : null;
-  return {
-    exists: !!element,
-    className: element ? element.className : null,
-    display: style ? style.display : null,
-    visibility: style ? style.visibility : null,
-    opacity: style ? style.opacity : null,
-    width: rect ? rect.width : null,
-    height: rect ? rect.height : null,
-    childElementCount: element ? element.childElementCount : null
-  };
-}
-
-function isMenuTraceElementHidden(element) {
-  if (!element) return true;
-  var style = window.getComputedStyle ? window.getComputedStyle(element) : null;
-  return element.hidden === true ||
-    element.classList.contains("hidden") ||
-    element.getAttribute("aria-hidden") === "true" ||
-    !!(style && (style.display === "none" || style.visibility === "hidden"));
-}
-
-function logMenuContainerStatus() {
-  var menuSubtab = document.querySelector('[data-order-subtab="menu"]');
-  var cartSubtab = document.querySelector('[data-order-subtab="cart"]');
-  var menuPanel = document.querySelector('[data-order-subtab-panel="menu"]');
-  var mainContainer = document.querySelector(".pos-main");
-  menuRenderLastCheckpoint = "[RENDER 02] Menu Container Status";
-  console.log("[RENDER 02] Menu Container Status", Object.assign(getMenuTraceElementStatus(posMenuList), {
-    menuSubtabActive: !!(menuSubtab && menuSubtab.classList.contains("active")),
-    cartSubtabActive: !!(cartSubtab && cartSubtab.classList.contains("active")),
-    menuContainerHidden: isMenuTraceElementHidden(posMenuList),
-    menuPanelHidden: isMenuTraceElementHidden(menuPanel),
-    mainContainerHidden: isMenuTraceElementHidden(mainContainer)
-  }));
-}
-
-function finishMenuRenderTrace() {
-  menuRenderLastCheckpoint = "[RENDER 03] Render Finished";
-  console.log("[RENDER 03] Render Finished", {
-    categoryDomCount: categoryList ? categoryList.querySelectorAll("button").length : 0,
-    categorySectionDomCount: posMenuList ? posMenuList.querySelectorAll(".pos-category-section").length : 0,
-    itemDomCount: posMenuList ? posMenuList.querySelectorAll(".pos-food-btn").length : 0
-  });
-  if (typeof window.requestAnimationFrame !== "function") {
-    console.error("[RENDER ERROR]", {
-      message: "requestAnimationFrame is not available",
-      stack: null,
-      lastSuccessfulCheckpoint: menuRenderLastCheckpoint
-    });
-    return;
-  }
-  window.requestAnimationFrame(function() {
-    try {
-      var style = posMenuList && window.getComputedStyle ? window.getComputedStyle(posMenuList) : null;
-      menuRenderLastCheckpoint = "[RENDER 04] requestAnimationFrame Inspection";
-      console.log("[RENDER 04] requestAnimationFrame Inspection", {
-        display: style ? style.display : null,
-        visibility: style ? style.visibility : null,
-        height: posMenuList && posMenuList.getBoundingClientRect ? posMenuList.getBoundingClientRect().height : null,
-        scrollHeight: posMenuList ? posMenuList.scrollHeight : null,
-        childElementCount: posMenuList ? posMenuList.childElementCount : null
-      });
-    } catch (error) {
-      console.error("[RENDER ERROR]", {
-        message: error && error.message ? error.message : String(error),
-        stack: error && error.stack ? error.stack : null,
-        lastSuccessfulCheckpoint: menuRenderLastCheckpoint
-      });
-    }
-  });
-}
-
 function renderMenu() {
-  menuRenderLastCheckpoint = "[RENDER 01] Menu Render Start";
-  console.log("[RENDER 01] Menu Render Start");
   let items = getEnabledItems();
-  var visibleCategoryCount = new Set(items.map(function(item) {
-    return getItemCategory(item);
-  })).size;
-  menuRenderLastCheckpoint = "[DATA 02] Menu Normalize Finished";
-  console.log("[DATA 02] Menu Normalize Finished", {
-    visibleCategories: visibleCategoryCount,
-    visibleItems: items.length
-  });
-  logMenuContainerStatus();
 
   if (currentCategory !== "全部") {
     items = items.filter(item => getItemCategory(item) === currentCategory);
@@ -2874,7 +2589,6 @@ function renderMenu() {
 
   if (items.length === 0) {
     posMenuList.innerHTML = `<div class="empty">目前沒有餐點</div>`;
-    finishMenuRenderTrace();
     return;
   }
 
@@ -2904,7 +2618,6 @@ function renderMenu() {
       `).join("");
 
     bindPosLegacySelectButtons();
-    finishMenuRenderTrace();
     return;
   }
 
@@ -2918,7 +2631,6 @@ function renderMenu() {
     </section>
   `;
   bindPosLegacySelectButtons();
-  finishMenuRenderTrace();
 }
 
 function escapeInlineValue(value) {
@@ -5617,7 +5329,6 @@ watchBusinessDayClose();
 })();
 
 window.submitOrder = submitOrder;
-posInitTrace(15, "PrinterCenter.init()");
 PrinterCenter.init({
   buildKitchen: buildKitchenTicketHtml,
   buildCustomer: buildCustomerTicketHtml,
@@ -5626,8 +5337,6 @@ PrinterCenter.init({
     return ordersData && ordersData[orderId] ? Object.assign({ id: orderId }, ordersData[orderId]) : null;
   }
 });
-posInitTrace(16, "ModalManager.init()");
-ModalManager.init();
 
 window.submitUnpaidOrder = submitUnpaidOrder;
 window.submitTestOrder = submitTestOrder;
@@ -5709,4 +5418,3 @@ window.posOpenFoodById = function (itemId, event) {
 
 window.selectTable = selectTable;
 window.selectCategory = selectCategory;
-posInitTrace(17, "App Ready");
