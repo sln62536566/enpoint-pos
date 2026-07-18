@@ -32,6 +32,8 @@ import {
   unlockSoundCenter
 } from "./sound-center.js";
 
+import { PrinterCenter } from "./printer-center.js";
+
 
 /* =========================
    v59-5 EARLY POS LEGACY OPEN
@@ -990,7 +992,7 @@ function initSettingsCenter() {
   moveSettingsCard(sections.sound, "enableSoundToggle");
   moveSettingsCard(sections.order, "autoSwitchCartToggle");
   sections.sound.appendChild(buildSoundCenterPanelV656());
-  sections.print.appendChild(buildReservedSettingsCard("列印與出單", "出單機、廚房單、客人單、貼紙與列印失敗音效的設定區。"));
+  sections.print.appendChild(buildPrinterCenterPanel());
   sections.modules.appendChild(buildReservedSettingsCard("功能模組", "QR、KDS、列印、會員、電子發票、外送平台都會放在這裡管理。"));
   sections.system.appendChild(buildReservedSettingsCard("系統與裝置", "裝置、喇叭、勿擾模式、排程靜音與多店音效設定的預留區。"));
 
@@ -1054,6 +1056,54 @@ function buildReservedSettingsCard(title, text) {
   card.className = "settings-card settings-reserved-card";
   card.innerHTML = '<div class="settings-card-title"><span>' + title + '</span><small>' + text + '</small></div>';
   return card;
+}
+
+function buildPrinterCenterPanel() {
+  var card = document.createElement("section");
+  card.className = "settings-card settings-sound-center-card printer-center-card";
+  card.innerHTML = '<div class="settings-card-title"><span>🖨️ 列印與出單</span><small>統一管理廚房單、客人單與列印裝置</small></div>' +
+    '<div class="printer-center-grid">' +
+      '<fieldset class="printer-mode-field"><legend>列印模式</legend><label><input type="radio" name="printerMode" value="manual"> 手動</label><label><input type="radio" name="printerMode" value="auto"> 自動</label></fieldset>' +
+      '<label class="sound-center-field"><span>目前印表機</span><select id="printerProviderInput" class="settings-input"><option value="browser">Browser（預設）</option><option value="usb" disabled>USB（尚未提供）</option><option value="bluetooth" disabled>Bluetooth（尚未提供）</option><option value="network" disabled>Network（尚未提供）</option></select></label>' +
+      '<label class="sound-center-field"><span>紙張</span><select id="paperWidthInput" class="settings-input"><option value="58">58mm</option><option value="80">80mm</option></select></label>' +
+      '<label class="sound-center-field"><span>列印份數</span><select id="printerCopiesInput" class="settings-input"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></label>' +
+    '</div><div class="printer-center-status"><span>目前印表機</span><strong id="printerNameValue">Browser</strong></div>' +
+    '<div class="printer-center-actions"><button type="button" id="printerTestBtn" class="secondary-btn">測試列印</button><button type="button" id="printerDetectBtn" class="secondary-btn">重新搜尋印表機</button><button type="button" id="printerReprintBtn" class="primary-btn">重印最後一張</button></div>';
+  window.setTimeout(bindPrinterCenterControls, 0);
+  return card;
+}
+
+function bindPrinterCenterControls() {
+  var settings = PrinterCenter.getSettings();
+  var modes = document.querySelectorAll('input[name="printerMode"]');
+  var provider = document.getElementById("printerProviderInput");
+  var paper = document.getElementById("paperWidthInput");
+  var copies = document.getElementById("printerCopiesInput");
+  var name = document.getElementById("printerNameValue");
+  for (var i = 0; i < modes.length; i += 1) {
+    modes[i].checked = modes[i].value === settings.printerMode;
+    modes[i].addEventListener("change", function(event) {
+      var auto = event.target.value === "auto";
+      PrinterCenter.saveSettings({ printerMode: event.target.value, autoPrint: auto });
+    });
+  }
+  if (provider) provider.value = settings.printerProvider;
+  if (paper) paper.value = settings.paperWidth;
+  if (copies) copies.value = String(settings.copies);
+  if (name) name.textContent = settings.printerName;
+  if (provider) provider.addEventListener("change", function() { PrinterCenter.saveSettings({ printerProvider: provider.value, printerName: provider.options[provider.selectedIndex].text.replace("（預設）", "") }); });
+  if (paper) paper.addEventListener("change", function() { PrinterCenter.saveSettings({ paperWidth: paper.value }); });
+  if (copies) copies.addEventListener("change", function() { PrinterCenter.saveSettings({ copies: copies.value }); });
+  var test = document.getElementById("printerTestBtn");
+  var detect = document.getElementById("printerDetectBtn");
+  var reprint = document.getElementById("printerReprintBtn");
+  if (test) test.addEventListener("click", function() { PrinterCenter.testPrint().catch(showPrinterError); });
+  if (detect) detect.addEventListener("click", function() { PrinterCenter.detectPrinter().then(function(devices) { if (name) name.textContent = devices.length ? devices[0].name : "未找到印表機"; }).catch(showPrinterError); });
+  if (reprint) reprint.addEventListener("click", function() { PrinterCenter.reprint().catch(showPrinterError); });
+}
+
+function showPrinterError(error) {
+  alert(error && error.message ? error.message : "列印失敗");
 }
 
 function openSettingsSection(section) {
@@ -2214,6 +2264,8 @@ function buildCustomerTicketHtml(order) {
 }
 
 function buildPrintWindowHtml(title, bodyHtml) {
+  var printSettings = arguments.length > 2 && arguments[2] ? arguments[2] : {};
+  var width = String(printSettings.paperWidth || "58") === "80" ? "72mm" : "50mm";
   return '<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="UTF-8">' +
     '<meta name="viewport" content="width=device-width, initial-scale=1.0">' +
     '<title>' + escapeHtml(title) + '</title>' +
@@ -2233,9 +2285,8 @@ function buildPrintWindowHtml(title, bodyHtml) {
     '.ticket-note{margin-top:12px;padding:10px;border:1px solid #111;}.ticket-note p{margin:6px 0 0;}' +
     '.ticket-total{font-size:22px;font-weight:800;margin-top:14px;}' +
     '.ticket-qr{text-align:center;margin-top:14px;}.ticket-qr img{width:120px;height:120px;}.ticket-qr p{margin:6px 0;font-weight:700;}.ticket-qr small{display:block;word-break:break-all;font-size:10px;color:#555;}' +
-    '@media print{body{background:#fff}.ticket{margin:0;width:72mm;box-shadow:none}.no-print{display:none}}' +
+    '@media print{body{background:#fff}.ticket{margin:0;width:' + width + ';box-shadow:none}.no-print{display:none}}' +
     '</style></head><body>' + bodyHtml +
-    '<script>window.onload=function(){setTimeout(function(){window.print();},120);};<\/script>' +
     '</body></html>';
 }
 
@@ -2271,11 +2322,8 @@ function printOrderTicket(type, orderId, event) {
     return false;
   }
 
-  if (type === "customer") {
-    openPrintPreview("客人單 #" + (order.orderNumber || order.id), buildCustomerTicketHtml(order));
-  } else {
-    openPrintPreview("廚房單 #" + (order.orderNumber || order.id), buildKitchenTicketHtml(order));
-  }
+  var printRequest = type === "customer" ? PrinterCenter.printCustomer(order) : PrinterCenter.printKitchen(order);
+  printRequest.catch(showPrinterError);
   return false;
 }
 
@@ -5219,6 +5267,15 @@ watchBusinessDayClose();
 })();
 
 window.submitOrder = submitOrder;
+PrinterCenter.init({
+  buildKitchen: buildKitchenTicketHtml,
+  buildCustomer: buildCustomerTicketHtml,
+  buildDocument: buildPrintWindowHtml,
+  resolveOrder: function(orderId) {
+    return ordersData && ordersData[orderId] ? Object.assign({ id: orderId }, ordersData[orderId]) : null;
+  }
+});
+
 window.submitUnpaidOrder = submitUnpaidOrder;
 window.submitTestOrder = submitTestOrder;
 window.clearCart = clearCart;

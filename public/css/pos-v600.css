@@ -5004,6 +5004,78 @@ body.settings-center-open{
   overflow:visible !important;
 }
 
+/* v66 Printer Center */
+.printer-center-card{
+  gap:16px;
+}
+
+.printer-center-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:14px;
+}
+
+.printer-mode-field{
+  grid-column:1 / -1;
+  display:flex;
+  flex-wrap:wrap;
+  gap:12px 24px;
+  margin:0;
+  padding:14px;
+  border:1px solid rgba(148,163,184,.35);
+  border-radius:12px;
+}
+
+.printer-mode-field legend{
+  padding:0 6px;
+  font-weight:800;
+}
+
+.printer-mode-field label{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-height:36px;
+  cursor:pointer;
+}
+
+.printer-mode-field input{
+  width:20px;
+  height:20px;
+  accent-color:#2563eb;
+}
+
+.printer-center-status{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:12px 14px;
+  border-radius:12px;
+  background:rgba(37,99,235,.08);
+}
+
+.printer-center-actions{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:10px;
+}
+
+.printer-center-actions button{
+  min-height:46px;
+}
+
+@media (max-width:700px){
+  .printer-center-grid,
+  .printer-center-actions{
+    grid-template-columns:1fr;
+  }
+
+  .printer-center-card{
+    min-width:0;
+  }
+}
+
 .settings-center-modal{
   position:fixed !important;
   top:8px !important;
