@@ -366,6 +366,7 @@ const qrSessionControlRef = ref(db, "qrSessionControl");
 let menuData = {};
 let categoriesData = {};
 let ordersData = {};
+let menuRenderLastCheckpoint = "Not Started";
 let customOptionGroupsData = {};
 let customGroupsData = {};
 let currentCategory = "全部";
@@ -460,6 +461,13 @@ function safePosInit(name, task) {
   try {
     return task();
   } catch (error) {
+    if (name === "menu" || name === "categories" || name === "customOptionGroups" || name === "customGroups") {
+      console.error("[RENDER ERROR]", {
+        message: error && error.message ? error.message : String(error),
+        stack: error && error.stack ? error.stack : null,
+        lastSuccessfulCheckpoint: menuRenderLastCheckpoint
+      });
+    }
     posInitTraceError(error, { file: "public/js/pos.js", line: null, column: null });
     console.error("POS 初始化區塊失敗：", name, error);
     return null;
@@ -472,6 +480,18 @@ function safePosInit(name, task) {
 
 onValue(menuRef, snapshot => {
   menuData = snapshot.exists() ? snapshot.val() : {};
+  var menuSnapshotItems = Object.entries(menuData || {}).map(function(entry) {
+    return entry[1] || {};
+  });
+  var menuSnapshotCategories = new Set(menuSnapshotItems.map(function(item) {
+    return getItemCategory(item);
+  }));
+  console.log("[DATA 01] Menu Listener Triggered", {
+    snapshotExists: snapshot.exists(),
+    categoryCount: menuSnapshotCategories.size,
+    itemCount: menuSnapshotItems.length
+  });
+  menuRenderLastCheckpoint = "[DATA 01] Menu Listener Triggered";
   safePosInit("menu", function() {
     renderCategories();
     renderMenu();
@@ -2759,8 +2779,94 @@ if (categoryList) {
 // 端別：POS 點餐端 pos.js
 // 用途：「全部」改成依分類分區顯示
 // =====================================================
+function getMenuTraceElementStatus(element) {
+  var style = element && window.getComputedStyle ? window.getComputedStyle(element) : null;
+  var rect = element && element.getBoundingClientRect ? element.getBoundingClientRect() : null;
+  return {
+    exists: !!element,
+    className: element ? element.className : null,
+    display: style ? style.display : null,
+    visibility: style ? style.visibility : null,
+    opacity: style ? style.opacity : null,
+    width: rect ? rect.width : null,
+    height: rect ? rect.height : null,
+    childElementCount: element ? element.childElementCount : null
+  };
+}
+
+function isMenuTraceElementHidden(element) {
+  if (!element) return true;
+  var style = window.getComputedStyle ? window.getComputedStyle(element) : null;
+  return element.hidden === true ||
+    element.classList.contains("hidden") ||
+    element.getAttribute("aria-hidden") === "true" ||
+    !!(style && (style.display === "none" || style.visibility === "hidden"));
+}
+
+function logMenuContainerStatus() {
+  var menuSubtab = document.querySelector('[data-order-subtab="menu"]');
+  var cartSubtab = document.querySelector('[data-order-subtab="cart"]');
+  var menuPanel = document.querySelector('[data-order-subtab-panel="menu"]');
+  var mainContainer = document.querySelector(".pos-main");
+  menuRenderLastCheckpoint = "[RENDER 02] Menu Container Status";
+  console.log("[RENDER 02] Menu Container Status", Object.assign(getMenuTraceElementStatus(posMenuList), {
+    menuSubtabActive: !!(menuSubtab && menuSubtab.classList.contains("active")),
+    cartSubtabActive: !!(cartSubtab && cartSubtab.classList.contains("active")),
+    menuContainerHidden: isMenuTraceElementHidden(posMenuList),
+    menuPanelHidden: isMenuTraceElementHidden(menuPanel),
+    mainContainerHidden: isMenuTraceElementHidden(mainContainer)
+  }));
+}
+
+function finishMenuRenderTrace() {
+  menuRenderLastCheckpoint = "[RENDER 03] Render Finished";
+  console.log("[RENDER 03] Render Finished", {
+    categoryDomCount: categoryList ? categoryList.querySelectorAll("button").length : 0,
+    categorySectionDomCount: posMenuList ? posMenuList.querySelectorAll(".pos-category-section").length : 0,
+    itemDomCount: posMenuList ? posMenuList.querySelectorAll(".pos-food-btn").length : 0
+  });
+  if (typeof window.requestAnimationFrame !== "function") {
+    console.error("[RENDER ERROR]", {
+      message: "requestAnimationFrame is not available",
+      stack: null,
+      lastSuccessfulCheckpoint: menuRenderLastCheckpoint
+    });
+    return;
+  }
+  window.requestAnimationFrame(function() {
+    try {
+      var style = posMenuList && window.getComputedStyle ? window.getComputedStyle(posMenuList) : null;
+      menuRenderLastCheckpoint = "[RENDER 04] requestAnimationFrame Inspection";
+      console.log("[RENDER 04] requestAnimationFrame Inspection", {
+        display: style ? style.display : null,
+        visibility: style ? style.visibility : null,
+        height: posMenuList && posMenuList.getBoundingClientRect ? posMenuList.getBoundingClientRect().height : null,
+        scrollHeight: posMenuList ? posMenuList.scrollHeight : null,
+        childElementCount: posMenuList ? posMenuList.childElementCount : null
+      });
+    } catch (error) {
+      console.error("[RENDER ERROR]", {
+        message: error && error.message ? error.message : String(error),
+        stack: error && error.stack ? error.stack : null,
+        lastSuccessfulCheckpoint: menuRenderLastCheckpoint
+      });
+    }
+  });
+}
+
 function renderMenu() {
+  menuRenderLastCheckpoint = "[RENDER 01] Menu Render Start";
+  console.log("[RENDER 01] Menu Render Start");
   let items = getEnabledItems();
+  var visibleCategoryCount = new Set(items.map(function(item) {
+    return getItemCategory(item);
+  })).size;
+  menuRenderLastCheckpoint = "[DATA 02] Menu Normalize Finished";
+  console.log("[DATA 02] Menu Normalize Finished", {
+    visibleCategories: visibleCategoryCount,
+    visibleItems: items.length
+  });
+  logMenuContainerStatus();
 
   if (currentCategory !== "全部") {
     items = items.filter(item => getItemCategory(item) === currentCategory);
@@ -2768,6 +2874,7 @@ function renderMenu() {
 
   if (items.length === 0) {
     posMenuList.innerHTML = `<div class="empty">目前沒有餐點</div>`;
+    finishMenuRenderTrace();
     return;
   }
 
@@ -2797,6 +2904,7 @@ function renderMenu() {
       `).join("");
 
     bindPosLegacySelectButtons();
+    finishMenuRenderTrace();
     return;
   }
 
@@ -2810,6 +2918,7 @@ function renderMenu() {
     </section>
   `;
   bindPosLegacySelectButtons();
+  finishMenuRenderTrace();
 }
 
 function escapeInlineValue(value) {
