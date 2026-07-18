@@ -1,4 +1,5 @@
 import { PrinterProfile } from "./printer-profile.js";
+import { PrintQueue } from "./print-queue.js";
 
 const STORAGE_DEFAULTS = Object.freeze({
   printerMode: "manual",
@@ -115,7 +116,7 @@ function print(type, order) {
     const job = createJob(type, order);
     lastOrder = order;
     lastType = type;
-    return getProvider(type).print(job);
+    return PrintQueue.enqueue(job);
   } catch (error) {
     return Promise.reject(error);
   }
@@ -127,6 +128,7 @@ export const PrinterCenter = {
     adapters = Object.assign({}, adapters, options);
     readSettings();
     PrinterProfile.load();
+    PrintQueue.init({ providers });
     initialized = true;
     return this;
   },

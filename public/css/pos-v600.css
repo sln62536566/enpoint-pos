@@ -5161,6 +5161,70 @@ body.settings-center-open{
   }
 }
 
+/* v66.2 Print Queue Center */
+.print-queue-panel{
+  padding:16px;
+  border:1px solid rgba(37,99,235,.24);
+  border-radius:14px;
+  background:rgba(239,246,255,.72);
+}
+
+.print-queue-stats{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:10px;
+}
+
+.print-queue-stats > div{
+  display:grid;
+  gap:6px;
+  min-width:0;
+  padding:12px;
+  border-radius:11px;
+  background:#fff;
+  box-shadow:0 1px 2px rgba(15,23,42,.06);
+}
+
+.print-queue-stats span{
+  color:#64748b;
+  font-size:13px;
+  font-weight:700;
+}
+
+.print-queue-stats strong{
+  overflow:hidden;
+  color:#0f172a;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.print-queue-actions{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+  margin-top:12px;
+}
+
+.print-queue-actions button{
+  min-height:44px;
+}
+
+@media (max-width:700px){
+  .print-queue-stats{
+    grid-template-columns:1fr;
+  }
+}
+
+@media (max-width:480px){
+  .print-queue-actions{
+    grid-template-columns:1fr;
+  }
+
+  .print-queue-panel{
+    padding:13px;
+  }
+}
+
 .settings-center-modal{
   position:fixed !important;
   top:8px !important;

@@ -34,6 +34,7 @@ import {
 
 import { PrinterCenter } from "./printer-center.js";
 import { PrinterProfile } from "./printer-profile.js";
+import { PrintQueue } from "./print-queue.js";
 
 
 /* =========================
@@ -1067,10 +1068,16 @@ function buildPrinterCenterPanel() {
       buildPrinterProfileCard("Kitchen", "🖨️", "廚房印表機", false) +
       buildPrinterProfileCard("Customer", "🧾", "客人印表機", false) +
       buildPrinterProfileCard("Label", "🏷️", "貼紙印表機", true) +
-    '</div>' +
+    '</div>' + buildPrintQueuePanel() +
     '<div class="printer-center-actions"><button type="button" id="printerTestBtn" class="secondary-btn">測試列印</button><button type="button" id="printerDetectBtn" class="secondary-btn">重新搜尋印表機</button><button type="button" id="printerReprintBtn" class="primary-btn">重印最後一張</button></div>';
   window.setTimeout(bindPrinterCenterControls, 0);
   return card;
+}
+
+function buildPrintQueuePanel() {
+  return '<section class="print-queue-panel"><div class="printer-profile-heading"><strong>🖨️ 列印佇列</strong><small id="printQueueState">待命</small></div>' +
+    '<div class="print-queue-stats"><div><span>目前列印</span><strong id="printQueueCurrent">無</strong></div><div><span>等待數量</span><strong id="printQueuePending">0</strong></div><div><span>Queue 狀態</span><strong id="printQueueStatus">待命</strong></div></div>' +
+    '<div class="print-queue-actions"><button type="button" id="printQueueResumeBtn" class="secondary-btn">重新開始 Queue</button><button type="button" id="printQueueClearBtn" class="secondary-btn">清空 Queue</button></div></section>';
 }
 
 function buildPrinterProfileCard(profileName, icon, title, reserved) {
@@ -1094,6 +1101,24 @@ function bindPrinterCenterControls() {
   if (test) test.addEventListener("click", function() { PrinterCenter.testPrint().catch(showPrinterError); });
   if (detect) detect.addEventListener("click", function() { PrinterCenter.detectPrinter().then(function(devices) { alert(devices.length ? "找到印表機：" + devices[0].name : "未找到印表機"); }).catch(showPrinterError); });
   if (reprint) reprint.addEventListener("click", function() { PrinterCenter.reprint().catch(showPrinterError); });
+  var resumeQueue = document.getElementById("printQueueResumeBtn");
+  var clearQueue = document.getElementById("printQueueClearBtn");
+  if (resumeQueue) resumeQueue.addEventListener("click", function() { PrintQueue.resume(); });
+  if (clearQueue) clearQueue.addEventListener("click", function() { PrintQueue.clear(); });
+  PrintQueue.onStatusChanged(renderPrintQueueStatus);
+  renderPrintQueueStatus({ current: PrintQueue.getCurrent(), pending: PrintQueue.getPending().length, busy: PrintQueue.isBusy(), paused: PrintQueue.isPaused() });
+}
+
+function renderPrintQueueStatus(state) {
+  var current = document.getElementById("printQueueCurrent");
+  var pending = document.getElementById("printQueuePending");
+  var status = document.getElementById("printQueueStatus");
+  var badge = document.getElementById("printQueueState");
+  var statusText = state.paused ? "已暫停" : (state.busy ? "列印中" : (state.pending > 0 ? "等待中" : "待命"));
+  if (current) current.textContent = state.current ? (state.current.type === "kitchen" ? "廚房單" : "客人單") + " #" + (state.current.order && (state.current.order.orderNumber || state.current.order.id) || state.current.id) : "無";
+  if (pending) pending.textContent = String(state.pending || 0);
+  if (status) status.textContent = statusText;
+  if (badge) badge.textContent = statusText;
 }
 
 function bindPrinterProfileCard(card, profiles) {
