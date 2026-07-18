@@ -37,6 +37,58 @@ import { PrinterProfile } from "./printer-profile.js";
 import { PrintQueue } from "./print-queue.js";
 import { PrinterStatus } from "./printer-status.js";
 
+var posInitTraceLastCheckpoint = "[INIT 00] Before Module Evaluation";
+
+function posInitTrace(number, label) {
+  posInitTraceLastCheckpoint = "[INIT " + String(number).padStart(2, "0") + "] " + label;
+  console.log(posInitTraceLastCheckpoint);
+}
+
+function posInitTraceError(error, details) {
+  var traceError = error instanceof Error ? error : new Error(String(error || "Unknown initialization error"));
+  var traceDetails = details || {};
+  var stackLocation = String(traceError.stack || "").match(/((?:https?:\/\/|file:\/\/\/)[^\s)]+|[^\s()]+\.js):(\d+):(\d+)/);
+  console.error("[INIT ERROR]", {
+    message: traceError.message,
+    stack: traceError.stack || null,
+    file: traceDetails.file || (stackLocation ? stackLocation[1] : null),
+    line: traceDetails.line || (stackLocation ? Number(stackLocation[2]) : null),
+    column: traceDetails.column || (stackLocation ? Number(stackLocation[3]) : null)
+  });
+  console.error("[INIT STOP]", {
+    stoppedAt: posInitTraceLastCheckpoint,
+    reason: traceError.message,
+    stack: traceError.stack || null
+  });
+}
+
+window.onerror = function(message, source, lineno, colno, error) {
+  posInitTraceError(error || new Error(String(message || "Unknown window error")), {
+    file: source,
+    line: lineno,
+    column: colno
+  });
+  return false;
+};
+
+window.addEventListener("unhandledrejection", function(event) {
+  var reason = event && event.reason;
+  var rejectionError = reason instanceof Error ? reason : new Error(String(reason || "Unhandled promise rejection"));
+  posInitTraceError(rejectionError, { file: null, line: null, column: null });
+});
+
+posInitTrace(1, "HTML Loaded");
+posInitTrace(2, "Module Evaluation");
+posInitTrace(3, "Firebase Imported");
+posInitTrace(4, "Menu Studio Imported");
+posInitTrace(5, "Order Price Imported");
+posInitTrace(6, "Order Option Imported");
+posInitTrace(7, "Sound Center Imported");
+posInitTrace(8, "PrinterStatus Ready");
+posInitTrace(9, "PrinterProfile Ready");
+posInitTrace(10, "PrintQueue Ready");
+posInitTrace(11, "PrinterCenter Imported");
+
 const ModalManager = (function() {
   var locks = {};
   var savedBodyStyle = "";
@@ -408,6 +460,7 @@ function safePosInit(name, task) {
   try {
     return task();
   } catch (error) {
+    posInitTraceError(error, { file: "public/js/pos.js", line: null, column: null });
     console.error("POS 初始化區塊失敗：", name, error);
     return null;
   }
@@ -465,6 +518,8 @@ onValue(ordersRef, snapshot => {
   });
 });
 
+posInitTrace(12, "Firebase Listener Register");
+
 renderTableButtons();
 ensurePosMenuStudioUi();
 renderCart();
@@ -472,6 +527,8 @@ renderStoreModeNotice();
 renderSettings();
 initPosOrderSoundUnlock();
 watchSharedSettings();
+posInitTrace(13, "UI Render");
+posInitTrace(14, "hideAppLoadingScreen()");
 hideAppLoadingScreen();
 
 function hideAppLoadingScreen() {
@@ -5451,6 +5508,7 @@ watchBusinessDayClose();
 })();
 
 window.submitOrder = submitOrder;
+posInitTrace(15, "PrinterCenter.init()");
 PrinterCenter.init({
   buildKitchen: buildKitchenTicketHtml,
   buildCustomer: buildCustomerTicketHtml,
@@ -5459,6 +5517,7 @@ PrinterCenter.init({
     return ordersData && ordersData[orderId] ? Object.assign({ id: orderId }, ordersData[orderId]) : null;
   }
 });
+posInitTrace(16, "ModalManager.init()");
 ModalManager.init();
 
 window.submitUnpaidOrder = submitUnpaidOrder;
@@ -5541,3 +5600,4 @@ window.posOpenFoodById = function (itemId, event) {
 
 window.selectTable = selectTable;
 window.selectCategory = selectCategory;
+posInitTrace(17, "App Ready");
