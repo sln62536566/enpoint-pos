@@ -1065,9 +1065,9 @@ function buildPrinterCenterPanel() {
   card.className = "settings-card settings-sound-center-card printer-center-card printer-profile-center";
   card.innerHTML = '<div class="settings-card-title"><span>🖨️ 印表機設定</span><small>廚房單、客人單與貼紙可使用獨立列印設定</small></div>' +
     '<div class="printer-profile-list">' +
-      buildPrinterProfileCard("Kitchen", "🖨️", "廚房印表機", false) +
-      buildPrinterProfileCard("Customer", "🧾", "客人印表機", false) +
-      buildPrinterProfileCard("Label", "🏷️", "貼紙印表機", true) +
+      buildPrinterProfileCard("Kitchen", "🖨️", "Kitchen Printer", false) +
+      buildPrinterProfileCard("Customer", "🖨️", "Customer Printer", false) +
+      buildPrinterProfileCard("Label", "🖨️", "Label Printer", true) +
     '</div>' + buildPrintQueuePanel() +
     '<div class="printer-center-actions"><button type="button" id="printerTestBtn" class="secondary-btn">測試列印</button><button type="button" id="printerDetectBtn" class="secondary-btn">重新搜尋印表機</button><button type="button" id="printerReprintBtn" class="primary-btn">重印最後一張</button></div>';
   window.setTimeout(bindPrinterCenterControls, 0);
@@ -1084,11 +1084,12 @@ function buildPrinterProfileCard(profileName, icon, title, reserved) {
   return '<section class="printer-profile-card" data-printer-profile="' + profileName + '">' +
     '<div class="printer-profile-heading"><strong>' + icon + ' ' + title + '</strong>' + (reserved ? '<small>預留</small>' : '') + '</div>' +
     '<div class="printer-profile-fields">' +
-      '<label><span>Provider</span><select class="settings-input" data-profile-field="provider"><option value="browser">Browser</option><option value="usb">USB</option><option value="bluetooth">Bluetooth</option><option value="network">Network</option></select></label>' +
-      '<label><span>紙張</span><select class="settings-input" data-profile-field="paperWidth"><option value="58">58mm</option><option value="80">80mm</option></select></label>' +
+      '<label><span>Provider</span><select class="settings-input" data-profile-field="provider"><option value="browser">Browser</option><option value="usb" disabled>USB（Coming Soon）</option><option value="bluetooth" disabled>Bluetooth（Coming Soon）</option><option value="network" disabled>LAN（Coming Soon）</option></select></label>' +
+      '<label><span>Paper</span><select class="settings-input" data-profile-field="paperSize"><option value="58">58mm</option><option value="80">80mm</option><option value="40x30">40×30 Label</option></select></label>' +
       '<label><span>列印份數</span><select class="settings-input" data-profile-field="copies"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></label>' +
       '<label class="printer-profile-toggle"><span>自動列印</span><input type="checkbox" data-profile-field="autoPrint"><b data-profile-auto-label>OFF</b></label>' +
-    '</div></section>';
+      '<label class="printer-profile-toggle"><span>Enabled</span><input type="checkbox" data-profile-field="enabled"><b data-profile-enabled-label>OFF</b></label>' +
+    '</div><div class="printer-profile-status" data-profile-status><span>Provider：-</span><span>Paper：-</span><span>Copies：-</span><span>AutoPrint：-</span><span>Queue：待命</span></div></section>';
 }
 
 function bindPrinterCenterControls() {
@@ -1119,6 +1120,11 @@ function renderPrintQueueStatus(state) {
   if (pending) pending.textContent = String(state.pending || 0);
   if (status) status.textContent = statusText;
   if (badge) badge.textContent = statusText;
+  var profileCards = document.querySelectorAll("[data-printer-profile]");
+  for (var i = 0; i < profileCards.length; i += 1) {
+    var profileName = profileCards[i].getAttribute("data-printer-profile");
+    renderPrinterProfileStatus(profileCards[i], PrinterProfile.get(profileName));
+  }
 }
 
 function bindPrinterProfileCard(card, profiles) {
@@ -1128,22 +1134,34 @@ function bindPrinterProfileCard(card, profiles) {
   for (var i = 0; i < fields.length; i += 1) {
     (function(field) {
       var key = field.getAttribute("data-profile-field");
-      if (key === "autoPrint") field.checked = profile.autoPrint === true;
+      if (key === "autoPrint" || key === "enabled") field.checked = profile[key] === true;
       else field.value = String(profile[key]);
-      updatePrinterAutoLabel(card);
+      updatePrinterProfileCard(card, profile);
       field.addEventListener("change", function() {
-        var value = key === "autoPrint" ? field.checked : field.value;
-        PrinterProfile.save(profileName, (function() { var change = {}; change[key] = value; return change; })());
-        updatePrinterAutoLabel(card);
+        var value = key === "autoPrint" || key === "enabled" ? field.checked : field.value;
+        var updated = PrinterProfile.update(profileName, (function() { var change = {}; change[key] = value; return change; })());
+        updatePrinterProfileCard(card, updated);
       });
     })(fields[i]);
   }
 }
 
-function updatePrinterAutoLabel(card) {
-  var input = card.querySelector('[data-profile-field="autoPrint"]');
-  var label = card.querySelector("[data-profile-auto-label]");
-  if (label) label.textContent = input && input.checked ? "ON" : "OFF";
+function updatePrinterProfileCard(card, profile) {
+  var autoInput = card.querySelector('[data-profile-field="autoPrint"]');
+  var enabledInput = card.querySelector('[data-profile-field="enabled"]');
+  var autoLabel = card.querySelector("[data-profile-auto-label]");
+  var enabledLabel = card.querySelector("[data-profile-enabled-label]");
+  if (autoLabel) autoLabel.textContent = autoInput && autoInput.checked ? "ON" : "OFF";
+  if (enabledLabel) enabledLabel.textContent = enabledInput && enabledInput.checked ? "ON" : "OFF";
+  renderPrinterProfileStatus(card, profile);
+}
+
+function renderPrinterProfileStatus(card, profile) {
+  var status = card.querySelector("[data-profile-status]");
+  if (!status || !profile) return;
+  var current = PrintQueue.getCurrent();
+  var queueText = current && current.profile && current.profile.id === profile.id ? "列印中" : "待命";
+  status.innerHTML = '<span>Provider：' + profile.provider + '</span><span>Paper：' + (profile.paperSize === "40x30" ? "40×30" : profile.paperSize + "mm") + '</span><span>Copies：' + profile.copies + '</span><span>AutoPrint：' + (profile.autoPrint ? "ON" : "OFF") + '</span><span>Queue：' + queueText + '</span>';
 }
 
 function showPrinterError(error) {

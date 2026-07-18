@@ -80,9 +80,9 @@ function saveSettings(nextSettings) {
 }
 
 function getProfile(type) {
-  if (type === "kitchen") return PrinterProfile.getKitchenPrinter();
-  if (type === "label") return PrinterProfile.getLabelPrinter();
-  return PrinterProfile.getCustomerPrinter();
+  if (type === "kitchen") return PrinterProfile.getKitchen();
+  if (type === "label") return PrinterProfile.getLabel();
+  return PrinterProfile.getCustomer();
 }
 
 function getProvider(type) {
@@ -97,15 +97,15 @@ function createJob(type, order) {
     throw new Error("Printer Center 尚未完成票券轉接初始化");
   }
   const profile = getProfile(type);
+  if (!profile.enabled) throw new Error(`${profile.name} 已停用`);
   const label = type === "customer" ? "客人單" : "廚房單";
   const title = `${label} #${order.orderNumber || order.id || ""}`;
   return {
     type,
     order,
     profile,
-    provider: profile.provider,
     copies: profile.copies,
-    paperWidth: profile.paperWidth,
+    paperWidth: profile.paperSize,
     autoPrint: profile.autoPrint,
     documentHtml: adapters.buildDocument(title, builder(order), profile)
   };

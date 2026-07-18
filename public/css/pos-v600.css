@@ -5111,7 +5111,7 @@ body.settings-center-open{
 
 .printer-profile-fields{
   display:grid;
-  grid-template-columns:repeat(4,minmax(0,1fr));
+  grid-template-columns:repeat(5,minmax(0,1fr));
   gap:12px;
   align-items:end;
 }
@@ -5145,8 +5145,31 @@ body.settings-center-open{
   text-align:right;
 }
 
+.printer-profile-status{
+  display:grid;
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:8px;
+  margin-top:12px;
+  padding:10px 12px;
+  border-radius:10px;
+  background:rgba(241,245,249,.9);
+}
+
+.printer-profile-status span{
+  overflow:hidden;
+  color:#475569;
+  font-size:12px;
+  font-weight:700;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
 @media (max-width:900px){
   .printer-profile-fields{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+
+  .printer-profile-status{
     grid-template-columns:repeat(2,minmax(0,1fr));
   }
 }
@@ -5158,6 +5181,14 @@ body.settings-center-open{
 
   .printer-profile-card{
     padding:13px;
+  }
+
+  .printer-profile-status{
+    grid-template-columns:1fr;
+  }
+
+  .printer-profile-status span{
+    white-space:normal;
   }
 }
 

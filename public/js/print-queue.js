@@ -41,11 +41,12 @@ function createId() {
 
 function normalizeJob(input) {
   const job = input && typeof input === "object" ? input : {};
+  const profile = Object.assign({}, job.profile || {});
   return {
     id: job.id || createId(),
     type: job.type || "customer",
-    provider: job.provider || "browser",
-    profile: Object.assign({}, job.profile || {}),
+    provider: profile.provider || "browser",
+    profile,
     createdAt: Number(job.createdAt) || Date.now(),
     status: VALID_STATUSES.indexOf(job.status) >= 0 ? job.status : "waiting",
     retry: Math.max(0, Number(job.retry) || 0),
@@ -96,8 +97,9 @@ export const PrintQueue = {
     next.status = "printing";
     emitStatus();
     try {
-      const provider = providers[next.provider];
-      if (!provider || typeof provider.print !== "function") throw new Error(`找不到 Provider：${next.provider}`);
+      const providerName = next.profile.provider || "browser";
+      const provider = providers[providerName];
+      if (!provider || typeof provider.print !== "function") throw new Error(`找不到 Provider：${providerName}`);
       await provider.print(next);
       next.status = "completed";
       if (next._resolve) next._resolve(cloneJob(next));
