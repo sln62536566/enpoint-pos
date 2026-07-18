@@ -59,8 +59,11 @@ export const PrinterStatus = {
     const message = error && error.message ? error.message : String(error || "列印失敗");
     return update(id, { lastError: message, status: "error", busy: false });
   },
+  setReady(id) {
+    return update(id, { status: "ready", busy: false });
+  },
   clearError(id) {
-    return update(id, { lastError: null, status: "ready" });
+    return update(id, { lastError: null });
   },
   subscribe(callback) {
     if (typeof callback !== "function") return function() {};

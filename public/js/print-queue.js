@@ -120,6 +120,7 @@ export const PrintQueue = {
       next.status = "completed";
       PrinterStatus.setLastPrintTime(profileId(next), Date.now());
       PrinterStatus.setBusy(profileId(next), false);
+      PrinterStatus.setReady(profileId(next));
       PrinterStatus.clearError(profileId(next));
       syncQueueLength(next);
       if (next._resolve) next._resolve(cloneJob(next));
