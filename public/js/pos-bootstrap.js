@@ -69,7 +69,7 @@ console.log("[BOOT 02] Global Error Handlers Installed");
 console.log("[BOOT 03] Importing POS Module");
 
 try {
-  await import("./pos.js?v=664");
+  await import("./pos.js?v=66441");
   console.log("[BOOT 04] POS Module Imported");
 } catch (error) {
   console.error("[BOOT IMPORT ERROR]", getBootErrorDetails(error));
