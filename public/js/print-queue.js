@@ -1,3 +1,5 @@
+import { PrinterStatus } from "./printer-status.js";
+
 const VALID_STATUSES = Object.freeze(["waiting", "printing", "completed", "failed", "cancelled"]);
 const listeners = {
   complete: [],
@@ -56,6 +58,16 @@ function normalizeJob(input) {
   };
 }
 
+function profileId(job) {
+  return job && job.profile && job.profile.id ? job.profile.id : "unknown";
+}
+
+function syncQueueLength(job) {
+  const id = profileId(job);
+  const count = jobs.filter(item => profileId(item) === id && (item.status === "waiting" || item.status === "printing")).length;
+  PrinterStatus.setQueueLength(id, count);
+}
+
 function subscribe(name, callback) {
   if (typeof callback !== "function") return function() {};
   listeners[name].push(callback);
@@ -76,6 +88,8 @@ export const PrintQueue = {
     const job = normalizeJob(input);
     job.status = "waiting";
     jobs.push(job);
+    syncQueueLength(job);
+    PrinterStatus.setStatus(profileId(job), "busy");
     emitStatus();
     const completion = new Promise((resolve, reject) => {
       Object.defineProperty(job, "_resolve", { value: resolve, configurable: true });
@@ -95,6 +109,8 @@ export const PrintQueue = {
     processing = true;
     current = next;
     next.status = "printing";
+    PrinterStatus.setBusy(profileId(next), true);
+    PrinterStatus.setStatus(profileId(next), "printing");
     emitStatus();
     try {
       const providerName = next.profile.provider || "browser";
@@ -102,6 +118,10 @@ export const PrintQueue = {
       if (!provider || typeof provider.print !== "function") throw new Error(`找不到 Provider：${providerName}`);
       await provider.print(next);
       next.status = "completed";
+      PrinterStatus.setLastPrintTime(profileId(next), Date.now());
+      PrinterStatus.setBusy(profileId(next), false);
+      PrinterStatus.clearError(profileId(next));
+      syncQueueLength(next);
       if (next._resolve) next._resolve(cloneJob(next));
       emit("complete", cloneJob(next));
     } catch (error) {
@@ -109,8 +129,12 @@ export const PrintQueue = {
       next.error = error && error.message ? error.message : String(error);
       if (next.retry <= 3) {
         next.status = "waiting";
+        PrinterStatus.setBusy(profileId(next), false);
+        PrinterStatus.setStatus(profileId(next), "busy");
       } else {
         next.status = "failed";
+        PrinterStatus.setLastError(profileId(next), error);
+        syncQueueLength(next);
         if (next._reject) next._reject(error);
         emit("failed", cloneJob(next));
       }
@@ -138,6 +162,7 @@ export const PrintQueue = {
     jobs.forEach(job => {
       if (job.status === "waiting") {
         job.status = "cancelled";
+        syncQueueLength(job);
         if (job._reject) job._reject(new Error("列印工作已取消"));
       }
     });

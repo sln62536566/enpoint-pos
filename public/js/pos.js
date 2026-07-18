@@ -35,6 +35,112 @@ import {
 import { PrinterCenter } from "./printer-center.js";
 import { PrinterProfile } from "./printer-profile.js";
 import { PrintQueue } from "./print-queue.js";
+import { PrinterStatus } from "./printer-status.js";
+
+const ModalManager = (function() {
+  var locks = {};
+  var savedBodyStyle = "";
+  var savedScrollX = 0;
+  var savedScrollY = 0;
+  var observer = null;
+
+  function hasLocks() {
+    for (var key in locks) if (Object.prototype.hasOwnProperty.call(locks, key)) return true;
+    return false;
+  }
+
+  function lock(key) {
+    var lockKey = key || "manual";
+    if (locks[lockKey]) return;
+    var wasLocked = hasLocks();
+    locks[lockKey] = true;
+    if (wasLocked || !document.body) return;
+    savedScrollX = window.pageXOffset || document.documentElement.scrollLeft || 0;
+    savedScrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
+    savedBodyStyle = document.body.getAttribute("style") || "";
+    document.body.classList.add("modal-scroll-locked");
+    document.body.style.position = "fixed";
+    document.body.style.top = "-" + savedScrollY + "px";
+    document.body.style.left = "-" + savedScrollX + "px";
+    document.body.style.right = "0";
+    document.body.style.width = "100%";
+    document.body.style.overflow = "hidden";
+    document.body.style.touchAction = "none";
+    document.body.style.overscrollBehavior = "none";
+  }
+
+  function unlock(key) {
+    delete locks[key || "manual"];
+    if (hasLocks() || !document.body) return;
+    document.body.setAttribute("style", savedBodyStyle);
+    document.body.classList.remove("modal-scroll-locked");
+    window.scrollTo(savedScrollX, savedScrollY);
+  }
+
+  function isVisible(element) {
+    if (!element || element.classList.contains("hidden") || element.getAttribute("aria-hidden") === "true") return false;
+    if (element.getClientRects && element.getClientRects().length === 0) return false;
+    var style = window.getComputedStyle ? window.getComputedStyle(element) : null;
+    return !style || (style.display !== "none" && style.visibility !== "hidden");
+  }
+
+  function syncLayers() {
+    var modalNodes = document.querySelectorAll(".modal, .settings-center-modal, [role=dialog]");
+    var modalVisible = false;
+    for (var i = 0; i < modalNodes.length; i += 1) if (isVisible(modalNodes[i])) { modalVisible = true; break; }
+    if (modalVisible) lock("modal-open"); else unlock("modal-open");
+    var dropdownNodes = document.querySelectorAll(".dropdown-menu, .select-dropdown, [role=listbox]");
+    var dropdownVisible = false;
+    for (var j = 0; j < dropdownNodes.length; j += 1) if (isVisible(dropdownNodes[j])) { dropdownVisible = true; break; }
+    if (dropdownVisible) lock("dropdown-open"); else unlock("dropdown-open");
+  }
+
+  function activeModal() {
+    var nodes = document.querySelectorAll(".modal, .settings-center-modal, [role=dialog]");
+    for (var i = nodes.length - 1; i >= 0; i -= 1) if (isVisible(nodes[i])) return nodes[i];
+    return null;
+  }
+
+  function trapFocus(event) {
+    if (event.key === "Escape") {
+      if (locks["select-open"]) unlock("select-open");
+      var opened = activeModal();
+      if (!opened) return;
+      var close = opened.querySelector("[aria-label=關閉], .modal-close-btn, [id*=Close], [id*=cancel], [id*=Cancel]");
+      if (close && typeof close.click === "function") close.click();
+      event.preventDefault();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    var modal = activeModal();
+    if (!modal) return;
+    var nodes = modal.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
+    var focusable = [];
+    for (var i = 0; i < nodes.length; i += 1) if (isVisible(nodes[i])) focusable.push(nodes[i]);
+    if (!focusable.length) { event.preventDefault(); modal.setAttribute("tabindex", "-1"); modal.focus(); return; }
+    var first = focusable[0];
+    var last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  }
+
+  function init() {
+    if (observer || !document.body) return;
+    document.addEventListener("focusin", function(event) { if (event.target && event.target.tagName === "SELECT") lock("select-open"); }, true);
+    document.addEventListener("focusout", function(event) { if (event.target && event.target.tagName === "SELECT") window.setTimeout(function() { unlock("select-open"); }, 0); }, true);
+    document.addEventListener("change", function(event) { if (event.target && event.target.tagName === "SELECT") window.setTimeout(function() { unlock("select-open"); }, 0); }, true);
+    document.addEventListener("keydown", trapFocus, true);
+    if (window.MutationObserver) {
+      observer = new MutationObserver(syncLayers);
+      observer.observe(document.body, { attributes: true, attributeFilter: ["class", "style", "aria-hidden"], childList: true, subtree: true });
+    }
+    syncLayers();
+  }
+
+  return { lock: lock, unlock: unlock, init: init, sync: syncLayers };
+})();
+
+window.ModalManager = ModalManager;
 
 
 /* =========================
@@ -1107,6 +1213,7 @@ function bindPrinterCenterControls() {
   if (resumeQueue) resumeQueue.addEventListener("click", function() { PrintQueue.resume(); });
   if (clearQueue) clearQueue.addEventListener("click", function() { PrintQueue.clear(); });
   PrintQueue.onStatusChanged(renderPrintQueueStatus);
+  PrinterStatus.subscribe(renderPrinterStatusUpdate);
   renderPrintQueueStatus({ current: PrintQueue.getCurrent(), pending: PrintQueue.getPending().length, busy: PrintQueue.isBusy(), paused: PrintQueue.isPaused() });
 }
 
@@ -1140,6 +1247,7 @@ function bindPrinterProfileCard(card, profiles) {
       field.addEventListener("change", function() {
         var value = key === "autoPrint" || key === "enabled" ? field.checked : field.value;
         var updated = PrinterProfile.update(profileName, (function() { var change = {}; change[key] = value; return change; })());
+        if (key === "enabled") PrinterStatus.setStatus(updated.id, updated.enabled ? "ready" : "offline");
         updatePrinterProfileCard(card, updated);
       });
     })(fields[i]);
@@ -1159,9 +1267,23 @@ function updatePrinterProfileCard(card, profile) {
 function renderPrinterProfileStatus(card, profile) {
   var status = card.querySelector("[data-profile-status]");
   if (!status || !profile) return;
-  var current = PrintQueue.getCurrent();
-  var queueText = current && current.profile && current.profile.id === profile.id ? "列印中" : "待命";
-  status.innerHTML = '<span>Provider：' + profile.provider + '</span><span>Paper：' + (profile.paperSize === "40x30" ? "40×30" : profile.paperSize + "mm") + '</span><span>Copies：' + profile.copies + '</span><span>AutoPrint：' + (profile.autoPrint ? "ON" : "OFF") + '</span><span>Queue：' + queueText + '</span>';
+  var printerState = PrinterStatus.get(profile.id);
+  var displayStatus = profile.enabled ? printerState.status : "disabled";
+  var statusLabels = { ready: "Ready", offline: "Offline", connecting: "Connecting", printing: "Printing", busy: "Busy", error: "Error", disabled: "Disabled" };
+  var lastPrint = printerState.lastPrintTime ? formatPrinterStatusTime(printerState.lastPrintTime) : "尚無紀錄";
+  status.innerHTML = '<span class="printer-live-status status-' + displayStatus + '"><b></b>' + statusLabels[displayStatus] + '</span><span>Provider：' + profile.provider + '</span><span>Paper：' + (profile.paperSize === "40x30" ? "40×30" : profile.paperSize + "mm") + '</span><span>Copies：' + profile.copies + '</span><span>AutoPrint：' + (profile.autoPrint ? "ON" : "OFF") + '</span><span>Queue：' + printerState.queueLength + '</span><span class="printer-last-print">最後列印：' + lastPrint + '</span>' + (printerState.lastError ? '<span class="printer-last-error">錯誤：' + escapeHtml(printerState.lastError) + '</span>' : '');
+}
+
+function renderPrinterStatusUpdate(printerState) {
+  var card = document.querySelector('[data-printer-profile="' + printerState.id.charAt(0).toUpperCase() + printerState.id.slice(1) + '"]');
+  if (card) renderPrinterProfileStatus(card, PrinterProfile.get(printerState.id));
+}
+
+function formatPrinterStatusTime(time) {
+  var date = new Date(Number(time));
+  if (isNaN(date.getTime())) return "尚無紀錄";
+  function pad(value) { return String(value).length < 2 ? "0" + value : String(value); }
+  return date.getFullYear() + "/" + pad(date.getMonth() + 1) + "/" + pad(date.getDate()) + " " + pad(date.getHours()) + ":" + pad(date.getMinutes());
 }
 
 function showPrinterError(error) {
@@ -5337,6 +5459,7 @@ PrinterCenter.init({
     return ordersData && ordersData[orderId] ? Object.assign({ id: orderId }, ordersData[orderId]) : null;
   }
 });
+ModalManager.init();
 
 window.submitUnpaidOrder = submitUnpaidOrder;
 window.submitTestOrder = submitTestOrder;
