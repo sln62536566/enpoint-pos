@@ -419,6 +419,16 @@ function addLegacyTapListener(element, handler) {
   element.addEventListener("touchend", handleTap, false);
 }
 
+function addSettingsCenterClickListener(element, handler) {
+  if (!element || !handler) return;
+  if (element.getAttribute("data-settings-click-bound") === "true") return;
+
+  element.setAttribute("data-settings-click-bound", "true");
+  element.addEventListener("click", function(event) {
+    handler(event);
+  }, false);
+}
+
 for (var posTabIndex = 0; posTabIndex < tabButtons.length; posTabIndex += 1) {
   (function(button) {
     addLegacyTapListener(button, function(event) {
@@ -1017,7 +1027,7 @@ function initSettingsCenter() {
     '<div id="settingsCenterBody" class="settings-center-body"></div>' +
     '<div class="settings-center-footer"><button type="button" id="settingsCenterFooterBackBtn" class="secondary-btn">返回</button><button type="button" id="settingsCenterFooterCloseBtn" class="primary-btn">關閉</button></div>' +
     '</div>';
-  layout.appendChild(modal);
+  document.body.appendChild(modal);
 
   var body = modal.querySelector("#settingsCenterBody");
   Object.keys(sections).forEach(function(key) {
@@ -1027,7 +1037,7 @@ function initSettingsCenter() {
   var entryButtons = grid.querySelectorAll("[data-settings-section]");
   for (var i = 0; i < entryButtons.length; i += 1) {
     (function(button) {
-      addLegacyTapListener(button, function(event) {
+      addSettingsCenterClickListener(button, function(event) {
         if (event && event.preventDefault) event.preventDefault();
         openSettingsSection(button.getAttribute("data-settings-section"));
       });
@@ -1036,7 +1046,7 @@ function initSettingsCenter() {
 
   ["settingsCenterBackBtn", "settingsCenterCloseBtn", "settingsCenterFooterBackBtn", "settingsCenterFooterCloseBtn"].forEach(function(id) {
     var button = document.getElementById(id);
-    addLegacyTapListener(button, function(event) {
+    addSettingsCenterClickListener(button, function(event) {
       if (event && event.preventDefault) event.preventDefault();
       closeSettingsSection();
     });

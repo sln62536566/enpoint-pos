@@ -5308,3 +5308,73 @@ body.settings-center-open{
   overflow:visible !important;
   margin-bottom:120px !important;
 }
+
+/* Settings Center legacy iPad final fix */
+.settings-center-modal {
+  position: fixed !important;
+  left: 0 !important;
+  right: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 2147483000 !important;
+  box-sizing: border-box !important;
+  background: rgba(17,17,17,.72) !important;
+  padding: 10px !important;
+  overflow: hidden !important;
+  transform: none !important;
+  -webkit-transform: none !important;
+}
+
+.settings-center-modal.hidden {
+  display: none !important;
+}
+
+.settings-center-dialog {
+  position: relative !important;
+  z-index: 1 !important;
+  width: min(980px, 100%) !important;
+  height: calc(100vh - 20px) !important;
+  max-height: calc(100vh - 20px) !important;
+  margin: 0 auto !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.settings-center-header,
+.settings-center-footer {
+  position: relative !important;
+  z-index: 3 !important;
+  flex: 0 0 auto !important;
+}
+
+.settings-center-body {
+  position: relative !important;
+  z-index: 2 !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+body.settings-center-open .pos-header,
+body.settings-center-open .pos-main {
+  pointer-events: none !important;
+}
+
+body.settings-center-open .settings-center-modal,
+body.settings-center-open .settings-center-modal * {
+  pointer-events: auto !important;
+}
+
+.settings-center-entry,
+.settings-center-icon-btn,
+.settings-center-footer button {
+  touch-action: manipulation !important;
+  -webkit-tap-highlight-color: transparent !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
