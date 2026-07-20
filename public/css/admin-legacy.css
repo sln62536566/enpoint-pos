@@ -6,6 +6,7 @@ button,input,select,textarea{font:inherit}
 button{min-height:46px;border:1px solid #d8b98b;border-radius:10px;background:#fffaf3;color:#382715;font-weight:900;padding:10px 14px;box-shadow:0 1px 0 rgba(75,47,22,.06)}
 button:active{transform:translateY(1px);background:#f3dfc1}
 button.primary,.primary{background:#a96417;color:#fff;border-color:#a96417}
+button.primary{display:inline-flex;align-items:center;justify-content:center;color:#fff!important;-webkit-text-fill-color:#fff!important;opacity:1!important;visibility:visible!important}
 button.primary:active,.primary:active{background:#8f510f}
 button.danger{background:#fff1f0;border-color:#f0aca2;color:#9f1d12}
 button:disabled{opacity:.55}
@@ -20,9 +21,9 @@ textarea{min-height:96px;resize:vertical}
 .legacy-main{padding:14px;max-width:1180px;margin:0 auto}
 .legacy-panel{display:none}
 .legacy-panel.active{display:block}
-#itemPanel.active{position:fixed;z-index:40;left:10px;top:10px;right:10px;bottom:10px;display:flex;flex-direction:column;max-width:980px;margin:0 auto;padding:14px;background:#fffdf8;border:1px solid #e6c79b;border-radius:10px;box-shadow:0 18px 50px rgba(0,0,0,.28);overflow:hidden}
-#itemPanel.active:before{content:"";position:fixed;z-index:-1;left:-100vw;top:-100vh;right:-100vw;bottom:-100vh;background:rgba(45,31,17,.52)}
-#itemPanel .legacy-panel-head{flex:0 0 auto}
+#itemPanel.active{position:fixed;z-index:40;left:10px;top:10px;right:10px;bottom:10px;display:flex;flex-direction:column;max-width:980px;margin:0 auto;padding:0 14px 14px;background:#fffdf8;border:1px solid #d9c3a1;border-radius:10px;box-shadow:0 18px 50px rgba(83,49,20,.28);overflow:hidden}
+#itemPanel.active:before{content:"";position:fixed;z-index:-1;left:-100vw;top:-100vh;right:-100vw;bottom:-100vh;background:rgba(126,82,40,.32)}
+#itemPanel .legacy-panel-head{flex:0 0 auto;margin:0 -14px 14px;padding:14px;background:#4b2f16;color:#fff}
 #itemPanel .legacy-panel-head button{min-width:50px;font-size:24px}
 #itemPanel .legacy-form{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:2px 4px 12px}
 #itemPanel .legacy-actions{position:-webkit-sticky;position:sticky;bottom:0;padding:12px 0;background:#fffdf8}
@@ -49,15 +50,16 @@ textarea{min-height:96px;resize:vertical}
 .legacy-grid{display:grid;grid-template-columns:1fr;gap:12px}
 .legacy-category-section{margin:0 0 18px}
 .legacy-category-section h3{margin:0 0 10px;font-size:20px;color:#4b2f16}
-.legacy-row-card{display:grid;grid-template-columns:58px 68px minmax(120px,1fr) auto auto;gap:10px;align-items:center;border:1px solid #ead4b2;border-radius:10px;background:#fffdf8;padding:12px;box-shadow:0 1px 4px rgba(75,47,22,.06)}
+.legacy-row-card{display:grid;grid-template-columns:58px 82px minmax(120px,1fr) 224px;gap:10px;align-items:center;border:1px solid #ead4b2;border-radius:10px;background:#fffdf8;padding:12px;box-shadow:0 1px 4px rgba(75,47,22,.06)}
 .legacy-row-card.disabled{opacity:.68}
 .legacy-row-card h3{margin:0 0 5px;font-size:20px}
 .legacy-row-card p{margin:6px 0;color:#6d5538;font-weight:800;line-height:1.35}
 .legacy-sort-zone{display:grid;grid-template-columns:1fr 1fr;gap:4px;text-align:center}.legacy-sort-zone span{grid-column:1 / -1;font-size:21px}.legacy-sort-zone button{min-width:0;min-height:34px;padding:3px}
-.legacy-item-thumb{width:68px;height:68px;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:9px;background:#f4e3ca;color:#79542d;font-weight:900}.legacy-item-thumb img{width:100%;height:100%;object-fit:cover}
-.legacy-status-btn{min-width:88px;border-radius:999px}
-.legacy-card-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:0}
+.legacy-item-media{width:82px;display:flex;flex-direction:column;align-items:center;gap:5px}.legacy-item-thumb{width:68px;height:68px;display:flex;align-items:center;justify-content:center;overflow:hidden;border:1px solid #d9c3a1;border-radius:9px;background:#f6e7d3;color:#8b5a2b;font-weight:900}.legacy-item-thumb img{width:100%;height:100%;object-fit:cover}.legacy-default-meal-icon{display:flex;align-items:center;justify-content:center;width:100%;height:100%}.legacy-default-meal-icon svg{width:44px;height:44px;fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}.legacy-category-tag{display:block;max-width:82px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:3px 7px;border:1px solid #d9c3a1;border-radius:999px;background:#fff2df;color:#74491f;font-size:11px;font-weight:900;line-height:1.2}
+.legacy-item-badge{display:inline-flex;align-items:center;padding:3px 8px;border-radius:999px;font-size:11px;vertical-align:middle;white-space:nowrap}.legacy-item-badge:before{content:"●";margin-right:4px}.legacy-item-badge.on{background:#e5f4e8;color:#28733b}.legacy-item-badge.on:before{color:#31a354}.legacy-item-badge.sold-out{background:#fff0d8;color:#9a5b00}.legacy-item-badge.sold-out:before{color:#e58a00}.legacy-item-badge.off{background:#e9e5df;color:#57514a}
+.legacy-card-actions{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:46px 46px;gap:8px;margin-top:0}
 .legacy-card-actions button{min-width:82px}
+.legacy-sold-out-btn{background:#fff4e3;border-color:#dfb36f;color:#85520d}.legacy-sold-out-btn.active{background:#d98218;border-color:#d98218;color:#fff}
 .legacy-card-actions.secondary button{flex:0 1 110px}
 .legacy-checkbox-list{display:grid;gap:8px;margin-top:8px}
 .legacy-checkbox-list label{display:flex;align-items:center;gap:8px;border:1px solid #ead4b2;background:#fff;border-radius:10px;padding:10px}
@@ -83,7 +85,7 @@ textarea{min-height:96px;resize:vertical}
   .legacy-panel-head input,.legacy-panel-head button{max-width:none;width:100%;margin-top:10px}
   .legacy-form-grid{grid-template-columns:1fr}
   .legacy-grid{grid-template-columns:1fr}
-  .legacy-row-card{grid-template-columns:52px 60px minmax(0,1fr) auto;gap:8px}
+  .legacy-row-card{grid-template-columns:52px 82px minmax(0,1fr);gap:8px}
   .legacy-item-thumb{width:60px;height:60px}
   .legacy-card-actions{grid-column:3 / -1;width:100%}
   .legacy-card-actions button{flex:1 1 42%}

@@ -1695,9 +1695,11 @@ async function moveMenuItemByButton(itemId, category, direction) {
   items.splice(targetIndex, 0, moved);
 
   const updates = {};
+  const previousOrders = {};
   const now = Date.now();
 
   items.forEach((item, idx) => {
+    previousOrders[item.id] = menuData[item.id] ? menuData[item.id].sortOrder : undefined;
     const sortOrder = (idx + 1) * 1000;
     updates[`menu/${item.id}/sortOrder`] = sortOrder;
     updates[`menu/${item.id}/updatedAt`] = now;
@@ -1706,11 +1708,15 @@ async function moveMenuItemByButton(itemId, category, direction) {
       menuData[item.id].updatedAt = now;
     }
   });
+  renderMenu();
 
   try {
     await update(ref(db), updates);
-    renderMenu();
   } catch (error) {
+    Object.keys(previousOrders).forEach(id => {
+      if (menuData[id]) menuData[id].sortOrder = previousOrders[id];
+    });
+    renderMenu();
     console.error("餐點上移/下移失敗：", error);
     alert("餐點上移/下移失敗，請確認網路或 Firebase 權限");
   }
@@ -2341,7 +2347,7 @@ async function toggleItem(id) {
 
   try {
     await update(ref(db, `menu/${id}`), {
-      enabled: !item.enabled,
+      enabled: item.enabled === false,
       updatedAt: Date.now()
     });
   } catch (err) {
@@ -2591,6 +2597,9 @@ function renderMenu() {
 function renderMenuCard(item, category) {
   const image = item.image || item.imageUrl || "";
   const isSoldOut = item.soldOut === true || item.paused === true;
+  const statusClass = item.enabled === false ? "off" : (isSoldOut ? "sold-out" : "on");
+  const statusText = item.enabled === false ? "已下架" : (isSoldOut ? "本日售完" : "販售中");
+  const defaultMealIcon = '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M13 29h38c0 13-8 22-19 22S13 42 13 29Z"/><path d="M10 27h44M20 54h24M25 23c-5-6 4-8 0-14M35 23c-5-6 4-8 0-14M45 23c-5-6 4-8 0-14"/></svg>';
 
   return `
     <article
@@ -2604,25 +2613,26 @@ function renderMenuCard(item, category) {
         <button type="button" data-action="moveUp" data-id="${escapeHtml(item.id)}" data-category="${escapeHtml(category)}" aria-label="上移 ${escapeHtml(item.name || "餐點")}">↑</button>
         <button type="button" data-action="moveDown" data-id="${escapeHtml(item.id)}" data-category="${escapeHtml(category)}" aria-label="下移 ${escapeHtml(item.name || "餐點")}">↓</button>
       </div>
-      <div class="admin-card-image">
-        ${
-          image
+      <div class="admin-card-media">
+        <div class="admin-card-image">
+          ${image
             ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(item.name || "餐點圖片")}">`
-            : `<div class="admin-no-image">恩點</div>`
-        }
+            : `<div class="admin-no-image admin-default-meal-icon">${defaultMealIcon}</div>`}
+        </div>
+        <span class="admin-category-tag">${escapeHtml(category)}</span>
       </div>
 
       <div class="admin-card-body">
         <div class="admin-card-title-row">
           <div>
             <strong>${escapeHtml(item.name || "未命名餐點")}</strong>
+            <span class="admin-item-badge ${statusClass}">${statusText}</span>
           </div>
         </div>
         <div class="admin-price">${money(item.price)}</div>
-        <button class="admin-status admin-status-button ${item.enabled === false ? "off" : "on"}" data-action="toggle" data-id="${escapeHtml(item.id)}">
-          ${item.enabled === false ? "下架" : (isSoldOut ? "上架｜售完" : "上架")}
-        </button>
         <div class="admin-actions">
+          <button class="admin-availability-btn" data-action="toggle" data-id="${escapeHtml(item.id)}">${item.enabled === false ? "上架" : "下架"}</button>
+          <button class="admin-sold-out-btn ${isSoldOut ? "active" : ""}" data-action="soldOut" data-id="${escapeHtml(item.id)}">${isSoldOut ? "恢復販售" : "本日售完"}</button>
           <button data-action="edit" data-id="${escapeHtml(item.id)}">修改</button>
           <button class="danger-btn" data-action="delete" data-id="${escapeHtml(item.id)}">刪除</button>
         </div>
@@ -3753,83 +3763,3 @@ function hideAppLoadingScreen() {
     el.className += " hidden";
   }
 }
-
-/* =====================================================
-   v60 FINAL ADMIN ITEM MOVE
-   目的：舊平板點「餐點上移／下移」一定有反應。
-===================================================== */
-async function adminMoveMenuItemFinal(itemId, category, direction) {
-  if (!itemId || !category) return false;
-
-  var grouped = groupItems();
-  var items = grouped[category] || [];
-  var index = items.findIndex(function(item) {
-    return String(item.id) === String(itemId);
-  });
-
-  if (index < 0) return false;
-
-  var targetIndex = index + Number(direction || 0);
-  if (targetIndex < 0 || targetIndex >= items.length) return false;
-
-  var moved = items.splice(index, 1)[0];
-  items.splice(targetIndex, 0, moved);
-
-  var updates = {};
-  var nowTime = Date.now ? Date.now() : new Date().getTime();
-
-  items.forEach(function(item, nextIndex) {
-    updates["menu/" + item.id + "/sortOrder"] = (nextIndex + 1) * 1000;
-    updates["menu/" + item.id + "/updatedAt"] = nowTime;
-  });
-
-  try {
-    await update(ref(db), updates);
-    return true;
-  } catch (error) {
-    console.error("餐點上移下移失敗：", error);
-    alert("餐點排序失敗");
-    return false;
-  }
-}
-
-window.adminMoveMenuItemFinal = adminMoveMenuItemFinal;
-
-(function () {
-  if (typeof document === "undefined") return;
-
-  function closestMoveButton(el) {
-    while (el && el !== document) {
-      if (el.getAttribute) {
-        var action = el.getAttribute("data-action");
-        if (action === "moveUp" || action === "moveDown") return el;
-      }
-      el = el.parentNode;
-    }
-    return null;
-  }
-
-  function stop(e) {
-    if (!e) return;
-    if (e.preventDefault) e.preventDefault();
-    if (e.stopPropagation) e.stopPropagation();
-    if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-  }
-
-  function handle(e) {
-    var button = closestMoveButton(e.target || e.srcElement);
-    if (!button) return;
-
-    var id = button.getAttribute("data-id");
-    var category = button.getAttribute("data-category");
-    if (!id || !category) return;
-
-    stop(e);
-    var action = button.getAttribute("data-action");
-    var direction = action === "moveUp" ? -1 : 1;
-    adminMoveMenuItemFinal(id, category, direction);
-    return false;
-  }
-
-  document.addEventListener("click", handle, true);
-})();

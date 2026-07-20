@@ -1,35 +1,41 @@
 /* 菜單管理專用樣式；不影響 POS、QR、KDS。 */
-.admin-page .admin-add-item-btn{background:#7a4b24;border-color:#7a4b24;color:#fff}
+.admin-page .admin-add-item-btn{display:inline-flex!important;align-items:center!important;justify-content:center!important;min-width:132px!important;background:#7a4b24!important;border-color:#7a4b24!important;color:#fff!important;-webkit-text-fill-color:#fff!important;opacity:1!important;font-size:15px!important;font-weight:900!important;visibility:visible!important}
 .admin-page #addItemAdminTab{display:none!important}
-.admin-page #itemAdminTab .admin-menu-card-v57{display:grid!important;grid-template-columns:62px 72px minmax(180px,1fr)!important;align-items:center!important;gap:12px!important;min-height:96px!important;padding:12px!important;overflow:visible!important}
+.admin-page #itemAdminTab .admin-menu-card-v57{display:grid!important;grid-template-columns:62px 82px minmax(180px,1fr)!important;align-items:center!important;gap:12px!important;min-height:108px!important;padding:12px!important;overflow:visible!important}
 .admin-page #itemAdminTab .admin-sort-zone{display:grid;grid-template-columns:1fr 1fr;gap:5px;align-items:center;cursor:move}
 .admin-page #itemAdminTab .admin-sort-zone .drag-icon{grid-column:1 / -1;text-align:center;color:#84684c;font-size:22px;line-height:1}
 .admin-page #itemAdminTab .admin-sort-zone button{min-width:0;min-height:34px;padding:4px;border:1px solid #d9c7ae;border-radius:8px;background:#fffaf2;color:#4d3926;font-size:18px;font-weight:900}
 .admin-page #itemAdminTab .admin-card-image{width:72px!important;height:72px!important}
-.admin-page #itemAdminTab .admin-card-body{display:grid!important;grid-template-columns:minmax(140px,1fr) auto auto auto!important;align-items:center!important;gap:12px!important}
+.admin-page #itemAdminTab .admin-card-media{width:82px;display:flex;flex-direction:column;align-items:center;gap:5px;min-width:0}
+.admin-page #itemAdminTab .admin-category-tag{display:block;max-width:82px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:3px 7px;border:1px solid #d9c3a1;border-radius:999px;background:#fff2df;color:#74491f;font-size:11px;font-weight:900;line-height:1.2}
+.admin-page #itemAdminTab .admin-default-meal-icon{display:flex;align-items:center;justify-content:center;width:100%;height:100%;background:#f6e7d3;border:1px solid #d9c3a1;color:#8b5a2b}
+.admin-page #itemAdminTab .admin-default-meal-icon svg{width:44px;height:44px;fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.admin-page #itemAdminTab .admin-card-body{display:grid!important;grid-template-columns:minmax(140px,1fr) auto 224px!important;align-items:center!important;gap:12px!important}
 .admin-page #itemAdminTab .admin-card-title-row strong{white-space:normal!important}
-.admin-page #itemAdminTab .admin-status-button{min-width:92px;min-height:42px;border:1px solid transparent;border-radius:999px;cursor:pointer;font-weight:900}
-.admin-page #itemAdminTab .admin-actions{display:grid!important;grid-template-columns:1fr 1fr!important;grid-template-rows:1fr!important;grid-column:auto!important;width:auto!important;max-width:none!important;margin:0!important;gap:8px!important}
+.admin-page #itemAdminTab .admin-item-badge{display:inline-flex;align-items:center;margin-left:7px;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:900;vertical-align:middle;white-space:nowrap}.admin-page #itemAdminTab .admin-item-badge.on{background:#e5f4e8;color:#28733b}.admin-page #itemAdminTab .admin-item-badge.on:before{content:"●";margin-right:4px;color:#31a354}.admin-page #itemAdminTab .admin-item-badge.sold-out{background:#fff0d8;color:#9a5b00}.admin-page #itemAdminTab .admin-item-badge.sold-out:before{content:"●";margin-right:4px;color:#e58a00}.admin-page #itemAdminTab .admin-item-badge.off{background:#e9e5df;color:#57514a}.admin-page #itemAdminTab .admin-item-badge.off:before{content:"●";margin-right:4px;color:#57514a}
+.admin-page #itemAdminTab .admin-actions{display:grid!important;grid-template-columns:1fr 1fr!important;grid-template-rows:42px 42px!important;grid-column:auto!important;width:224px!important;max-width:224px!important;margin:0!important;gap:8px!important}
 .admin-page #itemAdminTab .admin-actions button{min-width:82px;min-height:42px;padding:8px 12px;border-radius:9px}
+.admin-page #itemAdminTab .admin-sold-out-btn{background:#fff4e3;border-color:#dfb36f;color:#85520d}.admin-page #itemAdminTab .admin-sold-out-btn.active{background:#d98218;border-color:#d98218;color:#fff}
 
-.admin-page .item-editor-modal{position:fixed!important;z-index:20000!important;top:18px!important;right:18px!important;bottom:18px!important;left:18px!important;display:block!important;width:auto!important;max-width:980px!important;height:auto!important;margin:0 auto!important;padding:56px 22px 0!important;overflow-x:hidden!important;overflow-y:scroll!important;-webkit-overflow-scrolling:touch;background:#fffaf2!important;border-radius:18px!important;box-shadow:0 18px 60px rgba(31,22,14,.35)!important}
+.admin-page .item-editor-modal{position:fixed!important;z-index:20000!important;top:18px!important;right:18px!important;bottom:18px!important;left:18px!important;display:block!important;width:auto!important;max-width:980px!important;height:auto!important;margin:0 auto!important;padding:0 22px!important;overflow-x:hidden!important;overflow-y:scroll!important;-webkit-overflow-scrolling:touch;background:#fffdf8!important;border:1px solid #d9c3a1!important;border-radius:18px!important;box-shadow:0 18px 60px rgba(83,49,20,.28)!important}
 .admin-page .item-editor-modal.hidden{display:none!important}
-.admin-page .item-editor-modal::before{position:fixed;z-index:-1;top:-60px;right:-200vw;bottom:-60px;left:-200vw;background:rgba(43,33,24,.52)}
+.admin-page .item-editor-modal::before{position:fixed;z-index:-1;top:-60px;right:-200vw;bottom:-60px;left:-200vw;background:rgba(126,82,40,.32)}
+.admin-page .item-editor-modal>.panel-title-row{margin:0 -22px 18px;padding:18px 64px 16px 22px;background:#4b2f16;color:#fff}.admin-page .item-editor-modal>.panel-title-row h2,.admin-page .item-editor-modal>.panel-title-row p{color:#fff}.admin-page .item-editor-modal input,.admin-page .item-editor-modal select,.admin-page .item-editor-modal textarea{background:#fff!important;border-color:#d9c3a1!important}
 .admin-page .item-editor-modal .item-editor-close-btn{position:absolute!important;z-index:2!important;top:12px!important;right:16px!important}
 .admin-page .item-editor-modal .admin-shared-actions{position:-webkit-sticky!important;position:sticky!important;bottom:0!important}
 
 @media (max-width:900px){
-  .admin-page #itemAdminTab .admin-menu-card-v57{grid-template-columns:58px 64px minmax(0,1fr)!important}
+  .admin-page #itemAdminTab .admin-menu-card-v57{grid-template-columns:58px 82px minmax(0,1fr)!important}
   .admin-page #itemAdminTab .admin-card-image{width:64px!important;height:64px!important}
   .admin-page #itemAdminTab .admin-card-body{grid-template-columns:minmax(0,1fr) auto!important}
-  .admin-page #itemAdminTab .admin-actions{grid-column:1 / -1!important;width:100%!important}
+  .admin-page #itemAdminTab .admin-actions{grid-column:1 / -1!important;width:100%!important;max-width:none!important}
 }
 @media (max-width:680px){
-  .admin-page #itemAdminTab .admin-menu-card-v57{grid-template-columns:52px 58px minmax(0,1fr)!important;gap:8px!important}
+  .admin-page #itemAdminTab .admin-menu-card-v57{grid-template-columns:52px 68px minmax(0,1fr)!important;gap:8px!important}
   .admin-page #itemAdminTab .admin-card-image{width:58px!important;height:58px!important}
   .admin-page #itemAdminTab .admin-card-body{grid-template-columns:minmax(0,1fr) auto!important;gap:8px!important}
-  .admin-page #itemAdminTab .admin-status-button{min-width:76px}
   .admin-page #itemAdminTab .admin-actions button{width:100%}
-  .admin-page .item-editor-modal{top:8px!important;right:8px!important;bottom:8px!important;left:8px!important;padding:52px 12px 0!important;border-radius:12px!important}
+  .admin-page .item-editor-modal{top:8px!important;right:8px!important;bottom:8px!important;left:8px!important;padding:0 12px!important;border-radius:12px!important}
+  .admin-page .item-editor-modal>.panel-title-row{margin:0 -12px 16px;padding:15px 58px 14px 12px}
   .admin-page .item-editor-modal .admin-form-actions{display:grid!important;grid-template-columns:1fr 1fr!important}
 }

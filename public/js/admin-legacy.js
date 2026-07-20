@@ -447,13 +447,18 @@
 
   function renderMenuItemCard(item) {
     var image = item.image || item.imageUrl || "";
+    var isSoldOut = item.soldOut === true || item.paused === true;
+    var statusClass = item.enabled === false ? "off" : (isSoldOut ? "sold-out" : "on");
+    var statusText = item.enabled === false ? "已下架" : (isSoldOut ? "本日售完" : "販售中");
+    var defaultIcon = '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M13 29h38c0 13-8 22-19 22S13 42 13 29Z"/><path d="M10 27h44M20 54h24M25 23c-5-6 4-8 0-14M35 23c-5-6 4-8 0-14M45 23c-5-6 4-8 0-14"/></svg>';
     return '<article class="legacy-row-card ' + (item.enabled === false ? "disabled" : "") + '">' +
       '<div class="legacy-sort-zone"><span>☰</span><button type="button" data-action="moveItemUp" data-id="' + escapeHtml(item.id) + '" aria-label="上移">↑</button><button type="button" data-action="moveItemDown" data-id="' + escapeHtml(item.id) + '" aria-label="下移">↓</button></div>' +
-      '<div class="legacy-item-thumb">' + (image ? '<img src="' + escapeHtml(image) + '" alt="">' : '<span>恩點</span>') + '</div>' +
-      '<div class="legacy-item-summary"><h3>' + escapeHtml(item.name || "未命名餐點") + '</h3>' +
+      '<div class="legacy-item-media"><div class="legacy-item-thumb">' + (image ? '<img src="' + escapeHtml(image) + '" alt="">' : '<span class="legacy-default-meal-icon">' + defaultIcon + '</span>') + '</div><span class="legacy-category-tag">' + escapeHtml(item.category || "未分類") + '</span></div>' +
+      '<div class="legacy-item-summary"><h3>' + escapeHtml(item.name || "未命名餐點") + ' <span class="legacy-item-badge ' + statusClass + '">' + statusText + '</span></h3>' +
       '<p>NT$' + Number(item.price || 0) + '</p></div>' +
-      '<button type="button" class="legacy-status-btn" data-action="toggleItem" data-id="' + escapeHtml(item.id) + '">' + (item.enabled === false ? "下架" : (item.soldOut === true || item.paused === true ? "上架｜售完" : "上架")) + '</button>' +
       '<div class="legacy-card-actions">' +
+      '<button type="button" data-action="toggleItem" data-id="' + escapeHtml(item.id) + '">' + (item.enabled === false ? "上架" : "下架") + '</button>' +
+      '<button type="button" class="legacy-sold-out-btn' + (isSoldOut ? ' active' : '') + '" data-action="soldOutItem" data-id="' + escapeHtml(item.id) + '">' + (isSoldOut ? "恢復販售" : "本日售完") + '</button>' +
       '<button type="button" data-action="editItem" data-id="' + escapeHtml(item.id) + '">修改</button>' +
       '<button type="button" class="danger" data-action="deleteItem" data-id="' + escapeHtml(item.id) + '">刪除</button>' +
       '</div></article>';
@@ -794,17 +799,35 @@
   }
 
   function moveMenuItem(id, direction) {
-    var items = getMenuItems();
+    var source = getMenuMap()[id] || {};
+    var category = source.category || "未分類";
+    var allItems = getMenuItems();
+    var items = [];
     var index = -1;
     var target;
     var updates = {};
+    var previousOrders = {};
     var i;
+    for (i = 0; i < allItems.length; i += 1) {
+      if ((allItems[i].category || "未分類") === category) items.push(allItems[i]);
+    }
     for (i = 0; i < items.length; i += 1) if (items[i].id === id) index = i;
     target = index + direction;
     if (index < 0 || target < 0 || target >= items.length) return;
     items.splice(target, 0, items.splice(index, 1)[0]);
-    for (i = 0; i < items.length; i += 1) updates["menu/" + items[i].id + "/sortOrder"] = (i + 1) * 1000;
-    db.ref().update(updates, function(error) { if (error) showSaveError("餐點排序失敗", error); });
+    for (i = 0; i < items.length; i += 1) {
+      previousOrders[items[i].id] = data.menu[items[i].id] ? data.menu[items[i].id].sortOrder : null;
+      updates["menu/" + items[i].id + "/sortOrder"] = (i + 1) * 1000;
+      if (data.menu[items[i].id]) data.menu[items[i].id].sortOrder = (i + 1) * 1000;
+    }
+    renderMenu();
+    db.ref().update(updates, function(error) {
+      var key;
+      if (!error) return;
+      for (key in previousOrders) if (Object.prototype.hasOwnProperty.call(previousOrders, key) && data.menu[key]) data.menu[key].sortOrder = previousOrders[key];
+      renderMenu();
+      showSaveError("餐點排序失敗", error);
+    });
   }
 
   function openGroupModal(id) {
