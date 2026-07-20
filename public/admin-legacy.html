@@ -6,7 +6,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>恩點菜單後台</title>
-  <link rel="stylesheet" href="./css/admin-legacy.css?v=658" />
+  <link rel="stylesheet" href="./css/admin-legacy.css?v=659" />
 </head>
 <body class="legacy-admin-page">
   <header class="legacy-topbar">
@@ -50,6 +50,7 @@
         </div>
         <label>價格<input id="legacyItemPrice" type="number" min="0" /></label>
         <label>圖片網址<input id="legacyItemImage" type="text" placeholder="https://..." /></label>
+        <div id="legacyImagePreview" class="legacy-image-preview"></div>
         <label>描述<textarea id="legacyItemDescription"></textarea></label>
         <label class="legacy-check"><input id="legacyItemEnabled" type="checkbox" checked /> 上架</label>
         <label class="legacy-check"><input id="legacyItemSoldOut" type="checkbox" /> 今日售完／暫停販售</label>
@@ -102,6 +103,6 @@
 
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-  <script src="./js/admin-legacy.js?v=658"></script>
+  <script src="./js/admin-legacy.js?v=659"></script>
 </body>
 </html>

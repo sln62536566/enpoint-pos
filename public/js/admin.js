@@ -40,6 +40,7 @@ const itemDescription = document.getElementById("itemDescription");
 const itemEnabled = document.getElementById("itemEnabled");
 const requiredOptionTitle = document.getElementById("requiredOptionTitle");
 const requiredOptionChoices = document.getElementById("requiredOptionChoices");
+const DEFAULT_MEAL_ICON = '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M13 29h38c0 13-8 22-19 22S13 42 13 29Z"/><path d="M10 27h44M20 54h24M25 23c-5-6 4-8 0-14M35 23c-5-6 4-8 0-14M45 23c-5-6 4-8 0-14"/></svg>';
 
 const addItemBtn = document.getElementById("addItemBtn");
 const cancelEditBtn = document.getElementById("cancelEditBtn");
@@ -1401,10 +1402,18 @@ async function uploadMenuImageIfNeeded() {
 function renderImagePreview(url) {
   if (!imagePreviewBox) return;
   if (!url) {
-    imagePreviewBox.innerHTML = "尚未選擇圖片";
+    imagePreviewBox.innerHTML = `<div class="admin-preview-fallback">${DEFAULT_MEAL_ICON}<span>預設餐點圖示</span></div>`;
     return;
   }
-  imagePreviewBox.innerHTML = `<img src="${escapeHtml(url)}" alt="餐點圖片預覽">`;
+  imagePreviewBox.innerHTML = `<img src="${escapeHtml(url)}" alt="餐點圖片預覽"><div class="admin-preview-fallback hidden">${DEFAULT_MEAL_ICON}<span>圖片無法載入，將顯示預設圖示</span></div>`;
+  const previewImage = imagePreviewBox.querySelector("img");
+  if (previewImage) {
+    previewImage.addEventListener("error", function() {
+      previewImage.style.display = "none";
+      const fallback = imagePreviewBox.querySelector(".admin-preview-fallback");
+      if (fallback) fallback.classList.remove("hidden");
+    }, false);
+  }
 }
 
 
@@ -2599,7 +2608,6 @@ function renderMenuCard(item, category) {
   const isSoldOut = item.soldOut === true || item.paused === true;
   const statusClass = item.enabled === false ? "off" : (isSoldOut ? "sold-out" : "on");
   const statusText = item.enabled === false ? "已下架" : (isSoldOut ? "本日售完" : "販售中");
-  const defaultMealIcon = '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M13 29h38c0 13-8 22-19 22S13 42 13 29Z"/><path d="M10 27h44M20 54h24M25 23c-5-6 4-8 0-14M35 23c-5-6 4-8 0-14M45 23c-5-6 4-8 0-14"/></svg>';
 
   return `
     <article
@@ -2613,29 +2621,30 @@ function renderMenuCard(item, category) {
         <button type="button" data-action="moveUp" data-id="${escapeHtml(item.id)}" data-category="${escapeHtml(category)}" aria-label="上移 ${escapeHtml(item.name || "餐點")}">↑</button>
         <button type="button" data-action="moveDown" data-id="${escapeHtml(item.id)}" data-category="${escapeHtml(category)}" aria-label="下移 ${escapeHtml(item.name || "餐點")}">↓</button>
       </div>
-      <div class="admin-card-media">
-        <div class="admin-card-image">
-          ${image
-            ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(item.name || "餐點圖片")}">`
-            : `<div class="admin-no-image admin-default-meal-icon">${defaultMealIcon}</div>`}
-        </div>
-        <span class="admin-category-tag">${escapeHtml(category)}</span>
-      </div>
-
-      <div class="admin-card-body">
-        <div class="admin-card-title-row">
-          <div>
-            <strong>${escapeHtml(item.name || "未命名餐點")}</strong>
-            <span class="admin-item-badge ${statusClass}">${statusText}</span>
+      <div class="admin-card-data" data-id="${escapeHtml(item.id)}" role="button" tabindex="0" aria-label="修改 ${escapeHtml(item.name || "餐點")}">
+        <div class="admin-card-media">
+          <div class="admin-card-image">
+            ${image
+              ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(item.name || "餐點圖片")}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="admin-no-image admin-default-meal-icon" style="display:none">${DEFAULT_MEAL_ICON}</div>`
+              : `<div class="admin-no-image admin-default-meal-icon">${DEFAULT_MEAL_ICON}</div>`}
           </div>
+          <span class="admin-category-tag">${escapeHtml(category)}</span>
         </div>
-        <div class="admin-price">${money(item.price)}</div>
-        <div class="admin-actions">
-          <button class="admin-availability-btn" data-action="toggle" data-id="${escapeHtml(item.id)}">${item.enabled === false ? "上架" : "下架"}</button>
-          <button class="admin-sold-out-btn ${isSoldOut ? "active" : ""}" data-action="soldOut" data-id="${escapeHtml(item.id)}">${isSoldOut ? "恢復販售" : "本日售完"}</button>
-          <button data-action="edit" data-id="${escapeHtml(item.id)}">修改</button>
-          <button class="danger-btn" data-action="delete" data-id="${escapeHtml(item.id)}">刪除</button>
+        <div class="admin-card-body">
+          <div class="admin-card-title-row">
+            <div>
+              <strong>${escapeHtml(item.name || "未命名餐點")}</strong>
+              <span class="admin-item-badge ${statusClass}">${statusText}</span>
+            </div>
+          </div>
+          <div class="admin-price">${money(item.price)}</div>
         </div>
+      </div>
+      <div class="admin-actions">
+        <button class="admin-availability-btn" data-action="toggle" data-id="${escapeHtml(item.id)}">${item.enabled === false ? "⬆ 上架" : "⬇ 下架"}</button>
+        <button class="admin-sold-out-btn ${isSoldOut ? "active" : ""}" data-action="soldOut" data-id="${escapeHtml(item.id)}">${isSoldOut ? "🍜 恢復販售" : "🍜 本日售完"}</button>
+        <button data-action="edit" data-id="${escapeHtml(item.id)}">✏ 修改</button>
+        <button class="danger-btn" data-action="delete" data-id="${escapeHtml(item.id)}">🗑 刪除</button>
       </div>
     </article>
   `;
@@ -3325,6 +3334,16 @@ function renderCustomGroupModal(group) {
     onClose: closeCustomGroupModal,
     onSave: function() { saveCustomGroupFromModal(group); }
   });
+
+  menuList.querySelectorAll(".admin-card-data").forEach(dataArea => {
+    function openEditor(event) {
+      if (event && event.type === "keydown" && event.key !== "Enter" && event.key !== " ") return;
+      if (event && event.preventDefault) event.preventDefault();
+      editItem(dataArea.dataset.id);
+    }
+    dataArea.addEventListener("click", openEditor, false);
+    dataArea.addEventListener("keydown", openEditor, false);
+  });
   bindCustomGroupModalEvents(group);
 }
 
@@ -3762,4 +3781,9 @@ function hideAppLoadingScreen() {
   if (el && (" " + (el.className || "") + " ").indexOf(" hidden ") === -1) {
     el.className += " hidden";
   }
+}
+if (itemImage) {
+  itemImage.addEventListener("input", function() {
+    renderImagePreview(itemImage.value.trim());
+  }, false);
 }

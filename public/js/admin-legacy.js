@@ -451,17 +451,32 @@
     var statusClass = item.enabled === false ? "off" : (isSoldOut ? "sold-out" : "on");
     var statusText = item.enabled === false ? "已下架" : (isSoldOut ? "本日售完" : "販售中");
     var defaultIcon = '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M13 29h38c0 13-8 22-19 22S13 42 13 29Z"/><path d="M10 27h44M20 54h24M25 23c-5-6 4-8 0-14M35 23c-5-6 4-8 0-14M45 23c-5-6 4-8 0-14"/></svg>';
-    return '<article class="legacy-row-card ' + (item.enabled === false ? "disabled" : "") + '">' +
+    return '<article class="legacy-row-card legacy-menu-item-card ' + (item.enabled === false ? "disabled" : "") + '">' +
       '<div class="legacy-sort-zone"><span>☰</span><button type="button" data-action="moveItemUp" data-id="' + escapeHtml(item.id) + '" aria-label="上移">↑</button><button type="button" data-action="moveItemDown" data-id="' + escapeHtml(item.id) + '" aria-label="下移">↓</button></div>' +
-      '<div class="legacy-item-media"><div class="legacy-item-thumb">' + (image ? '<img src="' + escapeHtml(image) + '" alt="">' : '<span class="legacy-default-meal-icon">' + defaultIcon + '</span>') + '</div><span class="legacy-category-tag">' + escapeHtml(item.category || "未分類") + '</span></div>' +
+      '<div class="legacy-card-data" data-id="' + escapeHtml(item.id) + '" role="button" tabindex="0"><div class="legacy-item-media"><div class="legacy-item-thumb">' + (image ? '<img src="' + escapeHtml(image) + '" alt="" onerror="this.style.display=\'none\';this.nextSibling.style.display=\'flex\'"><span class="legacy-default-meal-icon" style="display:none">' + defaultIcon + '</span>' : '<span class="legacy-default-meal-icon">' + defaultIcon + '</span>') + '</div><span class="legacy-category-tag">' + escapeHtml(item.category || "未分類") + '</span></div>' +
       '<div class="legacy-item-summary"><h3>' + escapeHtml(item.name || "未命名餐點") + ' <span class="legacy-item-badge ' + statusClass + '">' + statusText + '</span></h3>' +
-      '<p>NT$' + Number(item.price || 0) + '</p></div>' +
+      '<p>NT$' + Number(item.price || 0) + '</p></div></div>' +
       '<div class="legacy-card-actions">' +
-      '<button type="button" data-action="toggleItem" data-id="' + escapeHtml(item.id) + '">' + (item.enabled === false ? "上架" : "下架") + '</button>' +
-      '<button type="button" class="legacy-sold-out-btn' + (isSoldOut ? ' active' : '') + '" data-action="soldOutItem" data-id="' + escapeHtml(item.id) + '">' + (isSoldOut ? "恢復販售" : "本日售完") + '</button>' +
-      '<button type="button" data-action="editItem" data-id="' + escapeHtml(item.id) + '">修改</button>' +
-      '<button type="button" class="danger" data-action="deleteItem" data-id="' + escapeHtml(item.id) + '">刪除</button>' +
+      '<button type="button" data-action="toggleItem" data-id="' + escapeHtml(item.id) + '">' + (item.enabled === false ? "⬆ 上架" : "⬇ 下架") + '</button>' +
+      '<button type="button" class="legacy-sold-out-btn' + (isSoldOut ? ' active' : '') + '" data-action="soldOutItem" data-id="' + escapeHtml(item.id) + '">' + (isSoldOut ? "🍜 恢復販售" : "🍜 本日售完") + '</button>' +
+      '<button type="button" data-action="editItem" data-id="' + escapeHtml(item.id) + '">✏ 修改</button>' +
+      '<button type="button" class="danger" data-action="deleteItem" data-id="' + escapeHtml(item.id) + '">🗑 刪除</button>' +
       '</div></article>';
+  }
+
+  function renderLegacyImagePreview(url) {
+    var preview = $("legacyImagePreview");
+    var icon = '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M13 29h38c0 13-8 22-19 22S13 42 13 29Z"/><path d="M10 27h44M20 54h24M25 23c-5-6 4-8 0-14M35 23c-5-6 4-8 0-14M45 23c-5-6 4-8 0-14"/></svg>';
+    if (!preview) return;
+    if (!url) {
+      preview.innerHTML = '<span class="legacy-default-meal-icon">' + icon + '</span>';
+      return;
+    }
+    preview.innerHTML = '<img src="' + escapeHtml(url) + '" alt="餐點圖片預覽"><span class="legacy-default-meal-icon hidden">' + icon + '</span>';
+    preview.getElementsByTagName("img")[0].onerror = function() {
+      this.style.display = "none";
+      removeClass(preview.getElementsByTagName("span")[0], "hidden");
+    };
   }
 
   function renderOptionPickers() {
@@ -687,6 +702,7 @@
     $("legacyItemName").value = "";
     $("legacyItemPrice").value = "";
     $("legacyItemImage").value = "";
+    renderLegacyImagePreview("");
     $("legacyItemDescription").value = "";
     $("legacyItemEnabled").checked = true;
     $("legacyItemSoldOut").checked = false;
@@ -765,6 +781,7 @@
     $("legacyItemCategory").value = item.category || "未分類";
     $("legacyItemPrice").value = Number(item.price || 0);
     $("legacyItemImage").value = item.image || item.imageUrl || "";
+    renderLegacyImagePreview($("legacyItemImage").value);
     $("legacyItemDescription").value = item.description || "";
     $("legacyItemEnabled").checked = item.enabled !== false;
     $("legacyItemSoldOut").checked = item.soldOut === true || item.paused === true;
@@ -1323,10 +1340,14 @@
 
   function handleDelegatedTap(event) {
     var btn;
+    var dataArea;
     var action;
     event = event || window.event;
     btn = findButton(event.target || event.srcElement);
+    dataArea = findParent(event.target || event.srcElement, "legacy-card-data");
+    if (!btn && dataArea) return editItem(dataArea.getAttribute("data-id"));
     if (!btn || btn.disabled) return;
+    if (event.stopPropagation) event.stopPropagation();
     action = btn.getAttribute("data-action") || "";
     if (btn.getAttribute("data-tab")) return setActiveTab(btn.getAttribute("data-tab"));
     if (btn.getAttribute("data-category")) {
@@ -1370,6 +1391,7 @@
     document.addEventListener("click", handleDelegatedTap, false);
     $("legacyItemForm").onsubmit = saveItem;
     $("legacyMenuSearch").oninput = renderMenu;
+    $("legacyItemImage").oninput = function() { renderLegacyImagePreview(this.value.replace(/^\s+|\s+$/g, "")); };
     $("legacyItemCategory").onchange = function() {
       if (!state.editingItemId) applyDefaultTemplateForCategory(this.value);
     };
