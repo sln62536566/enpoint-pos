@@ -98,6 +98,7 @@ let adminModalOptionHeading = null;
 let itemEditorHome = null;
 let itemEditorHomeNext = null;
 let itemEditorMode = "hidden";
+let itemSaveInProgress = false;
 
 const menuRef = ref(db, "menu");
 const menuItemsRef = ref(db, "menuItems");
@@ -223,25 +224,7 @@ function findClosestByClass(element, className) {
 
 function addAdminTapListener(element, handler) {
   if (!element || !handler) return;
-
-  var lastTouchAt = 0;
-
-  function handleTap(event) {
-    var now = Date.now ? Date.now() : new Date().getTime();
-
-    if (event && event.type === "touchend") {
-      lastTouchAt = now;
-    }
-
-    if (event && event.type === "click" && now - lastTouchAt < 500) {
-      return;
-    }
-
-    handler(event);
-  }
-
-  element.addEventListener("click", handleTap, false);
-  element.addEventListener("touchend", handleTap, false);
+  element.addEventListener("click", handler, false);
 }
 
 function mergeById(primary, fallback) {
@@ -332,17 +315,18 @@ function initAdminV63Ux() {
   }
 
   openNewItemModalBtn = document.getElementById("openNewItemModalBtn");
-  if (openNewItemModalBtn && openNewItemModalBtn.parentNode) {
-    openNewItemModalBtn.parentNode.removeChild(openNewItemModalBtn);
-  }
 
   if (itemEditorModal) {
-    itemEditorModal.classList.remove("item-editor-modal", "hidden");
-    itemEditorModal.removeAttribute("aria-modal");
+    itemEditorModal.classList.add("item-editor-modal", "hidden");
+    itemEditorModal.setAttribute("role", "dialog");
+    itemEditorModal.setAttribute("aria-modal", "true");
+    itemEditorModal.setAttribute("aria-labelledby", "formTitle");
+    document.body.appendChild(itemEditorModal);
     if (requiredOptionTitle) requiredOptionTitle.classList.add("legacy-required-input");
     if (requiredOptionChoices) requiredOptionChoices.classList.add("legacy-required-input");
     ensureRequiredGroupEditor();
-    moveSharedActionsToAddItemBottom();
+    moveSharedActionsToModalBottom();
+    ensureItemModalCloseButton();
   }
 
   setupTemplateSubtabs();
@@ -395,13 +379,14 @@ function ensureTemplateRowEditorNodes() {
 
 function openItemEditorModal() {
   if (!itemEditorModal) return;
-  restoreItemEditorToHome();
-  itemEditorMode = "inline";
+  document.body.appendChild(itemEditorModal);
+  itemEditorMode = "modal";
   itemEditorModal.classList.remove("item-editor-inline");
-  itemEditorModal.classList.remove("item-editor-modal");
+  itemEditorModal.classList.add("item-editor-modal");
   itemEditorModal.classList.remove("hidden");
-  setAdminModalOpen(false);
-  moveSharedActionsToAddItemBottom();
+  itemEditorModal.setAttribute("aria-hidden", "false");
+  moveOptionGridToItemModal();
+  setAdminModalOpen(true);
   updateItemEditorActionLabels();
   itemEditorInitialState = getItemEditorStateSnapshot();
 }
@@ -419,8 +404,9 @@ function closeItemEditorModal() {
   if (!itemEditorModal) return;
   itemEditorMode = "hidden";
   itemEditorModal.classList.remove("item-editor-inline");
-  itemEditorModal.classList.remove("item-editor-modal");
-  itemEditorModal.classList.remove("hidden");
+  itemEditorModal.classList.add("item-editor-modal", "hidden");
+  itemEditorModal.setAttribute("aria-hidden", "true");
+  restoreOptionGridToOptionTab();
   setAdminModalOpen(false);
 }
 
@@ -534,12 +520,7 @@ function ensureItemModalCloseButton() {
   button.setAttribute("aria-label", "關閉");
   button.textContent = "×";
   itemEditorModal.insertBefore(button, itemEditorModal.firstChild);
-  button.onclick = cancelItemEditorWithConfirm;
-  button.ontouchend = function(event) {
-    if (event && event.preventDefault) event.preventDefault();
-    if (event && event.stopPropagation) event.stopPropagation();
-    return cancelItemEditorWithConfirm(event);
-  };
+  button.addEventListener("click", cancelItemEditorWithConfirm, false);
 }
 
 function moveOptionGridToItemModal() {
@@ -569,7 +550,6 @@ function restoreOptionGridToOptionTab() {
 function openItemEditorForCreate(event) {
   if (event && event.preventDefault) event.preventDefault();
   resetForm();
-  switchAdminTab("addItemAdminTab");
   openItemEditorModal();
   if (itemName) itemName.focus();
   return false;
@@ -2219,6 +2199,7 @@ function applyCategoryDefaultTemplateToForm(categoryName) {
 }
 
 async function saveItem() {
+  if (itemSaveInProgress) return;
   const name = itemName.value.trim();
   const category = itemCategory.value.trim();
   const price = Number(itemPrice.value);
@@ -2248,6 +2229,7 @@ async function saveItem() {
   const updates = {};
 
   try {
+    itemSaveInProgress = true;
     addItemBtn.disabled = true;
     addItemBtn.textContent = "圖片處理中...";
 
@@ -2307,6 +2289,7 @@ async function saveItem() {
     console.error("儲存餐點失敗：", err);
     alert("儲存失敗，請看 Console");
   } finally {
+    itemSaveInProgress = false;
     addItemBtn.disabled = false;
     addItemBtn.textContent = editingId ? "更新餐點" : "新增餐點";
   }
@@ -2343,8 +2326,6 @@ function editItem(id) {
   formTitle.textContent = `編輯餐點｜${item.name || ""}`;
   addItemBtn.textContent = "更新餐點";
   cancelEditBtn.style.display = "block";
-  switchAdminTab("addItemAdminTab");
-
   openItemEditorModal();
   if (itemName) itemName.focus();
 }
@@ -2609,28 +2590,7 @@ function renderMenu() {
 
 function renderMenuCard(item, category) {
   const image = item.image || item.imageUrl || "";
-  const templateName = getItemTemplateName(item);
   const isSoldOut = item.soldOut === true || item.paused === true;
-
-  const descriptionText = item.description || "尚未填寫餐點描述";
-
-  const requiredOptionText = item.requiredOption && item.requiredOption.title
-    ? `${item.requiredOption.title}：${(item.requiredOption.options || []).join("、")}`
-    : "無必選項目";
-
-  const sizesText =
-    item.sizes && Object.keys(item.sizes).length > 0
-      ? Object.entries(item.sizes).map(([name, price]) => `${name} ${money(price)}`).join("、")
-      : "一般：" + money(item.price || 0);
-
-  const optionsText =
-    item.options && Object.keys(item.options).length > 0
-      ? Object.entries(item.options).map(([name, price]) => `${name} +${price}`).join("、")
-      : "無加料";
-
-  const removeOptionsText = Array.isArray(item.removeOptions) && item.removeOptions.length > 0
-    ? item.removeOptions.join("、")
-    : "無不要項目";
 
   return `
     <article
@@ -2639,6 +2599,11 @@ function renderMenuCard(item, category) {
       data-id="${escapeHtml(item.id)}"
       data-category="${escapeHtml(category)}"
     >
+      <div class="admin-sort-zone" aria-label="拖曳或使用按鈕排序">
+        <span class="drag-icon" aria-hidden="true">☰</span>
+        <button type="button" data-action="moveUp" data-id="${escapeHtml(item.id)}" data-category="${escapeHtml(category)}" aria-label="上移 ${escapeHtml(item.name || "餐點")}">↑</button>
+        <button type="button" data-action="moveDown" data-id="${escapeHtml(item.id)}" data-category="${escapeHtml(category)}" aria-label="下移 ${escapeHtml(item.name || "餐點")}">↓</button>
+      </div>
       <div class="admin-card-image">
         ${
           image
@@ -2652,56 +2617,14 @@ function renderMenuCard(item, category) {
           <div>
             <strong>${escapeHtml(item.name || "未命名餐點")}</strong>
           </div>
-          <span class="admin-status ${item.enabled === false ? "off" : "on"}">
-            ${item.enabled === false ? "下架" : (isSoldOut ? "今日售完" : "上架")}
-          </span>
         </div>
-
         <div class="admin-price">${money(item.price)}</div>
-
-        <div class="admin-list-category">${escapeHtml(category)}</div>
-
-        <div class="admin-template-name">使用範本：${escapeHtml(templateName)}</div>
-
-        <div class="admin-description">
-          ${escapeHtml(descriptionText)}
-        </div>
-
-        <div class="admin-options">
-          份量：${escapeHtml(sizesText)}
-        </div>
-
-        <div class="admin-required-option">
-          必選：${escapeHtml(requiredOptionText)}
-        </div>
-
-        <div class="admin-options">
-          加料：${escapeHtml(optionsText)}
-        </div>
-
-        <div class="admin-options">
-          不要：${escapeHtml(removeOptionsText)}
-        </div>
-
+        <button class="admin-status admin-status-button ${item.enabled === false ? "off" : "on"}" data-action="toggle" data-id="${escapeHtml(item.id)}">
+          ${item.enabled === false ? "下架" : (isSoldOut ? "上架｜售完" : "上架")}
+        </button>
         <div class="admin-actions">
-          <div class="admin-card-action-row">
-            <button data-action="edit" data-id="${escapeHtml(item.id)}">編輯</button>
-            <button data-action="toggle" data-id="${escapeHtml(item.id)}">
-              ${item.enabled === false ? "上架" : "下架"}
-            </button>
-          </div>
-          <div class="admin-card-action-row single">
-            <button data-action="soldOut" data-id="${escapeHtml(item.id)}">
-              ${isSoldOut ? "恢復販售" : "今日售完"}
-            </button>
-          </div>
-          <div class="admin-card-action-row">
-            <button data-action="moveUp" data-id="${escapeHtml(item.id)}" data-category="${escapeHtml(category)}">上移</button>
-            <button data-action="moveDown" data-id="${escapeHtml(item.id)}" data-category="${escapeHtml(category)}">下移</button>
-          </div>
-          <div class="admin-card-action-row single">
-            <button class="danger-btn" data-action="delete" data-id="${escapeHtml(item.id)}">刪除</button>
-          </div>
+          <button data-action="edit" data-id="${escapeHtml(item.id)}">修改</button>
+          <button class="danger-btn" data-action="delete" data-id="${escapeHtml(item.id)}">刪除</button>
         </div>
       </div>
     </article>
@@ -2738,7 +2661,7 @@ function bindMenuCardDragEvents() {
     });
   });
 
-  menuList.querySelectorAll(".admin-actions button").forEach(button => {
+  menuList.querySelectorAll("button[data-action]").forEach(button => {
     button.onclick = function(event) {
       if (event && event.preventDefault) event.preventDefault();
       if (event && event.stopPropagation) event.stopPropagation();
@@ -3761,6 +3684,7 @@ if (cancelTemplateEditBtn) {
 }
 
 addItemBtn.addEventListener("click", saveItem);
+if (openNewItemModalBtn) openNewItemModalBtn.addEventListener("click", openItemEditorForCreate, false);
 cancelEditBtn.addEventListener("click", function() {
   cancelItemEditorWithConfirm();
 });
@@ -3768,23 +3692,12 @@ menuSearchInput.addEventListener("input", renderMenu);
 
 for (var adminTabIndex = 0; adminTabIndex < adminTabButtons.length; adminTabIndex += 1) {
   (function(button) {
-    var lastTouchAt = 0;
-
     function handleAdminTabEvent(event) {
-      if (event && event.type === "touchend") {
-        lastTouchAt = Date.now ? Date.now() : new Date().getTime();
-      }
-
-      if (event && event.type === "click" && (Date.now ? Date.now() : new Date().getTime()) - lastTouchAt < 500) {
-        return;
-      }
-
       if (event && event.preventDefault) event.preventDefault();
       switchAdminTab(button.getAttribute("data-admin-tab"));
     }
 
     button.addEventListener("click", handleAdminTabEvent, false);
-    button.addEventListener("touchend", handleAdminTabEvent, false);
   })(adminTabButtons[adminTabIndex]);
 }
 
@@ -3884,7 +3797,6 @@ window.adminMoveMenuItemFinal = adminMoveMenuItemFinal;
 
 (function () {
   if (typeof document === "undefined") return;
-  var lastTouchAt = 0;
 
   function closestMoveButton(el) {
     while (el && el !== document) {
@@ -3912,13 +3824,6 @@ window.adminMoveMenuItemFinal = adminMoveMenuItemFinal;
     var category = button.getAttribute("data-category");
     if (!id || !category) return;
 
-    if (e.type === "click" && (Date.now ? Date.now() : new Date().getTime()) - lastTouchAt < 700) {
-      stop(e);
-      return false;
-    }
-
-    if (e.type === "touchend") lastTouchAt = Date.now ? Date.now() : new Date().getTime();
-
     stop(e);
     var action = button.getAttribute("data-action");
     var direction = action === "moveUp" ? -1 : 1;
@@ -3926,6 +3831,5 @@ window.adminMoveMenuItemFinal = adminMoveMenuItemFinal;
     return false;
   }
 
-  document.addEventListener("touchend", handle, true);
   document.addEventListener("click", handle, true);
 })();

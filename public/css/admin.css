@@ -1,0 +1,35 @@
+/* 菜單管理專用樣式；不影響 POS、QR、KDS。 */
+.admin-page .admin-add-item-btn{background:#7a4b24;border-color:#7a4b24;color:#fff}
+.admin-page #addItemAdminTab{display:none!important}
+.admin-page #itemAdminTab .admin-menu-card-v57{display:grid!important;grid-template-columns:62px 72px minmax(180px,1fr)!important;align-items:center!important;gap:12px!important;min-height:96px!important;padding:12px!important;overflow:visible!important}
+.admin-page #itemAdminTab .admin-sort-zone{display:grid;grid-template-columns:1fr 1fr;gap:5px;align-items:center;cursor:move}
+.admin-page #itemAdminTab .admin-sort-zone .drag-icon{grid-column:1 / -1;text-align:center;color:#84684c;font-size:22px;line-height:1}
+.admin-page #itemAdminTab .admin-sort-zone button{min-width:0;min-height:34px;padding:4px;border:1px solid #d9c7ae;border-radius:8px;background:#fffaf2;color:#4d3926;font-size:18px;font-weight:900}
+.admin-page #itemAdminTab .admin-card-image{width:72px!important;height:72px!important}
+.admin-page #itemAdminTab .admin-card-body{display:grid!important;grid-template-columns:minmax(140px,1fr) auto auto auto!important;align-items:center!important;gap:12px!important}
+.admin-page #itemAdminTab .admin-card-title-row strong{white-space:normal!important}
+.admin-page #itemAdminTab .admin-status-button{min-width:92px;min-height:42px;border:1px solid transparent;border-radius:999px;cursor:pointer;font-weight:900}
+.admin-page #itemAdminTab .admin-actions{display:grid!important;grid-template-columns:1fr 1fr!important;grid-template-rows:1fr!important;grid-column:auto!important;width:auto!important;max-width:none!important;margin:0!important;gap:8px!important}
+.admin-page #itemAdminTab .admin-actions button{min-width:82px;min-height:42px;padding:8px 12px;border-radius:9px}
+
+.admin-page .item-editor-modal{position:fixed!important;z-index:20000!important;top:18px!important;right:18px!important;bottom:18px!important;left:18px!important;display:block!important;width:auto!important;max-width:980px!important;height:auto!important;margin:0 auto!important;padding:56px 22px 0!important;overflow-x:hidden!important;overflow-y:scroll!important;-webkit-overflow-scrolling:touch;background:#fffaf2!important;border-radius:18px!important;box-shadow:0 18px 60px rgba(31,22,14,.35)!important}
+.admin-page .item-editor-modal.hidden{display:none!important}
+.admin-page .item-editor-modal::before{position:fixed;z-index:-1;top:-60px;right:-200vw;bottom:-60px;left:-200vw;background:rgba(43,33,24,.52)}
+.admin-page .item-editor-modal .item-editor-close-btn{position:absolute!important;z-index:2!important;top:12px!important;right:16px!important}
+.admin-page .item-editor-modal .admin-shared-actions{position:-webkit-sticky!important;position:sticky!important;bottom:0!important}
+
+@media (max-width:900px){
+  .admin-page #itemAdminTab .admin-menu-card-v57{grid-template-columns:58px 64px minmax(0,1fr)!important}
+  .admin-page #itemAdminTab .admin-card-image{width:64px!important;height:64px!important}
+  .admin-page #itemAdminTab .admin-card-body{grid-template-columns:minmax(0,1fr) auto!important}
+  .admin-page #itemAdminTab .admin-actions{grid-column:1 / -1!important;width:100%!important}
+}
+@media (max-width:680px){
+  .admin-page #itemAdminTab .admin-menu-card-v57{grid-template-columns:52px 58px minmax(0,1fr)!important;gap:8px!important}
+  .admin-page #itemAdminTab .admin-card-image{width:58px!important;height:58px!important}
+  .admin-page #itemAdminTab .admin-card-body{grid-template-columns:minmax(0,1fr) auto!important;gap:8px!important}
+  .admin-page #itemAdminTab .admin-status-button{min-width:76px}
+  .admin-page #itemAdminTab .admin-actions button{width:100%}
+  .admin-page .item-editor-modal{top:8px!important;right:8px!important;bottom:8px!important;left:8px!important;padding:52px 12px 0!important;border-radius:12px!important}
+  .admin-page .item-editor-modal .admin-form-actions{display:grid!important;grid-template-columns:1fr 1fr!important}
+}

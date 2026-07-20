@@ -46,6 +46,7 @@
   </script>
   <link rel="manifest" href="./manifest.json" />
   <link rel="stylesheet" href="./css/style.css?v=656" />
+  <link rel="stylesheet" href="./css/admin.css?v=657" />
 </head>
 
 <body class="admin-page">
@@ -63,7 +64,7 @@
   <nav class="admin-page-tabs" aria-label="菜單後台分頁">
     <button class="admin-tab-btn active" type="button" data-admin-tab="categoryAdminTab">分類管理</button>
     <button class="admin-tab-btn" type="button" data-admin-tab="itemAdminTab">菜單列表</button>
-    <button class="admin-tab-btn" type="button" data-admin-tab="addItemAdminTab">新增餐點</button>
+    <button id="openNewItemModalBtn" class="admin-tab-btn admin-add-item-btn" type="button">＋ 新增餐點</button>
     <button class="admin-tab-btn" type="button" data-admin-tab="optionAdminTab">餐點選項</button>
     <button class="admin-tab-btn" type="button" data-admin-tab="templateAdminTab">選項範本</button>
     <button class="admin-tab-btn" type="button" data-admin-tab="mediaAdminTab">圖片/其他設定</button>
@@ -265,16 +266,11 @@
       }
       function bindTap(el, fn) {
         if (!el) return;
-        var lastTouchAt = 0;
         function run(e) {
-          var now = Date.now ? Date.now() : new Date().getTime();
-          if (e && e.type === "touchend") lastTouchAt = now;
-          if (e && e.type === "click" && now - lastTouchAt < 500) return;
           if (e && e.preventDefault) e.preventDefault();
           fn(e);
         }
         el.addEventListener("click", run, false);
-        el.addEventListener("touchend", run, false);
       }
       function switchAdminTab(tabId) {
         if (!tabId) return;
@@ -320,6 +316,6 @@
       if (el) el.className += " hidden";
     }, false);
   </script>
-  <script type="module" src="./js/admin.js?v=656"></script>
+  <script type="module" src="./js/admin.js?v=657"></script>
 </body>
 </html>

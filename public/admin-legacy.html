@@ -6,7 +6,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>恩點菜單後台</title>
-  <link rel="stylesheet" href="./css/admin-legacy.css?v=654" />
+  <link rel="stylesheet" href="./css/admin-legacy.css?v=657" />
 </head>
 <body class="legacy-admin-page">
   <header class="legacy-topbar">
@@ -18,7 +18,7 @@
 
   <nav class="legacy-tabs" id="legacyTabs">
     <button type="button" data-tab="menu" class="active">菜單列表</button>
-    <button type="button" data-tab="item">新增餐點</button>
+    <button id="legacyOpenNewItemBtn" type="button" class="primary">＋ 新增餐點</button>
     <button type="button" data-tab="options">餐點選項</button>
     <button type="button" data-tab="templates">範本管理</button>
     <button type="button" data-tab="categories">分類管理</button>
@@ -39,6 +39,7 @@
     <section id="itemPanel" class="legacy-panel">
       <div class="legacy-panel-head">
         <h2 id="legacyItemTitle">新增餐點</h2>
+        <button id="legacyCloseItemBtn" type="button" aria-label="關閉">×</button>
       </div>
       <form id="legacyItemForm" class="legacy-form">
         <label>餐點名稱<input id="legacyItemName" type="text" /></label>
@@ -101,6 +102,6 @@
 
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-  <script src="./js/admin-legacy.js?v=654"></script>
+  <script src="./js/admin-legacy.js?v=657"></script>
 </body>
 </html>

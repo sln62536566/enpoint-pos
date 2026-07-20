@@ -446,17 +446,15 @@
   }
 
   function renderMenuItemCard(item) {
+    var image = item.image || item.imageUrl || "";
     return '<article class="legacy-row-card ' + (item.enabled === false ? "disabled" : "") + '">' +
-      '<h3>' + escapeHtml(item.name || "未命名餐點") + '</h3>' +
-      '<p>' + escapeHtml(item.category || "未分類") + '｜NT$' + Number(item.price || 0) + '</p>' +
-      '<p>' + (item.enabled === false ? "下架" : "上架") + (item.soldOut === true || item.paused === true ? "｜今日售完" : "") + '</p>' +
+      '<div class="legacy-sort-zone"><span>☰</span><button type="button" data-action="moveItemUp" data-id="' + escapeHtml(item.id) + '" aria-label="上移">↑</button><button type="button" data-action="moveItemDown" data-id="' + escapeHtml(item.id) + '" aria-label="下移">↓</button></div>' +
+      '<div class="legacy-item-thumb">' + (image ? '<img src="' + escapeHtml(image) + '" alt="">' : '<span>恩點</span>') + '</div>' +
+      '<div class="legacy-item-summary"><h3>' + escapeHtml(item.name || "未命名餐點") + '</h3>' +
+      '<p>NT$' + Number(item.price || 0) + '</p></div>' +
+      '<button type="button" class="legacy-status-btn" data-action="toggleItem" data-id="' + escapeHtml(item.id) + '">' + (item.enabled === false ? "下架" : (item.soldOut === true || item.paused === true ? "上架｜售完" : "上架")) + '</button>' +
       '<div class="legacy-card-actions">' +
-      '<button type="button" data-action="editItem" data-id="' + escapeHtml(item.id) + '">編輯</button>' +
-      '<button type="button" data-action="toggleItem" data-id="' + escapeHtml(item.id) + '">' + (item.enabled === false ? "上架" : "下架") + '</button>' +
-      '<button type="button" data-action="soldOutItem" data-id="' + escapeHtml(item.id) + '">' + (item.soldOut === true || item.paused === true ? "恢復販售" : "今日售完") + '</button>' +
-      '</div><div class="legacy-card-actions secondary">' +
-      '<button type="button" data-action="moveItemUp" data-id="' + escapeHtml(item.id) + '">上移</button>' +
-      '<button type="button" data-action="moveItemDown" data-id="' + escapeHtml(item.id) + '">下移</button>' +
+      '<button type="button" data-action="editItem" data-id="' + escapeHtml(item.id) + '">修改</button>' +
       '<button type="button" class="danger" data-action="deleteItem" data-id="' + escapeHtml(item.id) + '">刪除</button>' +
       '</div></article>';
   }
@@ -717,6 +715,7 @@
 
   function saveItem(event) {
     if (event && event.preventDefault) event.preventDefault();
+    if (state.itemSaving) return false;
     var id = state.editingItemId || firebasePushKey("menu");
     var oldItem = state.editingItemId ? (getMenuMap()[state.editingItemId] || {}) : {};
     var item = copyObject(oldItem);
@@ -737,10 +736,15 @@
       alert("請輸入餐點名稱");
       return false;
     }
+    state.itemSaving = true;
+    $("legacySaveItemBtn").disabled = true;
     db.ref("menu/" + id).update(item, function(error) {
+      state.itemSaving = false;
+      $("legacySaveItemBtn").disabled = false;
       if (error) return showSaveError("餐點儲存失敗", error);
       resetItemForm();
       setActiveTab("menu");
+      removeClass(document.body, "legacy-lock");
     });
     return false;
   }
@@ -762,6 +766,7 @@
     $("legacyItemTemplateSelect").value = "";
     renderOptionPickers();
     setActiveTab("item");
+    addClass(document.body, "legacy-lock");
   }
 
   function handleMenuAction(btn) {
@@ -1296,16 +1301,9 @@
   function handleDelegatedTap(event) {
     var btn;
     var action;
-    var t = now();
     event = event || window.event;
-    if (event.type === "touchend") {
-      state.lastTouchAt = t;
-    } else if (event.type === "click" && state.lastTouchAt && t - state.lastTouchAt < 500) {
-      return;
-    }
     btn = findButton(event.target || event.srcElement);
     if (!btn || btn.disabled) return;
-    if (event.type === "touchend" && event.preventDefault) event.preventDefault();
     action = btn.getAttribute("data-action") || "";
     if (btn.getAttribute("data-tab")) return setActiveTab(btn.getAttribute("data-tab"));
     if (btn.getAttribute("data-category")) {
@@ -1317,7 +1315,18 @@
     if (btn.id === "legacyAddGroupBtn") return openGroupModal("");
     if (btn.id === "legacyAddTemplateBtn") return openTemplateModal("");
     if (btn.id === "legacyAddCategoryBtn") return openCategoryModal("");
-    if (btn.id === "legacyResetItemBtn") return resetItemForm();
+    if (btn.id === "legacyOpenNewItemBtn") {
+      resetItemForm();
+      setActiveTab("item");
+      addClass(document.body, "legacy-lock");
+      return;
+    }
+    if (btn.id === "legacyResetItemBtn" || btn.id === "legacyCloseItemBtn") {
+      resetItemForm();
+      setActiveTab("menu");
+      removeClass(document.body, "legacy-lock");
+      return;
+    }
     if (btn.id === "legacySaveItemBtn") return saveItem(event);
     if (btn.id === "legacyModalCloseBtn" || btn.id === "legacyCancelModalBtn") return closeModal();
     if (btn.id === "legacyApplyTemplateBtn") return applyTemplateToItem($("legacyItemTemplateSelect").value);
@@ -1336,7 +1345,6 @@
 
   function initEvents() {
     document.addEventListener("click", handleDelegatedTap, false);
-    document.addEventListener("touchend", handleDelegatedTap, false);
     $("legacyItemForm").onsubmit = saveItem;
     $("legacyMenuSearch").oninput = renderMenu;
     $("legacyItemCategory").onchange = function() {
@@ -1348,6 +1356,7 @@
     setStatus("正在讀取 Firebase 資料……", false);
     initEvents();
     resetItemForm();
+    document.body.appendChild($("itemPanel"));
     initFirebase();
   }
 
