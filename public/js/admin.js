@@ -61,7 +61,7 @@ const categoryManagerList = document.getElementById("categoryManagerList");
 const menuSearchInput = document.getElementById("menuSearchInput");
 const categoryFilterList = document.getElementById("categoryFilterList");
 const menuList = document.getElementById("menuList");
-const adminTabButtons = document.querySelectorAll(".admin-tab-btn");
+const adminTabButtons = document.querySelectorAll("[data-admin-tab]");
 const adminTabPanels = document.querySelectorAll(".admin-tab-panel");
 const adminSharedActions = document.getElementById("adminSharedActions");
 const itemTemplateSelect = document.getElementById("itemTemplateSelect");
@@ -316,6 +316,7 @@ function initAdminV63Ux() {
   }
 
   openNewItemModalBtn = document.getElementById("openNewItemModalBtn");
+  if (openNewItemModalBtn) openNewItemModalBtn.textContent = "＋ 新增餐點";
 
   if (itemEditorModal) {
     itemEditorModal.classList.add("item-editor-modal", "hidden");

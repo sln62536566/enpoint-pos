@@ -46,7 +46,7 @@
   </script>
   <link rel="manifest" href="./manifest.json" />
   <link rel="stylesheet" href="./css/style.css?v=656" />
-  <link rel="stylesheet" href="./css/admin.css?v=659" />
+  <link rel="stylesheet" href="./css/admin.css?v=660" />
 </head>
 
 <body class="admin-page">
@@ -64,7 +64,7 @@
   <nav class="admin-page-tabs" aria-label="菜單後台分頁">
     <button class="admin-tab-btn active" type="button" data-admin-tab="categoryAdminTab">分類管理</button>
     <button class="admin-tab-btn" type="button" data-admin-tab="itemAdminTab">菜單列表</button>
-    <button id="openNewItemModalBtn" class="admin-tab-btn admin-add-item-btn" type="button">＋ 新增餐點</button>
+    <button id="openNewItemModalBtn" class="admin-add-item-btn" type="button">＋ 新增餐點</button>
     <button class="admin-tab-btn" type="button" data-admin-tab="optionAdminTab">餐點選項</button>
     <button class="admin-tab-btn" type="button" data-admin-tab="templateAdminTab">選項範本</button>
     <button class="admin-tab-btn" type="button" data-admin-tab="mediaAdminTab">圖片/其他設定</button>
@@ -274,7 +274,7 @@
       }
       function switchAdminTab(tabId) {
         if (!tabId) return;
-        var buttons = document.querySelectorAll(".admin-tab-btn");
+        var buttons = document.querySelectorAll("[data-admin-tab]");
         var panels = document.querySelectorAll(".admin-tab-panel");
         var found = false;
         for (var i = 0; i < panels.length; i += 1) {
@@ -293,7 +293,7 @@
         }
       }
       function init() {
-        var buttons = document.querySelectorAll(".admin-tab-btn");
+        var buttons = document.querySelectorAll("[data-admin-tab]");
         for (var i = 0; i < buttons.length; i += 1) {
           bindTap(buttons[i], function(e) {
             var button = e.currentTarget || e.srcElement;
@@ -316,6 +316,6 @@
       if (el) el.className += " hidden";
     }, false);
   </script>
-  <script type="module" src="./js/admin.js?v=659"></script>
+  <script type="module" src="./js/admin.js?v=660"></script>
 </body>
 </html>

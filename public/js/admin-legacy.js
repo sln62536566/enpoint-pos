@@ -343,7 +343,7 @@
   }
 
   function setActiveTab(tabName) {
-    var buttons = document.querySelectorAll("#legacyTabs button");
+    var buttons = document.querySelectorAll("#legacyTabs [data-tab]");
     var panels = document.querySelectorAll(".legacy-panel");
     var i;
     state.activeTab = tabName;
@@ -1398,6 +1398,7 @@
   }
 
   function init() {
+    if ($("legacyOpenNewItemBtn")) $("legacyOpenNewItemBtn").textContent = "＋ 新增餐點";
     setStatus("正在讀取 Firebase 資料……", false);
     initEvents();
     resetItemForm();
