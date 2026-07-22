@@ -30,7 +30,7 @@ import {
   configureSoundCenter,
   getSoundCenterSettings,
   unlockSoundCenter
-} from "./sound-center.js";
+} from "./sound-center.js?v=sound-phase-1";
 
 import { PrinterCenter } from "./printer-center.js";
 import { PrinterProfile } from "./printer-profile.js";
@@ -47,6 +47,13 @@ window.posOpenFoodById = function (itemId, event) {
     if (event.stopPropagation) event.stopPropagation();
   }
   if (!itemId) return false;
+
+  var latestMenuItem = menuData[String(itemId)];
+  if (!latestMenuItem || latestMenuItem.enabled === false) return false;
+  if (!canPosOrderItem(latestMenuItem)) {
+    showMenuStatusError("今日售完");
+    return false;
+  }
 
   var now = Date.now ? Date.now() : new Date().getTime();
   if (lastFoodOpenId === String(itemId) && now - lastFoodOpenAt < 1200) {
@@ -347,6 +354,7 @@ onValue(customGroupsRef, snapshot => {
 onValue(ordersRef, snapshot => {
   const nextOrdersData = snapshot.exists() ? snapshot.val() : {};
   safePosInit("orders", function() {
+    processOrderSoundTransitions(nextOrdersData);
     processNewQrOrderSound(nextOrdersData);
     ordersData = nextOrdersData;
     renderAllOrders();
@@ -491,7 +499,9 @@ function normalizeQrValidMinutes(value) {
 
 function readSoundTypeSetting(key, fallback) {
   var value = localStorage.getItem(key) || fallback;
-  return isValidSoundType(value) ? value : fallback;
+  var normalized = normalizePosSoundType(value);
+  if (normalized !== value) localStorage.setItem(key, normalized);
+  return normalized;
 }
 
 function readRepeatMaxCountSetting() {
@@ -517,23 +527,34 @@ function isValidSoundType(value) {
     value === "cafe" ||
     value === "modern" ||
     value === "night-market" ||
-    value === "harmony" ||
-    value === "breeze" ||
-    value === "bell" ||
-    value === "pulse" ||
-    value === "warm" ||
-    value === "bright" ||
-    value === "pro" ||
-    value === "kitchen" ||
-    value === "short" ||
-    value === "double" ||
-    value === "dingdong" ||
-    value === "urgent" ||
-    value === "triple" ||
-    value === "doorbell" ||
-    value === "fastDingdong" ||
-    value === "longShort" ||
-    value === "rapidShort";
+    value === "high-tone-double" ||
+    value === "fast-triple" ||
+    value === "kitchen-alert" ||
+    value === "long-bell";
+}
+
+function normalizePosSoundType(value) {
+  var legacyThemes = {
+    warm: "restaurant",
+    bright: "modern",
+    pro: "cafe",
+    kitchen: "night-market",
+    harmony: "restaurant",
+    breeze: "modern",
+    bell: "cafe",
+    pulse: "night-market",
+    short: "classic",
+    double: "high-tone-double",
+    dingdong: "restaurant",
+    urgent: "kitchen-alert",
+    triple: "fast-triple",
+    doorbell: "restaurant",
+    fastDingdong: "modern",
+    longShort: "long-bell",
+    rapidShort: "fast-triple"
+  };
+  var normalized = legacyThemes[value] || value;
+  return isValidSoundType(normalized) ? normalized : "classic";
 }
 
 function loadSettings() {
@@ -661,14 +682,17 @@ function watchSharedSettings() {
     saveSetting("enableSound", enabled);
     setSwitchState(enableSoundToggle, enabled);
     if (!enabled) stopOrderAlertSound();
+    syncSoundCenterSettings();
   });
 
   onValue(soundTypeRef, snapshot => {
     const value = snapshot && snapshot.exists && snapshot.exists() ? String(snapshot.val() || "") : "";
-    if (!isValidSoundType(value) || value === posSettings.soundType) return;
-    posSettings.soundType = value;
-    saveSetting("soundType", value);
-    if (soundTypeSelect && document.activeElement !== soundTypeSelect) soundTypeSelect.value = value;
+    if (!value) return;
+    const normalized = normalizePosSoundType(value);
+    if (normalized === posSettings.soundType) return;
+    posSettings.soundType = normalized;
+    saveSetting("soundType", normalized);
+    if (soundTypeSelect && document.activeElement !== soundTypeSelect) soundTypeSelect.value = normalized;
     renderSoundCenterControlsV656();
     syncSoundCenterSettings();
   });
@@ -727,12 +751,21 @@ function renderSoundVolume() {
 }
 
 function unlockPosOrderSound() {
-  unlockSoundCenter();
+  return unlockSoundCenter();
 }
 
 function initPosOrderSoundUnlock() {
-  var unlockOnce = function() {
-    unlockPosOrderSound();
+  var unlocking = false;
+  var lastTouchAt = 0;
+  var unlockOnce = async function(event) {
+    var now = Date.now ? Date.now() : new Date().getTime();
+    if (event && event.type === "touchend") lastTouchAt = now;
+    if (event && event.type === "click" && now - lastTouchAt < 700) return;
+    if (unlocking) return;
+    unlocking = true;
+    var success = await unlockPosOrderSound();
+    unlocking = false;
+    if (!success) return;
     document.removeEventListener("click", unlockOnce, false);
     document.removeEventListener("touchend", unlockOnce, false);
   };
@@ -803,6 +836,26 @@ function isOrderStillAwaitingAttention(order) {
     paymentStatus !== "cancelled";
 }
 
+function isOrderCookingForSound(order) {
+  if (!order) return false;
+  var status = String(order.status || "").toLowerCase();
+  var kitchenStatus = String(order.kitchenStatus || "").toLowerCase();
+  return status === "cooking" || kitchenStatus === "cooking";
+}
+
+function processOrderSoundTransitions(nextOrdersData) {
+  if (!orderSoundReady) return;
+  Object.keys(nextOrdersData || {}).forEach(function(orderId) {
+    var previous = ordersData && ordersData[orderId];
+    var next = nextOrdersData[orderId];
+    if (!previous || !next || isTestOrder(next)) return;
+    if (!isPaid(previous) && isPaid(next)) playSound("payment");
+    if (!isOrderCookingForSound(previous) && isOrderCookingForSound(next)) playSound("cooking");
+    if (!isDone(previous) && isDone(next)) playSound("done");
+    if (!isCancelled(previous) && isCancelled(next)) playSound("cancel");
+  });
+}
+
 function reconcilePendingOrderAlerts() {
   var hasPending = false;
   Object.keys(pendingAlertOrderIds).forEach(function(orderId) {
@@ -861,7 +914,11 @@ function rebuildSoundTypeOptions() {
     '<option value="restaurant">餐廳</option>',
     '<option value="cafe">咖啡館</option>',
     '<option value="modern">現代</option>',
-    '<option value="night-market">夜市</option>'
+    '<option value="night-market">夜市</option>',
+    '<option value="high-tone-double">高音雙響</option>',
+    '<option value="fast-triple">急促三響</option>',
+    '<option value="kitchen-alert">廚房警示音</option>',
+    '<option value="long-bell">長鈴提醒</option>'
   ].join("");
   soundTypeSelect.setAttribute("data-v655-ready", "true");
 }
@@ -929,16 +986,9 @@ function renderSettings() {
   if (qrValidMinutesInput) qrValidMinutesInput.value = String(normalizeQrValidMinutes(posSettings.qrValidMinutes));
   if (orderLookupMinutesInput) orderLookupMinutesInput.value = String(normalizeOrderLookupMinutes(posSettings.orderLookupMinutes));
   rebuildSoundTypeOptions();
-  if (posSettings.soundType === "warm") posSettings.soundType = "harmony";
-  if (posSettings.soundType === "bright") posSettings.soundType = "breeze";
-  if (posSettings.soundType === "pro") posSettings.soundType = "bell";
-  if (posSettings.soundType === "kitchen") posSettings.soundType = "pulse";
-  if (posSettings.soundType === "harmony") posSettings.soundType = "restaurant";
-  if (posSettings.soundType === "breeze") posSettings.soundType = "modern";
-  if (posSettings.soundType === "bell") posSettings.soundType = "cafe";
-  if (posSettings.soundType === "pulse") posSettings.soundType = "night-market";
-  if (posSettings.soundType !== "classic" && posSettings.soundType !== "restaurant" && posSettings.soundType !== "cafe" && posSettings.soundType !== "modern" && posSettings.soundType !== "night-market") {
-    posSettings.soundType = "classic";
+  var normalizedSoundType = normalizePosSoundType(posSettings.soundType);
+  if (normalizedSoundType !== posSettings.soundType) {
+    posSettings.soundType = normalizedSoundType;
     saveSetting("soundType", posSettings.soundType);
   }
   if (soundTypeSelect) soundTypeSelect.value = posSettings.soundType || defaultSettings.soundType;
@@ -1172,6 +1222,7 @@ function renderPrinterProfileStatus(card, profile) {
 }
 
 function showPrinterError(error) {
+  playSound("print-fail");
   alert(error && error.message ? error.message : "列印失敗");
 }
 
@@ -1310,9 +1361,13 @@ function bindSoundCenterControls() {
     (function(button) {
       if (button.getAttribute("data-bound") === "true") return;
       button.setAttribute("data-bound", "true");
-      addLegacyTapListener(button, function(event) {
+      addLegacyTapListener(button, async function(event) {
         if (event && event.preventDefault) event.preventDefault();
-        unlockPosOrderSound();
+        var success = await unlockPosOrderSound();
+        if (!success) {
+          showMenuStatusError("音效啟動失敗，請再點一次");
+          return;
+        }
         playSound(button.getAttribute("data-sound-test"), { force: true, ignoreSilentHours: true });
       });
     })(testButtons[j]);
@@ -1325,7 +1380,11 @@ function getSoundThemeLabel(theme) {
     restaurant: "餐廳",
     cafe: "咖啡館",
     modern: "現代",
-    "night-market": "夜市"
+    "night-market": "夜市",
+    "high-tone-double": "高音雙響",
+    "fast-triple": "急促三響",
+    "kitchen-alert": "廚房警示音",
+    "long-bell": "長鈴提醒"
   };
   return labels[theme] || labels.classic;
 }
@@ -1344,7 +1403,7 @@ function buildSoundCenterPanelV656() {
   card.innerHTML = '<div class="settings-card-title"><span>🔔 音效中心</span><small>音量、音效主題、試聽、重複提醒與靜音時段。</small></div>' +
     '<div class="sound-center-control-stack">' +
       '<label class="sound-center-field sound-volume-field"><span>音量</span><div class="sound-volume-readout"><b>0%</b><span id="soundCenterVolumeValue">100%</span><b>200%</b></div><input id="soundCenterVolumeInput" class="settings-input settings-range-input" type="range" min="0" max="200" step="25" /></label>' +
-      '<label class="sound-center-field"><span>音效主題</span><select id="soundThemeSelect" class="settings-input"><option value="classic">經典</option><option value="restaurant">餐廳</option><option value="cafe">咖啡館</option><option value="modern">現代</option><option value="night-market">夜市</option></select></label>' +
+      '<label class="sound-center-field"><span>音效主題</span><select id="soundThemeSelect" class="settings-input"><option value="classic">經典</option><option value="restaurant">餐廳</option><option value="cafe">咖啡館</option><option value="modern">現代</option><option value="night-market">夜市</option><option value="high-tone-double">高音雙響</option><option value="fast-triple">急促三響</option><option value="kitchen-alert">廚房警示音</option><option value="long-bell">長鈴提醒</option></select></label>' +
     '</div>' +
     '<div class="sound-event-list sound-pack-event-list" id="soundEventList">' +
       events.map(function(item) {
@@ -1492,9 +1551,13 @@ function bindSoundCenterControlsV656() {
     (function(button) {
       if (button.getAttribute("data-bound") === "true") return;
       button.setAttribute("data-bound", "true");
-      addLegacyTapListener(button, function(event) {
+      addLegacyTapListener(button, async function(event) {
         if (event && event.preventDefault) event.preventDefault();
-        unlockPosOrderSound();
+        var success = await unlockPosOrderSound();
+        if (!success) {
+          showMenuStatusError("音效啟動失敗，請再點一次");
+          return;
+        }
         playSound(button.getAttribute("data-sound-test"), { force: true, ignoreSilentHours: true });
       });
     })(testButtons[j]);
@@ -2668,22 +2731,7 @@ function escapeInlineValue(value) {
 }
 
 function renderPosFoodButtonV64(item) {
-  var imageUrl = getImageUrl(item);
-  var safeId = escapeInlineValue(item.id);
-  var displayName = item.name || "未命名餐點";
-
-  return `
-    <button type="button" class="pos-food-btn pos-food-real-btn" data-id="${item.id}">
-      <div class="food-img">
-        ${imageUrl ? `<img src="${imageUrl}" alt="${displayName}">` : `<span>恩點</span>`}
-      </div>
-
-      <div class="food-info">
-        <strong>${displayName}</strong>
-        <b>${money(getBasePrice(item))}</b>
-      </div>
-    </button>
-  `;
+  return renderPosFoodButtonV649(item);
 }
 
 function bindPosLegacySelectButtons() {
@@ -3832,6 +3880,11 @@ async function submitOrderCore(options) {
 
     await set(newOrderRef, order);
 
+    if (!isTestMode && isPaidMode) {
+      playSound("payment");
+      if (isOrderCookingForSound(order)) playSound("cooking");
+    }
+
     alert((options.successText || "訂單已送出") + "：" + order.customerLabel + "\n單號：" + orderNumber);
 
     cart = [];
@@ -4917,7 +4970,7 @@ function renderPosFoodButtonV649(item) {
   var displayName = item.name || "餐點";
   var saleStatus = getSaleStatus(item);
   return '' +
-    '<button type="button" class="pos-food-btn pos-food-real-btn sale-' + saleStatus + '" data-id="' + escapeHtml(item.id) + '">' +
+    '<button type="button" class="pos-food-btn pos-food-real-btn sale-' + saleStatus + '" data-id="' + escapeHtml(item.id) + '" aria-disabled="' + (saleStatus !== "normal") + '">' +
       '<div class="food-img">' + (imageUrl ? '<img src="' + escapeHtml(imageUrl) + '" alt="' + escapeHtml(displayName) + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'"><span class="meal-image-placeholder" style="display:none">' + MENU_IMAGE_PLACEHOLDER_ICON + '</span>' : '<span class="meal-image-placeholder">' + MENU_IMAGE_PLACEHOLDER_ICON + '</span>') + '</div>' +
       '<div class="food-info"><strong>' + escapeHtml(displayName) + '</strong><b>' + money(getBasePrice(item)) + '</b><span class="pos-sale-status">' + getSaleStatusText(item) + '</span></div>' +
     '</button>';
@@ -5275,9 +5328,13 @@ if (soundVolumeInput) {
 }
 
 if (testSoundBtn) {
-  addLegacyTapListener(testSoundBtn, function(event) {
+  addLegacyTapListener(testSoundBtn, async function(event) {
     if (event && event.preventDefault) event.preventDefault();
-    unlockPosOrderSound();
+    var success = await unlockPosOrderSound();
+    if (!success) {
+      showMenuStatusError("音效啟動失敗，請再點一次");
+      return;
+    }
     playNewQrOrderBeep(true);
   });
 }
@@ -5432,7 +5489,7 @@ window.posOpenFoodById = function (itemId, event) {
 
   var latestMenuItem = menuData[String(itemId)];
   if (!latestMenuItem || latestMenuItem.enabled === false) return false;
-  if (getSaleStatus(latestMenuItem) !== "normal") {
+  if (!canPosOrderItem(latestMenuItem)) {
     showMenuStatusError("今日售完");
     return false;
   }

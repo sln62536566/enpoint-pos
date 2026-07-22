@@ -94,12 +94,61 @@ const SOUND_PACKS = {
       cancel: [[466, 0, 0.14, 0.7], [349, 0.2, 0.22, 0.6]],
       error: [[1047, 0, 0.1, 0.96], [659, 0.16, 0.16, 0.84], [1047, 0.36, 0.1, 0.96]]
     }
+  },
+  "high-tone-double": {
+    label: "高音雙響",
+    events: {
+      "new-order": [[1319, 0, 0.14, 1], [1760, 0.2, 0.18, 0.94]],
+      payment: [[1175, 0, 0.12, 0.76], [1568, 0.18, 0.16, 0.82]],
+      cooking: [[1047, 0, 0.14, 0.74], [1397, 0.2, 0.16, 0.7]],
+      done: [[1397, 0, 0.14, 0.78], [1865, 0.2, 0.2, 0.76]],
+      cancel: [[659, 0, 0.16, 0.68], [523, 0.22, 0.2, 0.6]],
+      error: [[1568, 0, 0.12, 0.94], [988, 0.18, 0.18, 0.84], [1568, 0.42, 0.12, 0.94]]
+    }
+  },
+  "fast-triple": {
+    label: "急促三響",
+    events: {
+      "new-order": [[1175, 0, 0.09, 1], [1175, 0.13, 0.09, 1], [1568, 0.26, 0.13, 0.94]],
+      payment: [[880, 0, 0.09, 0.78], [1047, 0.13, 0.09, 0.8], [1319, 0.26, 0.14, 0.84]],
+      cooking: [[988, 0, 0.09, 0.82], [988, 0.13, 0.09, 0.82], [740, 0.26, 0.16, 0.72]],
+      done: [[1047, 0, 0.09, 0.8], [1319, 0.13, 0.09, 0.78], [1760, 0.26, 0.16, 0.74]],
+      cancel: [[587, 0, 0.1, 0.72], [466, 0.14, 0.1, 0.66], [349, 0.28, 0.18, 0.58]],
+      error: [[1397, 0, 0.08, 0.96], [1397, 0.12, 0.08, 0.96], [880, 0.25, 0.16, 0.86]]
+    }
+  },
+  "kitchen-alert": {
+    label: "廚房警示音",
+    events: {
+      "new-order": [[932, 0, 0.12, 1], [698, 0.16, 0.16, 0.9], [932, 0.38, 0.12, 1]],
+      payment: [[698, 0, 0.14, 0.78], [932, 0.2, 0.16, 0.82]],
+      cooking: [[784, 0, 0.11, 0.9], [1047, 0.15, 0.11, 0.86], [784, 0.3, 0.18, 0.82]],
+      done: [[698, 0, 0.14, 0.8], [1047, 0.2, 0.22, 0.78]],
+      cancel: [[494, 0, 0.16, 0.74], [330, 0.22, 0.24, 0.64]],
+      error: [[988, 0, 0.1, 1], [622, 0.14, 0.18, 0.9], [988, 0.38, 0.1, 1]]
+    }
+  },
+  "long-bell": {
+    label: "長鈴提醒",
+    events: {
+      "new-order": [[880, 0, 0.62, 0.92], [1175, 0.1, 0.68, 0.72]],
+      payment: [[659, 0, 0.38, 0.7], [988, 0.08, 0.44, 0.66]],
+      cooking: [[740, 0, 0.44, 0.76], [932, 0.08, 0.5, 0.68]],
+      done: [[784, 0, 0.48, 0.72], [1175, 0.1, 0.54, 0.66]],
+      cancel: [[466, 0, 0.42, 0.66], [330, 0.12, 0.48, 0.58]],
+      error: [[988, 0, 0.36, 0.9], [622, 0.1, 0.46, 0.8], [988, 0.58, 0.24, 0.88]]
+    }
   }
 };
 
 let audioContext = null;
 let soundSettings = loadSoundCenterSettings();
 let unlocked = false;
+let unlockPromise = null;
+let safariAudioUnlocked = false;
+let playQueue = [];
+let queueBusy = false;
+const QUEUE_GAP_MS = 120;
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -157,24 +206,75 @@ function saveSoundCenterSettings(settings) {
   return getSoundCenterSettings();
 }
 
-function getContext() {
+function getOrCreateAudioContext() {
   if (audioContext) return audioContext;
   const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContextCtor) return null;
-  try {
-    audioContext = new AudioContextCtor();
-  } catch (error) {
-    audioContext = null;
-  }
+  if (!AudioContextCtor) throw new Error("此瀏覽器不支援 Web Audio API");
+  audioContext = new AudioContextCtor();
   return audioContext;
 }
 
+function unlockSafariAudio(context) {
+  if (safariAudioUnlocked) return Promise.resolve(true);
+  return new Promise(function(resolve) {
+    var settled = false;
+    var finish = function() {
+      if (settled) return;
+      settled = true;
+      safariAudioUnlocked = true;
+      resolve(true);
+    };
+    try {
+      if (!context.createBuffer || !context.createBufferSource) {
+        finish();
+        return;
+      }
+      var buffer = context.createBuffer(1, 1, 22050);
+      var source = context.createBufferSource();
+      source.buffer = buffer;
+      source.connect(context.destination);
+      source.onended = finish;
+      source.start(0);
+      window.setTimeout(finish, 100);
+    } catch (error) {
+      console.warn("Safari audio unlock skipped:", error);
+      finish();
+    }
+  });
+}
+
 function unlockSoundCenter() {
-  const context = getContext();
-  if (context && context.state === "suspended" && context.resume) {
-    context.resume().catch(function() {});
+  if (unlockPromise) return unlockPromise;
+  var context;
+  try {
+    context = getOrCreateAudioContext();
+  } catch (error) {
+    unlocked = false;
+    console.error("Sound Center unlock error:", error);
+    return Promise.resolve(false);
   }
-  unlocked = true;
+  unlockPromise = (async function() {
+    try {
+      if (context.state === "suspended" && context.resume) await context.resume();
+      if (context.state !== "running") {
+        unlocked = false;
+        console.error("Sound Center unlock failed:", context.state);
+        return false;
+      }
+      unlocked = true;
+      await unlockSafariAudio(context);
+      drainPlayQueue();
+      return true;
+    } catch (error) {
+      unlocked = false;
+      console.error("Sound Center unlock error:", error);
+      return false;
+    }
+  })().then(function(result) {
+    unlockPromise = null;
+    return result;
+  });
+  return unlockPromise;
 }
 
 function minutesFromTime(value) {
@@ -208,20 +308,41 @@ function playTone(context, frequency, start, duration, volume) {
   oscillator.stop(start + duration + 0.03);
 }
 
+function getPatternDurationMs(pattern) {
+  var seconds = 0;
+  pattern.forEach(function(tone) {
+    seconds = Math.max(seconds, Number(tone[1] || 0) + Number(tone[2] || 0));
+  });
+  return Math.max(80, Math.ceil(seconds * 1000));
+}
+
+function drainPlayQueue() {
+  if (queueBusy || !playQueue.length) return;
+  const context = audioContext;
+  if (!unlocked || !context || context.state !== "running") return;
+
+  const job = playQueue.shift();
+  queueBusy = true;
+  try {
+    const now = context.currentTime || 0;
+    job.pattern.forEach(function(tone) {
+      playTone(context, tone[0], now + tone[1], tone[2], job.baseVolume * tone[3]);
+    });
+  } catch (error) {
+    console.warn("恩點音效中心播放失敗", error);
+  }
+
+  window.setTimeout(function() {
+    queueBusy = false;
+    drainPlayQueue();
+  }, getPatternDurationMs(job.pattern) + QUEUE_GAP_MS);
+}
+
 function play(eventName, options) {
   const opts = options || {};
   const settings = soundSettings || loadSoundCenterSettings();
   if (settings.enabled !== true && opts.force !== true) return false;
   if (isInSilentHours() && opts.ignoreSilentHours !== true) return false;
-
-  const context = getContext();
-  if (!context) return false;
-  if (!unlocked) unlockSoundCenter();
-  if (context.state === "suspended") {
-    if (context.resume) context.resume().catch(function() {});
-    if (opts.force !== true) return false;
-  }
-  if (context.state === "suspended") return false;
 
   const eventKey = normalizeEventName(eventName);
   const pack = SOUND_PACKS[settings.theme] || SOUND_PACKS.classic;
@@ -230,20 +351,15 @@ function play(eventName, options) {
   const baseVolume = 0.46 * volumeMultiplier;
   if (baseVolume <= 0) return false;
 
-  try {
-    const now = context.currentTime || 0;
-    pattern.forEach(function(tone) {
-      playTone(context, tone[0], now + tone[1], tone[2], baseVolume * tone[3]);
-    });
-    return true;
-  } catch (error) {
-    console.warn("恩點音效中心播放失敗", error);
-    return false;
-  }
+  playQueue.push({ pattern: pattern, baseVolume: baseVolume });
+  if (unlocked && audioContext && audioContext.state === "running") drainPlayQueue();
+  return true;
 }
 
 function configureSoundCenter(partialSettings) {
-  return saveSoundCenterSettings(Object.assign({}, soundSettings || {}, partialSettings || {}));
+  const next = saveSoundCenterSettings(Object.assign({}, soundSettings || {}, partialSettings || {}));
+  if (next.enabled !== true) playQueue = [];
+  return next;
 }
 
 function getSoundCenterSettings() {
@@ -274,6 +390,29 @@ const SoundCenter = {
 window.SoundCenter = SoundCenter;
 window.EnPointSoundCenter = SoundCenter;
 window.playSound = play;
+
+if (typeof document !== "undefined") {
+  document.addEventListener("visibilitychange", function() {
+    if (!document.hidden && audioContext && audioContext.state !== "running") {
+      unlocked = false;
+      safariAudioUnlocked = false;
+    }
+  }, false);
+}
+if (typeof window !== "undefined") {
+  window.addEventListener("pageshow", function() {
+    if (audioContext && audioContext.state !== "running") {
+      unlocked = false;
+      safariAudioUnlocked = false;
+    }
+  }, false);
+  window.addEventListener("focus", function() {
+    if (audioContext && audioContext.state !== "running") {
+      unlocked = false;
+      safariAudioUnlocked = false;
+    }
+  }, false);
+}
 
 export {
   SoundCenter,
