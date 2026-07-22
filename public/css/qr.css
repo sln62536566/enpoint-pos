@@ -2444,10 +2444,11 @@ body.qr-page.qr-direct-order-mode #topOrderPanel.hidden{
 .app-loading-screen.hidden{display:none}
 .app-loading-box{border:1px solid #f0ce91;background:#fffaf3;border-radius:8px;padding:18px 22px;text-align:center;box-shadow:0 10px 30px rgba(95,61,20,.12)}
 .app-loading-box strong{display:block;font-size:20px;margin-bottom:8px}
-.menu-card.sale-paused,.menu-card.sale-soldout{opacity:.72}
-.menu-card.sale-paused:after,.menu-card.sale-soldout:after{content:"";position:absolute;left:0;top:0;right:0;bottom:0}
+.menu-card.sale-soldout{opacity:.72}
+.menu-card.sale-soldout:after{content:"";position:absolute;left:0;top:0;right:0;bottom:0}
 .qr-sale-status{font-weight:900;color:#b3261e;margin-top:4px}
-.sale-paused .qr-sale-status{color:#9a6a00}
+.menu-image .meal-image-placeholder,.qr-modal-food-image .meal-image-placeholder{width:100%;height:100%;border-radius:inherit;background:#f6e7d3;color:#8b5a2b;align-items:center;justify-content:center;font-weight:900}
+.menu-image .meal-image-placeholder svg,.qr-modal-food-image .meal-image-placeholder svg{width:44%;height:44%;fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
 .v64-custom-groups{border-top:1px solid #ead7bd;margin-top:10px;padding-top:10px}
 .v64-custom-group{margin:8px 0}
 .v64-custom-group h3{font-size:16px;margin:0 0 8px}

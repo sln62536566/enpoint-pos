@@ -482,14 +482,14 @@ function normalizeMenu(raw) {
 function getSaleStatus(item) {
   var status = item && (item.saleStatus || item.posStatus || item.status);
   if (status === "soldout" || status === "sold_out" || status === "todaySoldOut") return "soldout";
-  if (status === "paused" || status === "pause" || status === "suspended") return "paused";
+  if (status === "paused" || status === "pause" || status === "suspended") return "soldout";
+  if (item && (item.soldOut === true || item.paused === true || item.isPaused === true)) return "soldout";
   return "normal";
 }
 
 function getSaleStatusText(item) {
   var status = getSaleStatus(item);
   if (status === "soldout") return "今日售完";
-  if (status === "paused") return "此餐點暫停販售，請稍後再試";
   return "";
 }
 
@@ -508,6 +508,8 @@ function getBasePrice(item) {
 function getImageUrl(item) {
   return item.image || item.imageUrl || item.photo || item.photoUrl || "";
 }
+
+var MENU_IMAGE_PLACEHOLDER_ICON = '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M13 29h38c0 13-8 22-19 22S13 42 13 29Z"/><path d="M10 27h44M20 54h24M25 23c-5-6 4-8 0-14M35 23c-5-6 4-8 0-14M45 23c-5-6 4-8 0-14"/></svg>';
 
 function getCategorySettings() {
   const settings = {};
@@ -801,9 +803,9 @@ function renderQrModalFoodImage(item) {
   box.className = "qr-modal-food-image";
 
   if (imageUrl) {
-    box.innerHTML = '<img src="' + imageUrl + '" alt="餐點圖片">';
+    box.innerHTML = '<img src="' + imageUrl + '" alt="餐點圖片" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'"><div class="qr-modal-no-image meal-image-placeholder" style="display:none">' + MENU_IMAGE_PLACEHOLDER_ICON + '</div>';
   } else {
-    box.innerHTML = '<div class="qr-modal-no-image">恩點</div>';
+    box.innerHTML = '<div class="qr-modal-no-image meal-image-placeholder">' + MENU_IMAGE_PLACEHOLDER_ICON + '</div>';
   }
 
   modalItemName.parentNode.insertBefore(box, modalItemName);
@@ -1868,7 +1870,7 @@ function renderMenuCardV64(item) {
   var saleText = getSaleStatusText(item);
   return '' +
     '<button type="button" class="menu-card sale-' + saleStatus + '" data-id="' + escapeHtml(item.id) + '" ' + (canQrOrderItem(item) ? "" : 'aria-disabled="true"') + '>' +
-      '<div class="menu-image">' + (imageUrl ? '<img src="' + escapeHtml(imageUrl) + '" alt="' + escapeHtml(item.name || "餐點") + '">' : '<div class="no-image">恩點</div>') + '</div>' +
+      '<div class="menu-image">' + (imageUrl ? '<img src="' + escapeHtml(imageUrl) + '" alt="' + escapeHtml(item.name || "餐點") + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'"><div class="no-image meal-image-placeholder" style="display:none">' + MENU_IMAGE_PLACEHOLDER_ICON + '</div>' : '<div class="no-image meal-image-placeholder">' + MENU_IMAGE_PLACEHOLDER_ICON + '</div>') + '</div>' +
       '<div class="menu-info"><h3>' + escapeHtml(item.name || "餐點") + '</h3><p>' + escapeHtml(getItemCategory(item)) + '</p>' +
       (description ? '<p class="qr-menu-desc">' + escapeHtml(description) + '</p>' : '') +
       (requiredOption ? '<p class="qr-required-tag">必選：' + escapeHtml(requiredOption.title) + '</p>' : '') +

@@ -180,9 +180,6 @@ const posMenuManageSearch = document.getElementById("posMenuManageSearch");
 const posMenuManageList = document.getElementById("posMenuManageList");
 const posMenuManageSubtabButtons = document.querySelectorAll("[data-menu-manage-subtab]");
 const posMenuManagePanes = document.querySelectorAll("[data-menu-manage-pane]");
-const restoreMenuStatusBtn = document.getElementById("restoreMenuStatusBtn");
-const restoreSoldoutBtn = document.getElementById("restoreSoldoutBtn");
-const restorePausedBtn = document.getElementById("restorePausedBtn");
 
 /* =========================
    Firebase
@@ -1862,19 +1859,37 @@ function getEnabledItems() {
 function getSaleStatus(item) {
   var status = item && (item.saleStatus || item.posStatus || item.status);
   if (status === "soldout" || status === "sold_out" || status === "todaySoldOut") return "soldout";
-  if (status === "paused" || status === "pause" || status === "suspended") return "paused";
+  if (status === "paused" || status === "pause" || status === "suspended") return "soldout";
+  if (item && (item.soldOut === true || item.paused === true || item.isPaused === true)) return "soldout";
   return "normal";
 }
 
 function getSaleStatusText(item) {
   var status = getSaleStatus(item);
   if (status === "soldout") return "今日售完";
-  if (status === "paused") return "暫停販售";
   return "正常販售";
+}
+
+function buildMenuSaleStatusPatch(action) {
+  var isOffline = action === "offline";
+  return {
+    enabled: !isOffline,
+    saleStatus: action === "soldout" ? "soldout" : "normal",
+    soldOut: null,
+    paused: null,
+    isPaused: null,
+    posStatus: null,
+    status: null,
+    updatedAt: Date.now()
+  };
 }
 
 function canQrOrderItem(item) {
   return getSaleStatus(item) === "normal" && item.enabled !== false;
+}
+
+function canPosOrderItem(item) {
+  return !!item && item.enabled !== false && getSaleStatus(item) === "normal";
 }
 
 function getItemCategory(item) {
@@ -1884,6 +1899,8 @@ function getItemCategory(item) {
 function getImageUrl(item) {
   return item.image || item.imageUrl || item.photo || item.photoUrl || "";
 }
+
+var MENU_IMAGE_PLACEHOLDER_ICON = '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M13 29h38c0 13-8 22-19 22S13 42 13 29Z"/><path d="M10 27h44M20 54h24M25 23c-5-6 4-8 0-14M35 23c-5-6 4-8 0-14M45 23c-5-6 4-8 0-14"/></svg>';
 
 function getBasePrice(item) {
   return Number(item.price || item.smallPrice || item.priceSmall || 0);
@@ -3383,6 +3400,12 @@ customModal.addEventListener("click", event => {
 
 confirmCustomBtn.addEventListener("click", () => {
   if (!currentItem || !selectedPortion) return;
+
+  const latestMenuItem = menuData[currentItem.id];
+  if (!canPosOrderItem(latestMenuItem)) {
+    showMenuStatusError("此餐點剛剛已售完");
+    return;
+  }
   
   const missingCustomGroup = validatePosRequiredCustomGroups(currentItem);
 
@@ -4895,7 +4918,7 @@ function renderPosFoodButtonV649(item) {
   var saleStatus = getSaleStatus(item);
   return '' +
     '<button type="button" class="pos-food-btn pos-food-real-btn sale-' + saleStatus + '" data-id="' + escapeHtml(item.id) + '">' +
-      '<div class="food-img">' + (imageUrl ? '<img src="' + escapeHtml(imageUrl) + '" alt="' + escapeHtml(displayName) + '">' : '<span>恩點</span>') + '</div>' +
+      '<div class="food-img">' + (imageUrl ? '<img src="' + escapeHtml(imageUrl) + '" alt="' + escapeHtml(displayName) + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'"><span class="meal-image-placeholder" style="display:none">' + MENU_IMAGE_PLACEHOLDER_ICON + '</span>' : '<span class="meal-image-placeholder">' + MENU_IMAGE_PLACEHOLDER_ICON + '</span>') + '</div>' +
       '<div class="food-info"><strong>' + escapeHtml(displayName) + '</strong><b>' + money(getBasePrice(item)) + '</b><span class="pos-sale-status">' + getSaleStatusText(item) + '</span></div>' +
     '</button>';
 }
@@ -4962,11 +4985,15 @@ function renderPosMenuManage() {
   var html = "";
   for (var i = 0; i < items.length; i += 1) {
     var item = items[i] || {};
-    html += '<div class="pos-menu-manage-row sale-' + getSaleStatus(item) + '" data-id="' + escapeHtml(item.id) + '">';
-    html += '<div class="pos-menu-manage-main"><strong>' + escapeHtml(item.name || "餐點") + '</strong><span>' + escapeHtml(item.category || "") + '</span><b>' + money(getBasePrice(item)) + '</b><em>' + getSaleStatusText(item) + '</em></div>';
+    var currentStatus = item.enabled === false ? "offline" : getSaleStatus(item);
+    html += '<div class="pos-menu-manage-row status-' + currentStatus + '" data-id="' + escapeHtml(item.id) + '">';
+    var statusLabel = currentStatus === "offline" ? "已下架" : getSaleStatusText(item);
+    var lockAttribute = posMenuStatusLocks[item.id] ? ' disabled aria-busy="true"' : '';
+    html += '<div class="pos-menu-manage-main"><strong>' + escapeHtml(item.name || "餐點") + '</strong><span>' + escapeHtml(item.category || "") + '</span><b>' + money(getBasePrice(item)) + '</b><em>' + statusLabel + '</em></div>';
     html += '<div class="pos-menu-status-actions">';
-    html += '<button type="button" data-action="normal">正常</button><button type="button" data-action="paused">暫停</button><button type="button" data-action="soldout">售完</button>';
-    html += '<button type="button" data-action="up">上移</button><button type="button" data-action="down">下移</button>';
+    html += '<button type="button" class="status-normal' + (currentStatus === "normal" ? ' active' : '') + '" data-action="normal" aria-pressed="' + (currentStatus === "normal") + '"' + lockAttribute + '>正常</button>';
+    html += '<button type="button" class="status-soldout' + (currentStatus === "soldout" ? ' active' : '') + '" data-action="soldout" aria-pressed="' + (currentStatus === "soldout") + '"' + lockAttribute + '>售完</button>';
+    html += '<button type="button" class="status-offline' + (currentStatus === "offline" ? ' active' : '') + '" data-action="offline" aria-pressed="' + (currentStatus === "offline") + '"' + lockAttribute + '>下架</button>';
     html += '</div></div>';
   }
   posMenuManageList.innerHTML = html;
@@ -4989,43 +5016,47 @@ function bindPosMenuManageEvents() {
   }
   var buttons = posMenuManageList.querySelectorAll("button");
   for (var j = 0; j < buttons.length; j += 1) {
-    buttons[j].onclick = function() {
+    buttons[j].onclick = async function() {
       var row = this.parentNode;
       while (row && row.getAttribute && !row.getAttribute("data-id")) row = row.parentNode;
       var id = row && row.getAttribute("data-id");
       var action = this.getAttribute("data-action");
-      if (!id || !menuData[id]) return false;
-      if (action === "enabled") update(ref(db, "menu/" + id), { enabled: menuData[id].enabled === false, updatedAt: Date.now() });
-      if (action === "normal" || action === "paused" || action === "soldout") update(ref(db, "menu/" + id), { saleStatus: action, updatedAt: Date.now() });
-      if (action === "up" || action === "down") moveMenuManageItem(id, action === "up" ? -1 : 1);
+      if (!id || !menuData[id] || this.disabled || posMenuStatusLocks[id]) return false;
+      posMenuStatusLocks[id] = true;
+      var rowButtons = row.querySelectorAll("button");
+      for (var k = 0; k < rowButtons.length; k += 1) rowButtons[k].disabled = true;
+      var previous = menuData[id];
+      var next = buildMenuSaleStatusPatch(action);
+      try {
+        await update(ref(db, "menu/" + id), next);
+      } catch (error) {
+        console.error("餐點販售狀態更新失敗：", error);
+        menuData[id] = previous;
+        renderPosMenuManage();
+        showMenuStatusError("狀態更新失敗，請檢查網路後再試");
+      } finally {
+        delete posMenuStatusLocks[id];
+        renderPosMenuManage();
+      }
       return false;
     };
   }
 }
 
-function moveMenuManageItem(id, direction) {
-  var target = menuData[id];
-  if (!target) return;
-  moveMenuItemByButton(id, target.category || "", direction);
-}
+var posMenuStatusLocks = {};
 
-function restoreMenuStatuses(targetStatus) {
-  var updates = {};
-  var now = Date.now();
-  Object.keys(menuData || {}).forEach(function(id) {
-    var status = getSaleStatus(menuData[id]);
-    if ((targetStatus && status === targetStatus) || (!targetStatus && status !== "normal")) {
-      updates["menu/" + id + "/saleStatus"] = "normal";
-      updates["menu/" + id + "/updatedAt"] = now;
-    }
-  });
-  if (Object.keys(updates).length) update(ref(db), updates);
+function showMenuStatusError(message) {
+  var toast = document.createElement("div");
+  toast.className = "pos-menu-status-toast";
+  toast.setAttribute("role", "status");
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  window.setTimeout(function() {
+    if (toast.parentNode) toast.parentNode.removeChild(toast);
+  }, 2800);
 }
 
 if (posMenuManageSearch) posMenuManageSearch.addEventListener("input", renderPosMenuManage, false);
-if (restoreMenuStatusBtn) restoreMenuStatusBtn.addEventListener("click", function() { restoreMenuStatuses(""); }, false);
-if (restoreSoldoutBtn) restoreSoldoutBtn.addEventListener("click", function() { restoreMenuStatuses("soldout"); }, false);
-if (restorePausedBtn) restorePausedBtn.addEventListener("click", function() { restoreMenuStatuses("paused"); }, false);
 function switchPosMenuManageSubtab(target) {
   var next = target === "studio" ? "studio" : "quick";
   for (var i = 0; i < posMenuManageSubtabButtons.length; i += 1) {
@@ -5388,15 +5419,6 @@ window.selectEditRequiredOption = selectEditRequiredOption;
 ========================= */
 var posLastOpenFoodAt = 0;
 window.posOpenFoodById = function (itemId, event) {
-  var nowTime = new Date().getTime();
-  if (nowTime - posLastOpenFoodAt < 1000) {
-    if (event) {
-      event.preventDefault && event.preventDefault();
-      event.stopPropagation && event.stopPropagation();
-    }
-    return false;
-  }
-  posLastOpenFoodAt = nowTime;
   if (event) {
     if (event.type === "touchend" && typeof posFoodTouchMoved !== "undefined" && posFoodTouchMoved) {
       posFoodTouchMoved = false;
@@ -5407,6 +5429,19 @@ window.posOpenFoodById = function (itemId, event) {
   }
 
   if (!itemId) return false;
+
+  var latestMenuItem = menuData[String(itemId)];
+  if (!latestMenuItem || latestMenuItem.enabled === false) return false;
+  if (getSaleStatus(latestMenuItem) !== "normal") {
+    showMenuStatusError("今日售完");
+    return false;
+  }
+
+  var nowTime = new Date().getTime();
+  if (nowTime - posLastOpenFoodAt < 1000) {
+    return false;
+  }
+  posLastOpenFoodAt = nowTime;
 
   try {
     openCustomModal(String(itemId));

@@ -2371,18 +2371,33 @@ async function toggleItemSoldOut(id) {
 
   if (!item) return;
 
-  const nextSoldOut = !(item.soldOut === true || item.paused === true);
+  const status = item.saleStatus || item.posStatus || item.status;
+  const nextSoldOut = !(
+    item.soldOut === true || item.paused === true || item.isPaused === true ||
+    status === "soldout" || status === "sold_out" || status === "todaySoldOut" ||
+    status === "paused" || status === "pause" || status === "suspended"
+  );
 
   try {
-    await update(ref(db, `menu/${id}`), {
-      soldOut: nextSoldOut,
-      paused: nextSoldOut,
-      updatedAt: Date.now()
-    });
+    await update(ref(db, `menu/${id}`), buildMenuSaleStatusPatch(nextSoldOut ? "soldout" : "normal"));
   } catch (err) {
     console.error("今日售完狀態更新失敗：", err);
     alert("今日售完狀態更新失敗");
   }
+}
+
+function buildMenuSaleStatusPatch(action) {
+  const isOffline = action === "offline";
+  return {
+    enabled: !isOffline,
+    saleStatus: action === "soldout" ? "soldout" : "normal",
+    soldOut: null,
+    paused: null,
+    isPaused: null,
+    posStatus: null,
+    status: null,
+    updatedAt: Date.now()
+  };
 }
 
 async function deleteItem(id) {
@@ -2606,7 +2621,10 @@ function renderMenu() {
 
 function renderMenuCard(item, category) {
   const image = item.image || item.imageUrl || "";
-  const isSoldOut = item.soldOut === true || item.paused === true;
+  const saleStatus = item.saleStatus || item.posStatus || item.status;
+  const isSoldOut = item.soldOut === true || item.paused === true || item.isPaused === true ||
+    saleStatus === "soldout" || saleStatus === "sold_out" || saleStatus === "todaySoldOut" ||
+    saleStatus === "paused" || saleStatus === "pause" || saleStatus === "suspended";
   const statusClass = item.enabled === false ? "off" : (isSoldOut ? "sold-out" : "on");
   const statusText = item.enabled === false ? "已下架" : (isSoldOut ? "本日售完" : "販售中");
 

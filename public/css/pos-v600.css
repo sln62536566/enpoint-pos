@@ -5370,6 +5370,38 @@ body.settings-center-open .settings-center-modal * {
   pointer-events: auto !important;
 }
 
+/* Menu Hotfix Phase 1: quick management has three touch-safe states only. */
+.pos-menu-status-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.pos-menu-status-actions button{flex:1 1 96px;min-height:46px;padding:10px 16px;border:2px solid transparent;border-radius:10px;font-size:16px;font-weight:900;cursor:pointer}
+.pos-menu-status-actions button:disabled{cursor:wait;opacity:.55}
+.pos-menu-status-actions .status-normal{background:#e6f4ea;color:#216e39;border-color:#a9d5b5}
+.pos-menu-status-actions .status-soldout{background:#fff3d8;color:#8a5300;border-color:#efc375}
+.pos-menu-status-actions .status-offline{background:#ece9e4;color:#504a43;border-color:#c9c3bb}
+.pos-menu-status-actions button.active{color:#fff;box-shadow:0 0 0 3px rgba(255,255,255,.18)}
+.pos-menu-status-actions .status-normal.active{background:#258443;border-color:#258443}
+.pos-menu-status-actions .status-soldout.active{background:#d97706;border-color:#d97706}
+.pos-menu-status-actions .status-offline.active{background:#4b4843;border-color:#4b4843}
+.pos-menu-status-toast{position:fixed;z-index:30000;left:50%;bottom:24px;transform:translateX(-50%);max-width:calc(100vw - 32px);padding:12px 18px;border-radius:10px;background:#8a1c13;color:#fff;font-weight:900;box-shadow:0 8px 24px rgba(0,0,0,.24)}
+.food-img .meal-image-placeholder{width:100%;height:100%;border-radius:inherit;background:#f6e7d3;color:#8b5a2b;align-items:center;justify-content:center;font-weight:900}
+.food-img .meal-image-placeholder svg{width:62%;height:62%;fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+
+/* Manual Test Fix 1: POS sold-out feedback and isolated menu-management scroll. */
+.pos-food-btn.sale-soldout{opacity:.58;cursor:not-allowed;filter:saturate(.45)}
+.pos-food-btn.sale-soldout:active{transform:none !important}
+
+.pos-menu-manage-main em{display:inline-block;width:auto;margin-top:5px;padding:4px 9px;border-radius:999px;font-style:normal;font-weight:900;line-height:1.35}
+.pos-menu-manage-row.status-normal .pos-menu-manage-main em{color:#216e39;background:#e6f4ea}
+.pos-menu-manage-row.status-soldout .pos-menu-manage-main em{color:#a63a16;background:#ffeadf}
+.pos-menu-manage-row.status-offline .pos-menu-manage-main em{color:#57514a;background:#e9e5df}
+
+#menuManageTab.active{height:100% !important;min-height:0 !important;overflow:hidden !important}
+#menuManageTab .pos-menu-manage-layout{box-sizing:border-box;height:100% !important;min-height:0 !important;display:flex !important;flex-direction:column !important;overflow:hidden !important}
+#menuManageTab .pos-menu-manage-layout>.panel-title,
+#menuManageTab .pos-menu-manage-subtabs{flex:0 0 auto}
+#menuManageTab .pos-menu-manage-pane.active{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+#menuManageTab .pos-menu-manage-tools{flex:0 0 auto}
+#menuManageTab .pos-menu-manage-list{flex:1 1 auto;height:100%;min-height:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;touch-action:pan-y;padding-bottom:48px}
+
 .settings-center-entry,
 .settings-center-icon-btn,
 .settings-center-footer button {

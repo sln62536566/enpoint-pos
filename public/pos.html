@@ -9,7 +9,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <title>恩點系統｜店員 POS</title>
   <link rel="manifest" href="./manifest.json" />
-  <link rel="stylesheet" href="./css/pos-v600.css?v=657" />
+  <link rel="stylesheet" href="./css/pos-v600.css?v=menu-hotfix-1-manual-fix-1" />
 </head>
 
 <body>
@@ -127,9 +127,6 @@
           <div class="pos-menu-manage-pane active" data-menu-manage-pane="quick">
             <div class="pos-menu-manage-tools">
               <input id="posMenuManageSearch" class="settings-input" type="text" placeholder="搜尋餐點" />
-              <button id="restoreSoldoutBtn" class="secondary-btn" type="button">一鍵恢復今日售完</button>
-              <button id="restorePausedBtn" class="secondary-btn" type="button">一鍵恢復暫停販售</button>
-              <button id="restoreMenuStatusBtn" class="secondary-btn" type="button">全部恢復正常</button>
             </div>
             <div id="posMenuManageList" class="pos-menu-manage-list"></div>
           </div>
@@ -595,6 +592,6 @@
       if (el) el.className += " hidden";
     }, false);
   </script>
-  <script type="module" src="./js/pos.js?v=664"></script>
+  <script type="module" src="./js/pos.js?v=menu-hotfix-1-manual-fix-1"></script>
 </body>
 </html>
