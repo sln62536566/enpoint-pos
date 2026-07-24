@@ -17,7 +17,8 @@ function engineResult(input = {}) {
 export function createAutoPrintEngine(options = {}) {
   if (!options.policies || typeof options.policies.get !== "function") throw new TypeError("Auto print engine requires policies");
   if (!options.capabilities || typeof options.capabilities.get !== "function") throw new TypeError("Auto print engine requires capabilities");
-  if (!options.queue || typeof options.queue.enqueue !== "function") throw new TypeError("Auto print engine requires a queue");
+  const scheduler = options.scheduler && typeof options.scheduler.schedule === "function" ? options.scheduler : null;
+  if (!scheduler && (!options.queue || typeof options.queue.enqueue !== "function")) throw new TypeError("Auto print engine requires a scheduler or queue");
   const policies = options.policies, capabilities = options.capabilities, queue = options.queue;
   const clock = typeof options.clock === "function" ? options.clock : Date.now;
   let closed = false;
@@ -34,6 +35,11 @@ export function createAutoPrintEngine(options = {}) {
       if (!plan.tickets.length) return engineResult({ skipped: true });
       if (!capabilityMatches(requestedCapability, plan.requiredCapabilities)) {
         throw Object.assign(new Error("Printer capability does not match print plan"), { code: "CAPABILITY_MISMATCH" });
+      }
+      if (scheduler) {
+        const scheduled = scheduler.schedule(plan, trigger);
+        if (!scheduled.ok) throw Object.assign(new Error(scheduled.error.message), { code: scheduled.error.code });
+        return engineResult({ accepted: true, jobId: scheduled.id, completion: scheduled.completion });
       }
       const request = createPrintRequest({
         type: trigger.type, copies: plan.copies, paper: plan.paper, layoutVariant: plan.layoutVariant,
