@@ -50,6 +50,7 @@ function createUsbFallbackProvider(message = "USB Provider unavailable") {
     detect: () => Promise.resolve([]), requestDevice: () => Promise.resolve(null),
     selectAuthorizedDevice: () => Promise.resolve(fallbackState), connect: () => Promise.resolve(fallbackState),
     disconnect: () => Promise.resolve(fallbackState), getStatus: () => Object.assign({}, fallbackState),
+    transferChunk: () => Promise.reject(new Error("USB transport driver unavailable")),
     print: () => Promise.reject(new Error("Printer Phase 3 does not send print data or implement ESC/POS")),
     onStatusChanged: () => function() {}, destroy: () => fallbackState
   };
@@ -65,6 +66,7 @@ const UsbProvider = {
   selectAuthorizedDevice(key) { return activeUsbProvider.selectAuthorizedDevice(key); },
   connect() { return activeUsbProvider.connect(); },
   disconnect() { return activeUsbProvider.disconnect(); },
+  transferChunk(data) { return activeUsbProvider.transferChunk(data); },
   getStatus() { return activeUsbProvider.getStatus(); },
   print(job) { return activeUsbProvider.print(job); },
   onStatusChanged(callback) { return activeUsbProvider.onStatusChanged(callback); },

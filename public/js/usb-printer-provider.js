@@ -293,6 +293,27 @@ export function createUsbPrinterProvider(options = {}) {
     }
   }
 
+  async function transferChunk(data) {
+    if (destroyed) return Promise.reject(driverError(DRIVER_ERRORS.NOT_SUPPORTED, "USB printer provider has been destroyed"));
+    if (!(data instanceof Uint8Array)) return Promise.reject(new TypeError("USB transfer data must be a Uint8Array"));
+    if (!state.connected || !activeDevice || !activeDevice.opened || claimedInterface === null || !activeCapability) {
+      return Promise.reject(driverError(DRIVER_ERRORS.DEVICE_BUSY, "USB printer driver is not ready"));
+    }
+    if (typeof activeDevice.transferOut !== "function") {
+      return Promise.reject(driverError(DRIVER_ERRORS.NOT_SUPPORTED, "USB OUT transfer is not supported"));
+    }
+    const browserResult = await activeDevice.transferOut(activeCapability.endpointNumber, data);
+    if (browserResult && browserResult.status && browserResult.status !== "ok") {
+      throw driverError(DRIVER_ERRORS.DEVICE_BUSY, `USB OUT transfer failed: ${browserResult.status}`);
+    }
+    const bytesTransferred = browserResult && Number.isFinite(Number(browserResult.bytesWritten))
+      ? Number(browserResult.bytesWritten) : data.byteLength;
+    if (bytesTransferred !== data.byteLength) {
+      throw driverError(DRIVER_ERRORS.DEVICE_BUSY, "USB OUT transfer was incomplete");
+    }
+    return { ok: true, bytesTransferred };
+  }
+
   function onConnect() { enqueue(detectInternal); }
   function onDisconnect(event) {
     enqueue(() => {
@@ -334,6 +355,7 @@ export function createUsbPrinterProvider(options = {}) {
     selectAuthorizedDevice(key) { return enqueue(() => selectInternal(key)); },
     connect() { return enqueue(connectInternal); },
     disconnect() { return enqueue(disconnectInternal); },
+    transferChunk,
     getStatus: snapshot,
     print() { return Promise.reject(new Error("Printer Phase 4 provides USB communication setup only and does not print")); },
     onStatusChanged(callback) {

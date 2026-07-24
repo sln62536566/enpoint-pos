@@ -73,3 +73,20 @@ Phase 4 在既有連線生命週期內加入 driver discovery，但不傳送任�
 不支援 WebUSB 的 Safari 或其他瀏覽器維持 `unsupported` / `NOT_SUPPORTED` 安全退化。所有 driver failure 都轉成 Printer Provider state，不向 POS startup、QR、KDS 或 Firebase 拋出。
 
 Printer Phase 4 does not call transferOut and does not implement printing, ESC/POS, Auto Print, Kitchen Print, Receipt Print, or Label Print.
+
+## Printer Phase 5：Print Transport Layer
+
+`print-transport.js` 位於 future formatter 與 USB driver 之間，只接受 `Uint8Array`，不知道收據、廚房單、客人單、貼紙或發票格式。
+
+- API：`send()`、`cancel()`、`flush()`、`isBusy()`、`destroy()`。
+- Chunk size 可設定；未指定時使用 driver discovery 的 endpoint packet size，無 capability 時安全 fallback 為 64 bytes。
+- 每個 chunk 嚴格依序送入 driver，不平行呼叫 WebUSB。
+- 本階段採單一工作 busy guard，不建立 Print Queue。
+- 每個 transfer 有 timeout framework；retry framework 預設為 0。
+- USB Driver 解析原生 `USBOutTransferResult`，Transport 只接收 `{ ok: true, bytesTransferred }`，不依賴 WebUSB result type。
+- Retry policy interface 提供 `maxRetries`、`shouldRetry(error, attempt)`、`retryDelay(attempt, error)`；預設 `maxRetries` 仍為 0。
+- cancel、destroy、disconnecting、disconnected 與 browser `device_disconnected` 都會停止後續 chunks。
+- 若取消時 driver 仍有 in-flight transfer，busy guard 會維持到該 driver Promise settle，避免新工作平行進入。
+- 固定 Transport 錯誤碼：`TRANSFER_TIMEOUT`、`TRANSFER_CANCELLED`、`TRANSPORT_BUSY`、`TRANSPORT_CLOSED`。
+
+Phase 5 不包含 ESC/POS、formatter、票據內容、Auto Print、Print Queue、Bluetooth 或 LAN printer。
