@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 let createUsbPrinterProvider, sameDevice, createPrintTransport, chunkBytes, TRANSPORT_ERRORS;
+let ESCPOS_COMMANDS, concatBytes, getPaperProfile, PAPER_PROFILES, createEncoding, UTF8_ENCODING, createReceiptModel, EscPosFormatter, formatLayout, createLayout, buildCustomerReceiptLayout, buildKitchenReceiptLayout;
 
 test.before(async () => {
   const source = await fs.readFile(path.join(__dirname, "..", "public", "js", "usb-printer-provider.js"), "utf8");
@@ -11,6 +12,17 @@ test.before(async () => {
   const transportSource = await fs.readFile(path.join(__dirname, "..", "public", "js", "print-transport.js"), "utf8");
   const transport = await import("data:text/javascript;base64," + Buffer.from(transportSource).toString("base64"));
   createPrintTransport = transport.createPrintTransport; chunkBytes = transport.chunkBytes; TRANSPORT_ERRORS = transport.TRANSPORT_ERRORS;
+  const moduleSource = async name => fs.readFile(path.join(__dirname, "..", "public", "js", name), "utf8");
+  const dataUrl = source => "data:text/javascript;base64," + Buffer.from(source).toString("base64");
+  const commandSource = await moduleSource("escpos-commands.js"), paperSource = await moduleSource("paper-profile.js"), encodingSource = await moduleSource("printer-encoding.js"), receiptSource = await moduleSource("receipt-model.js");
+  const commands = await import(dataUrl(commandSource)), paper = await import(dataUrl(paperSource)), encoding = await import(dataUrl(encodingSource)), receipt = await import(dataUrl(receiptSource));
+  ESCPOS_COMMANDS = commands.ESCPOS_COMMANDS; concatBytes = commands.concatBytes; getPaperProfile = paper.getPaperProfile; PAPER_PROFILES = paper.PAPER_PROFILES; createEncoding = encoding.createEncoding; UTF8_ENCODING = encoding.UTF8_ENCODING; createReceiptModel = receipt.createReceiptModel;
+  let layoutSource = await moduleSource("receipt-layout.js");
+  layoutSource = layoutSource.replace("./receipt-model.js", dataUrl(receiptSource));
+  const layout = await import(dataUrl(layoutSource)); createLayout = layout.createLayout; buildCustomerReceiptLayout = layout.buildCustomerReceiptLayout; buildKitchenReceiptLayout = layout.buildKitchenReceiptLayout;
+  let formatterSource = await moduleSource("escpos-formatter.js");
+  formatterSource = formatterSource.replace("./escpos-commands.js", dataUrl(commandSource)).replace("./paper-profile.js", dataUrl(paperSource)).replace("./printer-encoding.js", dataUrl(encodingSource));
+  const formatter = await import(dataUrl(formatterSource)); EscPosFormatter = formatter.EscPosFormatter; formatLayout = formatter.formatLayout;
 });
 
 function usb(overrides = {}) { const handlers = {}; return Object.assign({ handlers, getDevices: async()=>[], requestDevice: async()=>null, addEventListener(n,c){handlers[n]=c;}, removeEventListener(n,c){if(handlers[n]===c)delete handlers[n];} }, overrides); }
@@ -109,3 +121,39 @@ test("88 transport consumes only driver result contract",async()=>{const d=trans
 test("89 native transfer status failure remains inside USB driver",async()=>{const d=device({transferOut:async()=>({status:"stall",bytesWritten:0})}),p=createUsbPrinterProvider({environment:{usb:usb({requestDevice:async()=>d})}});await p.requestDevice();await p.connect();await assert.rejects(p.transferChunk(new Uint8Array([1])),e=>e.code==="DEVICE_BUSY");assert.equal(p.getStatus().connected,true);});
 test("90 retry policy shouldRetry can veto retry",async()=>{let calls=0,policyCalls=0;const t=createPrintTransport(transportDriver({transferChunk:async()=>{calls++;throw new Error("no");}}),{retryPolicy:{maxRetries:3,shouldRetry(){policyCalls++;return false;},retryDelay(){throw new Error("must not run");}}});await assert.rejects(t.send(new Uint8Array([1])));assert.equal(calls,1);assert.equal(policyCalls,1);});
 test("91 retry policy exposes retryDelay hook",async()=>{let calls=0,delays=0;const t=createPrintTransport(transportDriver({transferChunk:async chunk=>{calls++;if(calls===1)throw new Error("again");return{ok:true,bytesTransferred:chunk.byteLength};}}),{retryPolicy:{maxRetries:1,shouldRetry:()=>true,retryDelay(attempt){delays++;assert.equal(attempt,1);return 0;}}});await t.send(new Uint8Array([1]));assert.equal(calls,2);assert.equal(delays,1);});
+test("92 command builder initialize",()=>assert.deepEqual(Array.from(ESCPOS_COMMANDS.initialize()),[27,64]));
+test("93 command builder align left",()=>assert.deepEqual(Array.from(ESCPOS_COMMANDS.alignLeft()),[27,97,0]));
+test("94 command builder align center",()=>assert.deepEqual(Array.from(ESCPOS_COMMANDS.alignCenter()),[27,97,1]));
+test("95 command builder align right",()=>assert.deepEqual(Array.from(ESCPOS_COMMANDS.alignRight()),[27,97,2]));
+test("96 command builder bold lifecycle",()=>assert.deepEqual(Array.from(concatBytes([ESCPOS_COMMANDS.boldOn(),ESCPOS_COMMANDS.boldOff()])),[27,69,1,27,69,0]));
+test("97 command builder size modes",()=>assert.deepEqual([Array.from(ESCPOS_COMMANDS.doubleWidth()),Array.from(ESCPOS_COMMANDS.doubleHeight()),Array.from(ESCPOS_COMMANDS.normalSize())],[[29,33,16],[29,33,1],[29,33,0]]));
+test("98 command builder feed clamps range",()=>{assert.deepEqual(Array.from(ESCPOS_COMMANDS.feed(999)),[27,100,255]);assert.deepEqual(Array.from(ESCPOS_COMMANDS.feed(-1)),[27,100,0]);});
+test("99 command builder cut",()=>assert.deepEqual(Array.from(ESCPOS_COMMANDS.cut()),[29,86,0]));
+test("100 concatBytes returns Uint8Array",()=>{const result=concatBytes([Uint8Array.of(1),Uint8Array.of(2,3)]);assert.ok(result instanceof Uint8Array);assert.deepEqual(Array.from(result),[1,2,3]);});
+test("101 58mm paper profile",()=>assert.deepEqual(getPaperProfile("58"),PAPER_PROFILES["58"]));
+test("102 80mm paper profile",()=>{const profile=getPaperProfile("80");assert.equal(profile.widthMm,80);assert.equal(profile.columns,48);});
+test("103 paper profile supports layout overrides",()=>{const profile=getPaperProfile("58",{columns:30,padding:1,margin:2});assert.deepEqual([profile.columns,profile.padding,profile.margin],[30,1,2]);});
+test("104 unsupported paper profile is controlled",()=>assert.throws(()=>getPaperProfile("76"),RangeError));
+test("105 invalid paper columns are controlled",()=>assert.throws(()=>getPaperProfile("58",{columns:0}),RangeError));
+test("106 receipt model normalizes fields",()=>{const model=createReceiptModel({store:"Shop",orderNumber:12,table:3,subtotal:"10",total:"12",footer:"Bye"});assert.deepEqual({store:model.store,order:model.orderNumber,table:model.table,subtotal:model.subtotal,total:model.total,footer:model.footer},{store:"Shop",order:"12",table:"3",subtotal:10,total:12,footer:"Bye"});});
+test("107 receipt model calculates item total",()=>{const model=createReceiptModel({items:[{name:"Tea",quantity:2,unitPrice:15}]});assert.equal(model.items[0].total,30);});
+test("108 receipt model preserves explicit item total",()=>{const model=createReceiptModel({items:[{name:"Set",quantity:2,unitPrice:15,total:25,note:"less ice"}]});assert.equal(model.items[0].total,25);assert.equal(model.items[0].note,"less ice");});
+test("109 receipt model is immutable",()=>{const model=createReceiptModel({items:[{name:"Tea"}]});assert.equal(Object.isFrozen(model),true);assert.equal(Object.isFrozen(model.items),true);assert.equal(Object.isFrozen(model.items[0]),true);});
+test("110 invalid receipt input is isolated",()=>assert.throws(()=>createReceiptModel([]),TypeError));
+test("111 UTF8 encoding returns Uint8Array",()=>{const bytes=UTF8_ENCODING.encode("EnPoint");assert.ok(bytes instanceof Uint8Array);assert.equal(new TextDecoder().decode(bytes),"EnPoint");});
+test("112 encoding exposes code page interface",()=>{const encoding=createEncoding({name:"placeholder",codePage:99,encode:value=>Uint8Array.of(String(value).length)});assert.equal(encoding.name,"placeholder");assert.equal(encoding.codePage,99);assert.deepEqual(Array.from(encoding.encode("abc")),[3]);});
+test("113 invalid encoding result is controlled",()=>{const encoding=createEncoding({encode:()=>"bad"});assert.throws(()=>encoding.encode("x"),TypeError);});
+test("114 formatter text APIs are chainable",()=>{const formatter=new EscPosFormatter();assert.equal(formatter.text("A"),formatter);assert.equal(formatter.line("B"),formatter);assert.equal(formatter.blankLine(),formatter);});
+test("115 formatter separator follows paper columns",()=>{const result=new EscPosFormatter({paper:"58"}).separator("=").build();const text=new TextDecoder().decode(result);assert.equal(text,"=".repeat(32)+"\n");});
+test("116 formatter alignment and bold use centralized commands",()=>{const result=new EscPosFormatter().alignCenter().boldOn().line("A").boldOff().build();assert.deepEqual(Array.from(result.slice(0,6)),[27,97,1,27,69,1]);});
+test("117 formatter build returns Uint8Array",()=>assert.ok(new EscPosFormatter().initialize().line("A").cut().build() instanceof Uint8Array));
+test("118 formatter rejects unknown command",()=>assert.throws(()=>new EscPosFormatter().command("missing"),RangeError));
+test("119 receipt layout formatter produces command bytes and content",()=>{const layout=buildCustomerReceiptLayout({store:"EnPoint",orderNumber:"A1",table:"2",items:[{name:"Tea",quantity:2,unitPrice:10}],subtotal:20,total:20,footer:"Thanks"});const output=formatLayout(layout,{paper:"58"});assert.ok(output instanceof Uint8Array);const decoded=new TextDecoder().decode(output);for(const value of ["EnPoint","Order: A1","Table: 2","Tea x2 20","Subtotal: 20","Total: 20","Thanks"])assert.match(decoded,new RegExp(value));});
+test("120 formatter remains independent from model transport driver and external state",async()=>{const source=await fs.readFile(path.join(__dirname,"..","public","js","escpos-formatter.js"),"utf8");for(const forbidden of ["./receipt-model.js","./receipt-layout.js","print-transport","usb-printer-provider","printer-center","firebase","localStorage","navigator.usb","transferOut"])assert.equal(source.includes(forbidden),false);const output=formatLayout(createLayout("safe",[{type:"line",value:"Safe"}]));assert.ok(output instanceof Uint8Array);});
+test("121 customer layout builder returns immutable layout object",()=>{const layout=buildCustomerReceiptLayout({store:"Shop",items:[],total:0});assert.equal(layout.type,"receipt-layout");assert.equal(layout.variant,"customer");assert.equal(Object.isFrozen(layout),true);assert.equal(Object.isFrozen(layout.nodes),true);});
+test("122 customer layout owns order table total and separator placement",()=>{const layout=buildCustomerReceiptLayout({store:"Shop",orderNumber:"9",table:"A",items:[],subtotal:5,total:6});assert.ok(layout.nodes.some(node=>node.type==="line"&&node.value==="Order: 9"));assert.ok(layout.nodes.some(node=>node.type==="line"&&node.value==="Table: A"));assert.ok(layout.nodes.some(node=>node.type==="line"&&node.value==="Total: 6"));assert.ok(layout.nodes.some(node=>node.type==="separator"));});
+test("123 kitchen layout is independently extensible",()=>{const layout=buildKitchenReceiptLayout({orderNumber:"K1",table:"3",items:[{name:"Noodle",quantity:2,note:"no onion"}]});assert.equal(layout.variant,"kitchen");const lines=layout.nodes.filter(node=>node.type==="line").map(node=>node.value);assert.deepEqual(lines,["KITCHEN","Order: K1","Table: 3","2 x Noodle","  no onion"]);assert.equal(lines.some(value=>String(value).startsWith("Total:")),false);});
+test("124 formatter consumes generic layout nodes",()=>{const layout=createLayout("custom",[{type:"command",name:"alignRight"},{type:"line",value:"X"},{type:"blankLine"},{type:"feed",lines:1}]);const output=formatLayout(layout);assert.ok(output instanceof Uint8Array);assert.match(new TextDecoder().decode(output),/X/);});
+test("125 formatter rejects receipt model without layout",()=>assert.throws(()=>formatLayout(createReceiptModel({store:"Wrong"})),TypeError));
+test("126 formatter rejects unsupported layout node",()=>assert.throws(()=>formatLayout(createLayout("custom",[{type:"unknown"}])),RangeError));
+test("127 paper profile reserves layout extension fields",()=>{for(const id of ["58","80"]){const profile=getPaperProfile(id);assert.equal(Object.prototype.hasOwnProperty.call(profile,"printableWidth"),true);assert.equal(Object.prototype.hasOwnProperty.call(profile,"characterWidth"),true);assert.equal(Object.prototype.hasOwnProperty.call(profile,"lineSpacing"),true);}});

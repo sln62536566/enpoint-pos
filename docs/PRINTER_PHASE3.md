@@ -90,3 +90,17 @@ Printer Phase 4 does not call transferOut and does not implement printing, ESC/P
 - 固定 Transport 錯誤碼：`TRANSFER_TIMEOUT`、`TRANSFER_CANCELLED`、`TRANSPORT_BUSY`、`TRANSPORT_CLOSED`。
 
 Phase 5 不包含 ESC/POS、formatter、票據內容、Auto Print、Print Queue、Bluetooth 或 LAN printer。
+
+## Printer Phase 6：ESC/POS Formatting Engine
+
+Receipt Layout Layer 先把 Receipt Model 轉成 immutable Layout Object；Formatter 是純編碼層，只消費 Layout Object，透過集中式 command builder 與 encoding interface，最後輸出 `Uint8Array`。它不 import Receipt Model、Layout Builder、Transport、Driver、WebUSB、Firebase、Queue 或 UI。
+
+- `escpos-commands.js` 集中管理 initialize、alignment、bold、size、feed 與 cut commands；其他模組不散落 ESC/POS command bytes。
+- `escpos-formatter.js` 提供 `text()`、`line()`、`separator()`、`blankLine()` 與 command formatting API。
+- `paper-profile.js` 提供 58mm/32 columns 與 80mm/48 columns profiles，並保留 padding、margin 與 override extension points。
+- `printer-encoding.js` 預設使用 UTF-8，並提供 name、codePage、encode interface，供未來 code-page adapter 替換。
+- `receipt-model.js` 只正規化 store、order number、table、items、subtotal、total、footer，不讀取 Firebase 或 application global state。
+- `receipt-layout.js` 提供 Customer 與 Kitchen builders，負責 order、table、items、total、separator 等節點的內容與順序；未來 Label、Invoice 可增加獨立 builder，不膨脹 Formatter。
+- Paper Profile 預留 `printableWidth`、`characterWidth`、`lineSpacing` extension fields，本階段不套用實體排版計算。
+
+Phase 6 不送出 USB、不建立 Auto Print 或 Queue，也不修改 Transport 與 Driver lifecycle。
