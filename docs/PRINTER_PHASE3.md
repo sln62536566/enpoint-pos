@@ -104,3 +104,15 @@ Receipt Layout Layer 先把 Receipt Model 轉成 immutable Layout Object；Forma
 - Paper Profile 預留 `printableWidth`、`characterWidth`、`lineSpacing` extension fields，本階段不套用實體排版計算。
 
 Phase 6 不送出 USB、不建立 Auto Print 或 Queue，也不修改 Transport 與 Driver lifecycle。
+
+## Printer Phase 7：Print Pipeline Foundation
+
+所有未來 application print intent 會先建立 immutable Print Request，再由 Decision Layer 產生零或多個 ticket plans。Pipeline 依序呼叫注入的 Layout Builder、Formatter 與 Transport，並回傳 immutable Print Result。
+
+- `print-request.js` 定義 type、copies、paper、layoutVariant、order、source、timestamp、metadata，並深層 clone/freeze application input。
+- `print-result.js` 定義 success、cancelled、failed、duration、bytes、copies、provider、errors；errors 不包含 stack。
+- `print-decision.js` 只提供 decision contract 與 resolver interface，預設為 skip，不包含 QR、Kitchen、Customer 或其他商業規則。
+- `print-pipeline.js` 負責 decision → layout → formatter → transport 的唯一 sequence，以及單一工作 busy guard 與 failure isolation。
+- Layout builders、formatter、transport 都使用 dependency injection；Pipeline 不 import USB Driver、WebUSB、Printer Center、Firebase 或 UI。
+
+Phase 7 不建立 Queue、Retry、Auto Print、Bluetooth、LAN 或 application-side direct print flow。
