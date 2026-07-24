@@ -43,9 +43,50 @@ const BrowserProvider = {
   }
 };
 
+function createUsbFallbackProvider(message = "USB Provider unavailable") {
+  const fallbackState = { status: "unsupported", message, devices: [], selectedDevice: null, connected: false, lastError: message };
+  return {
+    name: "USB", available: false,
+    detect: () => Promise.resolve([]), requestDevice: () => Promise.resolve(null),
+    selectAuthorizedDevice: () => Promise.resolve(fallbackState), connect: () => Promise.resolve(fallbackState),
+    disconnect: () => Promise.resolve(fallbackState), getStatus: () => Object.assign({}, fallbackState),
+    print: () => Promise.reject(new Error("Printer Phase 3 does not send print data or implement ESC/POS")),
+    onStatusChanged: () => function() {}, destroy: () => fallbackState
+  };
+}
+
+let activeUsbProvider = createUsbFallbackProvider();
+let usbLoadPromise = null;
+const UsbProvider = {
+  name: "USB",
+  get available() { return activeUsbProvider.available; },
+  detect() { return activeUsbProvider.detect(); },
+  requestDevice(filters) { return activeUsbProvider.requestDevice(filters); },
+  selectAuthorizedDevice(key) { return activeUsbProvider.selectAuthorizedDevice(key); },
+  connect() { return activeUsbProvider.connect(); },
+  disconnect() { return activeUsbProvider.disconnect(); },
+  getStatus() { return activeUsbProvider.getStatus(); },
+  print(job) { return activeUsbProvider.print(job); },
+  onStatusChanged(callback) { return activeUsbProvider.onStatusChanged(callback); },
+  destroy() { return activeUsbProvider.destroy(); }
+};
+
+export function initializeUsbProvider(importer = () => import("./usb-printer-provider.js")) {
+  if (usbLoadPromise) return usbLoadPromise;
+  usbLoadPromise = Promise.resolve().then(importer).then(module => {
+    if (!module || typeof module.createUsbPrinterProvider !== "function") throw new Error("Invalid USB Provider module");
+    activeUsbProvider = module.createUsbPrinterProvider();
+    return activeUsbProvider;
+  }).catch(error => {
+    console.error("Printer USB module unavailable", error);
+    activeUsbProvider = createUsbFallbackProvider("USB Provider module unavailable");
+    return activeUsbProvider;
+  });
+  return usbLoadPromise;
+}
 const providers = Object.freeze({
   browser: BrowserProvider,
-  usb: createUnavailableProvider("USB"),
+  usb: UsbProvider,
   bluetooth: createUnavailableProvider("Bluetooth"),
   network: createUnavailableProvider("Network")
 });
@@ -125,11 +166,17 @@ function print(type, order) {
 export const PrinterCenter = {
   providers,
   init(options = {}) {
-    adapters = Object.assign({}, adapters, options);
-    readSettings();
-    PrinterProfile.load();
-    PrintQueue.init({ providers });
-    initialized = true;
+    try {
+      adapters = Object.assign({}, adapters, options);
+      readSettings();
+      PrinterProfile.load();
+      PrintQueue.init({ providers });
+      initialized = true;
+      initializeUsbProvider();
+    } catch (error) {
+      initialized = false;
+      console.error("Printer USB initialization unavailable", error);
+    }
     return this;
   },
   isInitialized() {
@@ -168,10 +215,37 @@ export const PrinterCenter = {
   detectPrinter() {
     return getProvider(lastType).detect();
   },
+  detectUsbPrinter() {
+    return UsbProvider.detect();
+  },
+  requestUsbPrinter(filters) {
+    return UsbProvider.requestDevice(filters);
+  },
+  selectAuthorizedUsbPrinter(key) {
+    return UsbProvider.selectAuthorizedDevice(key);
+  },
+  connectUsbPrinter() {
+    return UsbProvider.connect();
+  },
+  disconnectUsbPrinter() {
+    return UsbProvider.disconnect();
+  },
+  getUsbStatus() {
+    return UsbProvider.getStatus();
+  },
+  whenUsbReady() {
+    return initializeUsbProvider();
+  },
+  onUsbStatusChanged(callback) {
+    return UsbProvider.onStatusChanged(callback);
+  },
+  destroyUsb() {
+    UsbProvider.destroy();
+  },
   getLastOrder() {
     return lastOrder;
   }
 };
 
 window.PrinterCenter = PrinterCenter;
-export { BrowserProvider, providers };
+export { BrowserProvider, UsbProvider, providers };

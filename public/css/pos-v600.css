@@ -5077,6 +5077,33 @@ body.settings-center-open{
 }
 
 /* v66.1 Printer Profiles */
+.usb-printer-panel{
+  margin-top:16px;
+  padding:16px;
+  border:1px solid #d9e1e8;
+  border-radius:14px;
+  background:#f8fafc;
+}
+.usb-printer-details{
+  display:grid;
+  grid-template-columns:minmax(0,2fr) repeat(2,minmax(0,1fr));
+  gap:10px;
+  margin:12px 0;
+}
+.usb-printer-details span{
+  min-height:44px;
+  display:flex;
+  align-items:center;
+  padding:8px 12px;
+  border-radius:10px;
+  background:#fff;
+  overflow-wrap:anywhere;
+}
+.usb-printer-message{margin:8px 0 14px;color:#51606e;line-height:1.5;}
+.usb-device-picker{display:grid;gap:6px;margin:10px 0;}
+.usb-device-picker select{width:100%;min-height:44px;}
+@media (max-width:720px){.usb-printer-details{grid-template-columns:1fr;}}
+
 .printer-profile-list{
   display:grid;
   gap:14px;
