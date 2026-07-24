@@ -16,7 +16,7 @@ export function createPrintPipeline(options = {}) {
   let closed = false;
   let active = false;
 
-  async function execute(input) {
+  async function execute(input, context = null, observer = {}) {
     const started = Number(clock());
     let request;
     let acquired = false;
@@ -26,7 +26,8 @@ export function createPrintPipeline(options = {}) {
       active = true;
       acquired = true;
       request = createPrintRequest(input, clock);
-      const plan = await decision.decide(request);
+      if (typeof observer.onPreparing === "function") observer.onPreparing(context);
+      const plan = await decision.decide(request, context);
       if (!plan || plan.action !== "print" || !plan.tickets.length) {
         return createPrintResult({ success: true, duration: Number(clock()) - started, provider });
       }
@@ -35,11 +36,13 @@ export function createPrintPipeline(options = {}) {
       for (const ticket of plan.tickets) {
         const builder = layoutBuilders[ticket.layoutVariant];
         if (typeof builder !== "function") throw Object.assign(new Error(`Missing layout builder: ${ticket.layoutVariant}`), { code: "LAYOUT_UNAVAILABLE" });
-        const layout = await builder(request.order, request, ticket);
-        const payload = await formatter(layout, { paper: ticket.paper, request, ticket });
+        const layout = await builder(request.order, request, ticket, context);
+        if (typeof observer.onFormatting === "function") observer.onFormatting(context);
+        const payload = await formatter(layout, { paper: ticket.paper, request, ticket, context });
         if (!(payload instanceof Uint8Array)) throw Object.assign(new TypeError("Formatter must return Uint8Array"), { code: "FORMATTER_INVALID_RESULT" });
         for (let copy = 0; copy < ticket.copies; copy += 1) {
-          const sent = await transport.send(payload);
+          if (typeof observer.onSending === "function") observer.onSending(context);
+          const sent = await transport.send(payload, context);
           bytes += Number(sent && sent.bytesTransferred) || payload.byteLength;
           copies += 1;
         }
@@ -55,6 +58,7 @@ export function createPrintPipeline(options = {}) {
 
   return Object.freeze({
     execute,
+    cancel() { return typeof transport.cancel === "function" ? transport.cancel() : false; },
     isBusy() { return active; },
     destroy() { if (closed) return false; closed = true; return true; }
   });

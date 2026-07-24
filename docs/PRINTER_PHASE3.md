@@ -116,3 +116,16 @@ Phase 6 不送出 USB、不建立 Auto Print 或 Queue，也不修改 Transport 
 - Layout builders、formatter、transport 都使用 dependency injection；Pipeline 不 import USB Driver、WebUSB、Printer Center、Firebase 或 UI。
 
 Phase 7 不建立 Queue、Retry、Auto Print、Bluetooth、LAN 或 application-side direct print flow。
+
+## Printer Phase 8：Commercial Print Queue Foundation
+
+Commercial Queue 是未來 application print jobs 的唯一入口。它接收 immutable request，建立 immutable Pipeline Context 與 Print Job snapshots，使用單一 FIFO worker 呼叫注入的 Pipeline。
+
+- `print-job-status.js` 集中定義 Pending、Preparing、Formatting、Sending、Completed、Failed、Cancelled；其他模組不得自行建立狀態集合。
+- `pipeline-context.js` 深層 clone/freeze jobId、requestId、correlationId、startTime、provider、attempt、metadata、trace。
+- `print-job.js` 以 immutable snapshot 表示每次 lifecycle transition，不原地修改 job。
+- `queue-events.js` 提供 JobQueued、JobStarted、JobCompleted、JobFailed、JobCancelled subscription，listener failure 不影響 Queue。
+- `commercial-print-queue.js` 使用 FIFO/single worker，支援 pending/active cancellation、close、destroy 與 pipeline failure isolation；不包含 priority 或 retry。
+- Pipeline 將同一 Context 傳到 Decision、Layout、Formatter、Transport。Pipeline observer 使用語意 callbacks，Job Status 只由 Queue 映射至統一 constants。
+
+Commercial Queue 不 import Formatter、Transport、Driver、USB、WebUSB、Printer Center、Firebase 或 UI，也不播放音效。既有 Phase 2 legacy queue 未修改，以維持 rollback safety。
