@@ -5,6 +5,70 @@ const STATUSES = Object.freeze([
   "device_not_found", "device_disconnected", "connection_failed", "error"
 ]);
 
+const DRIVER_ERRORS = Object.freeze({
+  NO_CONFIGURATION: "NO_CONFIGURATION", NO_INTERFACE: "NO_INTERFACE",
+  NO_ENDPOINT: "NO_ENDPOINT", CLAIM_FAILED: "CLAIM_FAILED",
+  RELEASE_FAILED: "RELEASE_FAILED", DEVICE_BUSY: "DEVICE_BUSY",
+  NOT_SUPPORTED: "NOT_SUPPORTED"
+});
+
+function driverError(code, message, cause) {
+  const error = new Error(message);
+  error.code = code;
+  if (cause) error.cause = cause;
+  return error;
+}
+
+function mapDriverError(error, fallbackCode) {
+  if (error && error.code && DRIVER_ERRORS[error.code]) return error;
+  if (error && (error.name === "NetworkError" || error.name === "InvalidStateError")) {
+    return driverError(DRIVER_ERRORS.DEVICE_BUSY, "USB device is busy", error);
+  }
+  return driverError(fallbackCode, errorMessage(error), error);
+}
+
+function configurationValue(configuration) {
+  return Number(configuration && configuration.configurationValue);
+}
+
+function discoverCapability(device, cached) {
+  const configurations = Array.from(device && device.configurations || []);
+  if (!configurations.length) throw driverError(DRIVER_ERRORS.NO_CONFIGURATION, "USB device has no configuration");
+  let sawInterface = false;
+  function inspect(requireCached) {
+    for (const configuration of configurations) {
+      if (requireCached && configurationValue(configuration) !== cached.configuration) continue;
+      const interfaces = Array.from(configuration.interfaces || []);
+      if (interfaces.length) sawInterface = true;
+      for (const usbInterface of interfaces) {
+        if (requireCached && Number(usbInterface.interfaceNumber) !== cached.interfaceNumber) continue;
+        for (const alternate of Array.from(usbInterface.alternates || [])) {
+          const endpoint = Array.from(alternate.endpoints || []).find(item => item.direction === "out" &&
+            (!requireCached || Number(item.endpointNumber) === cached.endpointNumber));
+          if (endpoint) return { configuration, usbInterface, alternate, endpoint };
+        }
+      }
+    }
+    return null;
+  }
+  const found = (cached && inspect(true)) || inspect(false);
+  if (found) {
+    const { configuration, usbInterface, alternate, endpoint } = found;
+    return {
+      vendorId: Number(device.vendorId) || 0, productId: Number(device.productId) || 0,
+      configuration: configurationValue(configuration), interfaceNumber: Number(usbInterface.interfaceNumber),
+      alternateSetting: Number(alternate.alternateSetting) || 0,
+      endpointNumber: Number(endpoint.endpointNumber), packetSize: Number(endpoint.packetSize) || 0
+    };
+  }
+  for (const configuration of configurations) {
+    const interfaces = Array.from(configuration.interfaces || []);
+    if (interfaces.length) sawInterface = true;
+  }
+  if (!sawInterface) throw driverError(DRIVER_ERRORS.NO_INTERFACE, "USB configuration has no interface");
+  throw driverError(DRIVER_ERRORS.NO_ENDPOINT, "USB interface has no OUT endpoint");
+}
+
 function sameDevice(left, right) {
   if (!left || !right) return false;
   if (left === right) return true;
@@ -29,10 +93,13 @@ export function createUsbPrinterProvider(options = {}) {
   let destroyed = false;
   let operationQueue = Promise.resolve();
   let operationCount = 0;
+  const capabilityCache = new Map();
+  let activeCapability = null;
+  let claimedInterface = null;
   let state = {
     status: usb ? "idle" : "unsupported",
     message: usb ? "USB printer is idle" : "This browser does not support USB printer connections",
-    devices: [], selectedDevice: null, connected: false, lastError: null
+    devices: [], selectedDevice: null, connected: false, capability: null, lastError: null, lastErrorCode: usb ? null : DRIVER_ERRORS.NOT_SUPPORTED
   };
 
   function keyFor(device) {
@@ -56,7 +123,8 @@ export function createUsbPrinterProvider(options = {}) {
       status: state.status, message: state.message,
       devices: state.devices.map(item => Object.assign({}, item)),
       selectedDevice: state.selectedDevice ? Object.assign({}, state.selectedDevice) : null,
-      connected: state.connected, lastError: state.lastError
+      connected: state.connected, capability: state.capability ? Object.assign({}, state.capability) : null,
+      lastError: state.lastError, lastErrorCode: state.lastErrorCode
     };
   }
 
@@ -64,12 +132,17 @@ export function createUsbPrinterProvider(options = {}) {
     if (destroyed) return snapshot();
     state = Object.assign({}, state, changes, {
       status: STATUSES.includes(status) ? status : "error", message: message || status,
-      lastError: error ? errorMessage(error) : null
+      lastError: error ? errorMessage(error) : null,
+      lastErrorCode: error && error.code ? error.code : null
     });
     listeners.slice().forEach(listener => {
       try { listener(snapshot()); } catch (listenerError) { console.error("USB printer listener error", listenerError); }
     });
     return snapshot();
+  }
+
+  function cacheKey(device) {
+    return `${Number(device.vendorId) || 0}:${Number(device.productId) || 0}:${device.serialNumber || keyFor(device)}`;
   }
 
   function enqueue(action) {
@@ -81,7 +154,7 @@ export function createUsbPrinterProvider(options = {}) {
   }
 
   async function detectInternal() {
-    if (!usb) return update("unsupported", "This browser does not support USB printer connections", null, { devices: [] }).devices;
+    if (!usb) return update("unsupported", "This browser does not support USB printer connections", driverError(DRIVER_ERRORS.NOT_SUPPORTED, "WebUSB is not supported"), { devices: [] }).devices;
     const wasConnected = state.connected;
     update("detecting", "Searching authorized USB devices");
     try {
@@ -92,10 +165,10 @@ export function createUsbPrinterProvider(options = {}) {
       if (activeDevice) {
         const match = found.find(device => sameDevice(device, activeDevice));
         if (!match) {
-          activeDevice = null;
+          activeDevice = null; activeCapability = null; claimedInterface = null;
           authorizedDevices = nextMap;
           return update("device_not_found", "The selected USB printer is no longer authorized", null, {
-            devices: Array.from(nextMap, ([key, value]) => metadata(value, key)), selectedDevice: null, connected: false
+            devices: Array.from(nextMap, ([key, value]) => metadata(value, key)), selectedDevice: null, connected: false, capability: null
           }).devices;
         }
         activeDevice = match;
@@ -151,36 +224,72 @@ export function createUsbPrinterProvider(options = {}) {
     const selected = authorizedDevices.get(String(key || ""));
     if (!selected) return update("device_not_found", "Authorized USB printer not found", null, { selectedDevice: null, connected: false });
     activeDevice = selected;
-    return update("selected", "USB printer selected", null, { selectedDevice: metadata(selected, keyFor(selected)), connected: false });
+    activeCapability = null; claimedInterface = null;
+    return update("selected", "USB printer selected", null, { selectedDevice: metadata(selected, keyFor(selected)), connected: false, capability: null });
   }
 
   async function connectInternal() {
     if (!activeDevice) return update("device_not_found", "Choose an authorized USB printer first", null, { connected: false });
-    if (activeDevice.opened) return update("connected", "USB printer connected", null, { connected: true });
+    if (activeDevice.opened && claimedInterface !== null) return update("connected", "USB printer driver ready", null, { connected: true });
     update("connecting", "Connecting USB printer");
+    let phase = DRIVER_ERRORS.DEVICE_BUSY;
     try {
-      await activeDevice.open();
-      if (!activeDevice.configuration) {
-        const configurations = Array.from(activeDevice.configurations || []);
-        const preferred = configurations.find(item => item.configurationValue === 1) || configurations[0];
-        if (!preferred) throw new Error("USB device has no available configuration");
-        await activeDevice.selectConfiguration(preferred.configurationValue);
+      if (typeof activeDevice.open !== "function" || typeof activeDevice.claimInterface !== "function") {
+        throw driverError(DRIVER_ERRORS.NOT_SUPPORTED, "WebUSB driver lifecycle is not supported by this device");
       }
-      return update("connected", "USB printer connected", null, { connected: true });
+      if (!activeDevice.opened) await activeDevice.open();
+      const key = cacheKey(activeDevice);
+      const cached = capabilityCache.get(key) || null;
+      activeCapability = discoverCapability(activeDevice, cached);
+      phase = DRIVER_ERRORS.NO_CONFIGURATION;
+      if (!activeDevice.configuration || configurationValue(activeDevice.configuration) !== activeCapability.configuration) {
+        await activeDevice.selectConfiguration(activeCapability.configuration);
+      }
+      phase = DRIVER_ERRORS.CLAIM_FAILED;
+      await activeDevice.claimInterface(activeCapability.interfaceNumber);
+      claimedInterface = activeCapability.interfaceNumber;
+      if (activeCapability.alternateSetting !== 0) {
+        if (typeof activeDevice.selectAlternateInterface !== "function") {
+          throw driverError(DRIVER_ERRORS.NOT_SUPPORTED, "USB alternate interface selection is not supported");
+        }
+        await activeDevice.selectAlternateInterface(activeCapability.interfaceNumber, activeCapability.alternateSetting);
+      }
+      capabilityCache.set(key, Object.assign({}, activeCapability));
+      return update("connected", "USB printer driver ready", null, {
+        connected: true, capability: Object.assign({}, activeCapability)
+      });
     } catch (error) {
+      const mapped = mapDriverError(error, phase);
+      try {
+        if (activeDevice && activeDevice.opened && claimedInterface !== null && typeof activeDevice.releaseInterface === "function") {
+          await activeDevice.releaseInterface(claimedInterface);
+        }
+      } catch (cleanupError) { console.error("USB interface cleanup failed", cleanupError); }
+      claimedInterface = null;
       try { if (activeDevice && activeDevice.opened) await activeDevice.close(); } catch (cleanupError) { console.error("USB cleanup failed", cleanupError); }
-      return update("connection_failed", "Unable to open USB printer", error, { connected: false });
+      activeCapability = null;
+      return update("connection_failed", mapped.message, mapped, { connected: false, capability: null });
     }
   }
 
   async function disconnectInternal() {
     if (!activeDevice || !activeDevice.opened) return update("disconnected", "USB printer disconnected", null, { connected: false });
     update("disconnecting", "Disconnecting USB printer");
+    let releaseError = null;
     try {
+      if (claimedInterface !== null) {
+        if (typeof activeDevice.releaseInterface !== "function") throw driverError(DRIVER_ERRORS.NOT_SUPPORTED, "USB interface release is not supported");
+        try { await activeDevice.releaseInterface(claimedInterface); }
+        catch (error) { releaseError = mapDriverError(error, DRIVER_ERRORS.RELEASE_FAILED); }
+      }
+      claimedInterface = null;
       await activeDevice.close();
-      return update("disconnected", "USB printer disconnected", null, { connected: false });
+      activeCapability = null;
+      if (releaseError) return update("error", releaseError.message, releaseError, { connected: false, capability: null });
+      return update("disconnected", "USB printer disconnected", null, { connected: false, capability: null });
     } catch (error) {
-      return update("error", "Unable to close USB printer", error, { connected: Boolean(activeDevice.opened) });
+      const mapped = mapDriverError(error, error && error.code === DRIVER_ERRORS.NOT_SUPPORTED ? DRIVER_ERRORS.NOT_SUPPORTED : DRIVER_ERRORS.DEVICE_BUSY);
+      return update("error", mapped.message, mapped, { connected: Boolean(activeDevice.opened), capability: activeCapability });
     }
   }
 
@@ -188,8 +297,8 @@ export function createUsbPrinterProvider(options = {}) {
   function onDisconnect(event) {
     enqueue(() => {
       if (!sameDevice(event && event.device, activeDevice)) return snapshot();
-      activeDevice = null;
-      return update("device_disconnected", "USB printer was physically disconnected", null, { selectedDevice: null, connected: false });
+      activeDevice = null; activeCapability = null; claimedInterface = null;
+      return update("device_disconnected", "USB printer was physically disconnected", null, { selectedDevice: null, connected: false, capability: null });
     });
   }
 
@@ -203,7 +312,7 @@ export function createUsbPrinterProvider(options = {}) {
     detect() { return enqueue(detectInternal); },
     requestDevice(filters) {
       if (destroyed) return Promise.resolve(snapshot());
-      if (!usb) return Promise.resolve(update("unsupported", "This browser does not support USB printer connections").selectedDevice);
+      if (!usb) return Promise.resolve(update("unsupported", "This browser does not support USB printer connections", driverError(DRIVER_ERRORS.NOT_SUPPORTED, "WebUSB is not supported")).selectedDevice);
       if (operationCount > 0) {
         return Promise.resolve(update("error", "USB 正在處理其他操作，請完成後再次點選"));
       }
@@ -226,7 +335,7 @@ export function createUsbPrinterProvider(options = {}) {
     connect() { return enqueue(connectInternal); },
     disconnect() { return enqueue(disconnectInternal); },
     getStatus: snapshot,
-    print() { return Promise.reject(new Error("Printer Phase 3 does not send print data or implement ESC/POS")); },
+    print() { return Promise.reject(new Error("Printer Phase 4 provides USB communication setup only and does not print")); },
     onStatusChanged(callback) {
       if (destroyed || typeof callback !== "function") return function() {};
       listeners.push(callback);
@@ -240,12 +349,12 @@ export function createUsbPrinterProvider(options = {}) {
         usb.removeEventListener("disconnect", onDisconnect);
       }
       listeners.length = 0;
-      authorizedDevices.clear(); activeDevice = null;
-      state = Object.assign({}, state, { status: "error", message: "USB printer provider has been destroyed", devices: [], selectedDevice: null, connected: false });
+      authorizedDevices.clear(); capabilityCache.clear(); activeDevice = null; activeCapability = null; claimedInterface = null;
+      state = Object.assign({}, state, { status: "error", message: "USB printer provider has been destroyed", devices: [], selectedDevice: null, connected: false, capability: null });
       return snapshot();
     }
   };
 }
 
 export const USB_PRINTER_STATUSES = STATUSES;
-export { sameDevice };
+export { DRIVER_ERRORS as USB_DRIVER_ERRORS, discoverCapability, sameDevice };

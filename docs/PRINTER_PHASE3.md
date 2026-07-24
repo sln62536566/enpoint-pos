@@ -58,3 +58,18 @@ USB 已連線時，authorized-device select 會停用。Provider API 也會拒�
 ### 舊 iPad Safari / PWA
 
 確認顯示不支援 WebUSB、所有 USB 按鈕停用、沒有 JavaScript uncaught error，且 POS、設定、訂單與其他中心仍可操作。
+
+## Printer Phase 4：USB Communication Foundation
+
+Phase 4 在既有連線生命週期內加入 driver discovery，但不傳送任何列印資料：
+
+1. 從 `device.configurations` 搜尋具有可用 OUT endpoint 的 configuration，不假設 configuration number。
+2. 從 `configuration.interfaces` 與 alternates 搜尋 interface、alternate、endpoint number 與 packet size，不假設 interface 0 或固定 endpoint。
+3. Driver 依序執行 open、select configuration、claim interface；斷線時依序 release interface、close。
+4. Runtime capability cache 保存 VID、PID、configuration、interface、alternate、endpoint 與 packet size。重新連線先驗證 cache；descriptor 改變時重新探索。
+5. 固定錯誤碼為 `NO_CONFIGURATION`、`NO_INTERFACE`、`NO_ENDPOINT`、`CLAIM_FAILED`、`RELEASE_FAILED`、`DEVICE_BUSY`、`NOT_SUPPORTED`。
+6. Cache、configuration、interface 與 endpoint 都只存在記憶體，不進入 DOM、LocalStorage 或 Firebase。
+
+不支援 WebUSB 的 Safari 或其他瀏覽器維持 `unsupported` / `NOT_SUPPORTED` 安全退化。所有 driver failure 都轉成 Printer Provider state，不向 POS startup、QR、KDS 或 Firebase 拋出。
+
+Printer Phase 4 does not call transferOut and does not implement printing, ESC/POS, Auto Print, Kitchen Print, Receipt Print, or Label Print.
