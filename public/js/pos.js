@@ -54,6 +54,56 @@ function loadLegacyPrinterModules() {
   return legacyPrinterModulesPromise;
 }
 
+let printerOrderBridgePromise = null;
+
+function isPrintingEnabled() {
+  return getFeatureModuleSettings().print !== false;
+}
+
+function loadPrinterOrderBridge() {
+  if (!printerOrderBridgePromise) printerOrderBridgePromise = import("./printer-order-bridge.js");
+  return printerOrderBridgePromise;
+}
+
+function invalidatePrinterIntegrationConfiguration() {
+  return Promise.resolve().then(loadPrinterOrderBridge).then(function(module) {
+    if (!module || !module.PrinterOrderBridge || typeof module.PrinterOrderBridge.invalidateConfiguration !== "function") return null;
+    return module.PrinterOrderBridge.invalidateConfiguration();
+  }).catch(function(error) {
+    console.warn("Printer configuration invalidation isolated", error);
+    return null;
+  });
+}
+
+function triggerPosOrderPrint(order) {
+  if (!isPrintingEnabled()) return Promise.resolve({ ok: true, status: "skipped", code: "PRINT_MODULE_DISABLED" });
+  var event = {
+    eventType: "OrderCreated",
+    order: order,
+    orderId: order.id,
+    orderNumber: order.orderNumber,
+    source: "POS",
+    storeId: order.storeId || STORE_ID,
+    businessEventVersion: "1",
+    ticketType: "auto",
+    routeGroup: "Kitchen",
+    policy: "pos-order-created",
+    metadata: { paymentStatus: order.paymentStatus, isTestOrder: order.isTestOrder === true, test: order.isTestOrder === true }
+  };
+  return Promise.resolve().then(loadPrinterOrderBridge).then(function(module) {
+    if (!module || !module.PrinterOrderBridge || typeof module.PrinterOrderBridge.handle !== "function") throw Object.assign(new Error("Printer order bridge unavailable"), { code: "PRINTER_BRIDGE_UNAVAILABLE" });
+    return module.PrinterOrderBridge.handle(event);
+  }).then(function(result) {
+    var details = { orderId: order.id, orderNumber: order.orderNumber, code: result && result.code, status: result && result.status };
+    if (result && result.ok) console.info("POS printer event", details);
+    else console.warn("POS printer event failed", details);
+    return result;
+  }).catch(function(error) {
+    console.warn("POS printer event isolated", { orderId: order.id, orderNumber: order.orderNumber, code: error && error.code || "PRINTER_TRIGGER_FAILED", status: "isolated" });
+    return { ok: false, status: "isolated", code: error && error.code || "PRINTER_TRIGGER_FAILED" };
+  });
+}
+
 
 /* =========================
    v59-5 EARLY POS LEGACY OPEN
@@ -1209,11 +1259,11 @@ function bindUsbPrinterControls(legacy) {
   var connect = document.getElementById("usbConnectBtn");
   var disconnect = document.getElementById("usbDisconnectBtn");
   var authorized = document.getElementById("usbAuthorizedDevices");
-  if (detect) detect.addEventListener("click", function() { PrinterCenter.detectUsbPrinter().then(function() { renderUsbPrinterStatus(PrinterCenter.getUsbStatus()); }); });
-  if (request) request.addEventListener("click", function() { PrinterCenter.requestUsbPrinter([]).then(function() { renderUsbPrinterStatus(PrinterCenter.getUsbStatus()); }); });
-  if (connect) connect.addEventListener("click", function() { PrinterCenter.connectUsbPrinter().then(renderUsbPrinterStatus); });
-  if (disconnect) disconnect.addEventListener("click", function() { PrinterCenter.disconnectUsbPrinter().then(renderUsbPrinterStatus); });
-  if (authorized) authorized.addEventListener("change", function() { if (authorized.value) PrinterCenter.selectAuthorizedUsbPrinter(authorized.value).then(renderUsbPrinterStatus); });
+  if (detect) detect.addEventListener("click", function() { PrinterCenter.detectUsbPrinter().then(function() { void invalidatePrinterIntegrationConfiguration(); renderUsbPrinterStatus(PrinterCenter.getUsbStatus()); }); });
+  if (request) request.addEventListener("click", function() { PrinterCenter.requestUsbPrinter([]).then(function() { void invalidatePrinterIntegrationConfiguration(); renderUsbPrinterStatus(PrinterCenter.getUsbStatus()); }); });
+  if (connect) connect.addEventListener("click", function() { PrinterCenter.connectUsbPrinter().then(function(state) { void invalidatePrinterIntegrationConfiguration(); renderUsbPrinterStatus(state); }); });
+  if (disconnect) disconnect.addEventListener("click", function() { PrinterCenter.disconnectUsbPrinter().then(function(state) { void invalidatePrinterIntegrationConfiguration(); renderUsbPrinterStatus(state); }); });
+  if (authorized) authorized.addEventListener("change", function() { if (authorized.value) PrinterCenter.selectAuthorizedUsbPrinter(authorized.value).then(function(state) { void invalidatePrinterIntegrationConfiguration(); renderUsbPrinterStatus(state); }); });
   PrinterCenter.whenUsbReady().then(function() {
     PrinterCenter.onUsbStatusChanged(renderUsbPrinterStatus);
     renderUsbPrinterStatus(PrinterCenter.getUsbStatus());
@@ -1296,6 +1346,7 @@ function bindPrinterProfileCard(card, profiles, legacy) {
       field.addEventListener("change", function() {
         var value = key === "autoPrint" || key === "enabled" ? field.checked : field.value;
         var updated = PrinterProfile.update(profileName, (function() { var change = {}; change[key] = value; return change; })());
+        void invalidatePrinterIntegrationConfiguration();
         updatePrinterProfileCard(card, updated, legacy);
       });
     })(fields[i]);
@@ -3979,6 +4030,8 @@ async function submitOrderCore(options) {
     };
 
     await set(newOrderRef, order);
+
+    void triggerPosOrderPrint(order);
 
     if (!isTestMode && isPaidMode) {
       playSound("payment");

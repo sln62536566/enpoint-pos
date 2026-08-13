@@ -28,7 +28,14 @@ export function createPrinterOrderBridge(options = {}) {
   }
 
   function handle(event) { return Promise.resolve().then(() => isolatedHandle(event)).catch(error => controlled({ status: "isolated", error })); }
-  return Object.freeze({ handle });
+  function invalidateConfiguration() {
+    return Promise.resolve().then(integration).then(module => {
+      const target = module.PrinterIntegration || module.default || module;
+      if (!target || typeof target.invalidateConfiguration !== "function") throw Object.assign(new Error("Printer configuration invalidation unavailable"), { code: "CONFIGURATION_INVALIDATION_UNAVAILABLE" });
+      return controlled(target.invalidateConfiguration());
+    }).catch(error => controlled({ status: "isolated", code: error && error.code || "CONFIGURATION_INVALIDATION_FAILED", error }));
+  }
+  return Object.freeze({ handle, invalidateConfiguration });
 }
 
 export const PrinterOrderBridge = createPrinterOrderBridge();

@@ -32,13 +32,17 @@ export function buildCustomerReceiptLayout(input) {
 export function buildKitchenReceiptLayout(input) {
   const model = createReceiptModel(input);
   const nodes = [node("command", { name: "initialize" }), node("command", { name: "alignCenter" }), node("command", { name: "boldOn" }), node("line", { value: "KITCHEN" }), node("command", { name: "boldOff" })];
+  if (model.isTestOrder) nodes.push(node("command", { name: "boldOn" }), node("line", { value: "*** 測試單 ***" }), node("command", { name: "boldOff" }));
   if (model.orderNumber) nodes.push(node("line", { value: `Order: ${model.orderNumber}` }));
   if (model.table) nodes.push(node("line", { value: `Table: ${model.table}` }));
+  if (model.paymentStatus === "unpaid") nodes.push(node("command", { name: "boldOn" }), node("line", { value: "*** 未付款 ***" }), node("command", { name: "boldOff" }));
   nodes.push(node("command", { name: "alignLeft" }), node("separator"));
   model.items.forEach(item => {
     nodes.push(node("line", { value: `${item.quantity} x ${item.name}` }));
-    if (item.note) nodes.push(node("line", { value: `  ${item.note}` }));
+    item.details.forEach(detail => nodes.push(node("line", { value: `  ${detail}` })));
+    if (item.note) nodes.push(node("line", { value: item.details.length ? `  備註：${item.note}` : `  ${item.note}` }));
   });
+  if (model.orderNote) nodes.push(node("separator"), node("command", { name: "boldOn" }), node("line", { value: "整單備註：" }), node("command", { name: "boldOff" }), node("line", { value: model.orderNote }));
   nodes.push(node("feed", { lines: 2 }), node("command", { name: "cut" }));
   return createLayout("kitchen", nodes);
 }

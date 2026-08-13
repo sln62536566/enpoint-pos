@@ -32,6 +32,7 @@ function coreModules(overrides = {}) {
     "./printer-registry.js": { createPrinterRegistry: () => ({ get: () => null, list: () => [] }) },
     "./printer-router.js": { createPrinterRouter: () => ({ route: () => { throw new Error("must not route under safe policy"); } }) },
     "./print-scheduler.js": { createPrintScheduler: () => ({ schedule: () => { throw new Error("must not schedule under safe policy"); } }) }
+    ,"./printer-pos-config.js": { loadPosPrinterConfiguration: async () => ({ enabled: false, code: "NO_PRINTER_CONFIGURED", profile: null, driver: null, printer: null }) }
   };
   Object.assign(modules, overrides);
   return { importer: async specifier => {
@@ -52,12 +53,12 @@ test("264 adapter exposes claim candidate without claiming", () => { const trigg
 test("265 adapter rejects invalid business event", () => assert.throws(() => adaptPrinterEvent({ type: "Unknown", orderId: "1" })));
 
 test("266 integration initialize once", async () => { const core = coreModules(), integration = createPrinterIntegration({ importer: core.importer, environment: {} }); const a = await integration.initialize(), b = await integration.initialize(); assert.equal(a.ok, true); assert.equal(b.ok, true); assert.equal(integration.getStatus().status, "ready"); });
-test("267 concurrent initialize shares lifecycle", async () => { let calls = 0; const core = coreModules(), importer = async name => { calls++; return core.importer(name); }, integration = createPrinterIntegration({ importer, environment: {} }); const results = await Promise.all([integration.initialize(), integration.initialize(), integration.initialize()]); assert.equal(results.every(item => item.ok), true); assert.equal(calls, 12); });
+test("267 concurrent initialize shares lifecycle", async () => { let calls = 0; const core = coreModules(), importer = async name => { calls++; return core.importer(name); }, integration = createPrinterIntegration({ importer, environment: {} }); const results = await Promise.all([integration.initialize(), integration.initialize(), integration.initialize()]); assert.equal(results.every(item => item.ok), true); assert.equal(calls, 13); });
 test("268 failed initialize is controlled", async () => { const integration = createPrinterIntegration({ importer: async () => { throw new Error("load"); } }); const value = await integration.initialize(); assert.equal(value.ok, false); assert.equal(value.code, "INITIALIZATION_FAILED"); assert.equal(integration.getStatus().status, "unavailable"); });
-test("269 repeated failed initialize does not reload", async () => { let calls = 0; const integration = createPrinterIntegration({ importer: async () => { calls++; throw new Error("load"); } }); await integration.initialize(); await integration.initialize(); assert.equal(calls, 12); });
+test("269 repeated failed initialize does not reload", async () => { let calls = 0; const integration = createPrinterIntegration({ importer: async () => { calls++; throw new Error("load"); } }); await integration.initialize(); await integration.initialize(); assert.equal(calls, 13); });
 test("270 destroy before initialize is idempotent", async () => { const integration = createPrinterIntegration({ importer: async () => { throw new Error("unused"); } }); assert.equal(integration.destroy(), true); assert.equal(integration.destroy(), false); assert.equal((await integration.initialize()).code, "PRINTER_INTEGRATION_DESTROYED"); });
 test("271 destroy after initialize destroys components", async () => { const core = coreModules(), integration = createPrinterIntegration({ importer: core.importer }); await integration.initialize(); assert.equal(integration.destroy(), true); assert.ok(core.destroyed() >= 2); });
-test("272 unsupported WebUSB remains ready optional capability", async () => { const core = coreModules(), integration = createPrinterIntegration({ importer: core.importer, environment: {} }); assert.equal((await integration.initialize()).ok, true); assert.equal(integration.getStatus().ready, true); assert.equal(integration.getStatus().available, false); assert.equal(integration.getStatus().capability, "unsupported"); });
+test("272 unsupported WebUSB remains ready optional capability", async () => { const core = coreModules(), integration = createPrinterIntegration({ importer: core.importer, environment: {} }); assert.equal((await integration.initialize()).ok, true); assert.equal(integration.getStatus().ready, true); assert.equal(integration.getStatus().available, false); assert.equal(integration.getStatus().capability, "NO_PRINTER_CONFIGURED"); });
 test("273 corrupt component initialization is controlled", async () => { const core = coreModules({ "./printer-registry.js": { createPrinterRegistry: () => { throw new Error("corrupt"); } } }), integration = createPrinterIntegration({ importer: core.importer }); assert.equal((await integration.initialize()).ok, false); });
 test("274 default safe handle skips without enqueue", async () => { const core = coreModules(), integration = createPrinterIntegration({ importer: core.importer }); const value = await integration.handle(adaptPrinterEvent(event())); assert.equal(value.code, "DEFAULT_SAFE_SKIP"); assert.equal(core.enqueues(), 0); });
 
@@ -76,5 +77,5 @@ test("280 architecture and POS static dependency guards", async () => {
   assert.equal(/^import .*printer-center\.js/m.test(pos), false);
   assert.equal(/^import .*printer-profile\.js/m.test(pos), false);
   assert.equal(/^import .*print-queue\.js/m.test(pos), false);
-  assert.equal(pos.includes("PrinterOrderBridge.handle"), false);
+  assert.match(pos, /import\("\.\/printer-order-bridge\.js"\)/);
 });

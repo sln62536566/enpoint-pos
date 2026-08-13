@@ -62,7 +62,9 @@ test("284 queue status forwards legacy to every profile status render", () => {
 
 test("285 manual print remains on lazy legacy PrinterCenter path", () => {
   assert.match(posSource, /function printOrderTicket[\s\S]*?loadLegacyPrinterModules\(\)\.then\(function\(legacy\)[\s\S]*?legacy\.PrinterCenter\.printCustomer[\s\S]*?legacy\.PrinterCenter\.printKitchen/);
-  assert.equal(posSource.includes("PrinterOrderBridge.handle"), false);
+  const start = posSource.indexOf("function printOrderTicket");
+  const end = posSource.indexOf("function sendOrderToPrinterDevice", start);
+  assert.equal(posSource.slice(start, end).includes("PrinterOrderBridge"), false);
 });
 
 test("286 all legacy printer identifiers are scoped or explicitly qualified", () => {
