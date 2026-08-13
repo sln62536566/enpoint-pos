@@ -1278,7 +1278,7 @@ function renderPrintQueueStatus(state, legacy) {
   var profileCards = document.querySelectorAll("[data-printer-profile]");
   for (var i = 0; i < profileCards.length; i += 1) {
     var profileName = profileCards[i].getAttribute("data-printer-profile");
-    renderPrinterProfileStatus(profileCards[i], PrinterProfile.get(profileName));
+    renderPrinterProfileStatus(profileCards[i], PrinterProfile.get(profileName), legacy);
   }
 }
 
@@ -1292,30 +1292,30 @@ function bindPrinterProfileCard(card, profiles, legacy) {
       var key = field.getAttribute("data-profile-field");
       if (key === "autoPrint" || key === "enabled") field.checked = profile[key] === true;
       else field.value = String(profile[key]);
-      updatePrinterProfileCard(card, profile);
+      updatePrinterProfileCard(card, profile, legacy);
       field.addEventListener("change", function() {
         var value = key === "autoPrint" || key === "enabled" ? field.checked : field.value;
         var updated = PrinterProfile.update(profileName, (function() { var change = {}; change[key] = value; return change; })());
-        updatePrinterProfileCard(card, updated);
+        updatePrinterProfileCard(card, updated, legacy);
       });
     })(fields[i]);
   }
 }
 
-function updatePrinterProfileCard(card, profile) {
+function updatePrinterProfileCard(card, profile, legacy) {
   var autoInput = card.querySelector('[data-profile-field="autoPrint"]');
   var enabledInput = card.querySelector('[data-profile-field="enabled"]');
   var autoLabel = card.querySelector("[data-profile-auto-label]");
   var enabledLabel = card.querySelector("[data-profile-enabled-label]");
   if (autoLabel) autoLabel.textContent = autoInput && autoInput.checked ? "啟用" : "停用";
   if (enabledLabel) enabledLabel.textContent = enabledInput && enabledInput.checked ? "啟用" : "停用";
-  renderPrinterProfileStatus(card, profile);
+  renderPrinterProfileStatus(card, profile, legacy);
 }
 
-function renderPrinterProfileStatus(card, profile) {
+function renderPrinterProfileStatus(card, profile, legacy) {
   var status = card.querySelector("[data-profile-status]");
   if (!status || !profile) return;
-  var current = PrintQueue.getCurrent();
+  var current = legacy.PrintQueue.getCurrent();
   var queueText = current && current.profile && current.profile.id === profile.id ? "列印中" : "待命";
   status.innerHTML = '<span>列印方式：' + (profile.provider === "browser" ? "瀏覽器列印" : profile.provider) + '</span><span>紙張尺寸：' + (profile.paperSize === "40x30" ? "40×30" : profile.paperSize + "mm") + '</span><span>列印份數：' + profile.copies + '</span><span>自動列印：' + (profile.autoPrint ? "啟用" : "停用") + '</span><span>Queue：' + queueText + '</span>';
 }
