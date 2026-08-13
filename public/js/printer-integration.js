@@ -47,8 +47,10 @@ export function createPrinterIntegration(options = {}) {
     const registry = core["printer-registry"].createPrinterRegistry(configuration.printer ? [configuration.printer] : []);
     const router = core["printer-router"].createPrinterRouter({ registry });
     const scheduler = core["print-scheduler"].createPrintScheduler({ router, registry, queue });
-    const posPolicy = core["print-policy"].createPrintPolicy(trigger => {
-      if (!configuration.enabled || trigger.type !== "OrderCreated" || String(trigger.source).toUpperCase() !== "POS") return { tickets: [], metadata: { reason: configuration.code || "NOT_POS_ORDER" } };
+    const kitchenPolicy = core["print-policy"].createPrintPolicy(trigger => {
+      const isPos = trigger.type === "OrderCreated" && String(trigger.source).toUpperCase() === "POS";
+      const isClaimedQr = trigger.type === "PaymentCompleted" && String(trigger.source).toUpperCase() === "QR" && trigger.metadata && trigger.metadata.crossDeviceClaimed === true;
+      if (!configuration.enabled || (!isPos && !isClaimedQr)) return { tickets: [], metadata: { reason: configuration.code || "INVALID_AUTO_PRINT_EVENT" } };
       const profile = configuration.profile;
       return {
         tickets: [{ type: "kitchen", copies: profile.copies, paper: profile.paperSize, layoutVariant: "kitchen" }],
@@ -57,7 +59,7 @@ export function createPrinterIntegration(options = {}) {
         metadata: { group: "Kitchen", configurationCode: configuration.code }
       };
     });
-    const policies = core["print-policy"].createPolicyRegistry({ default: core["print-policy"].createPrintPolicy(), "pos-order-created": posPolicy });
+    const policies = core["print-policy"].createPolicyRegistry({ default: core["print-policy"].createPrintPolicy(), "pos-order-created": kitchenPolicy, "qr-order-confirmed": kitchenPolicy });
     const capabilities = core["printer-capability"].createCapabilityRegistry({ default: { id: "default" }, "pos-kitchen": configuration.printer ? configuration.printer.capability : { id: "pos-kitchen" } });
     const engine = core["auto-print-engine"].createAutoPrintEngine({ policies, capabilities, scheduler });
     return Object.freeze({ configuration, transport, pipeline, queue, registry, router, scheduler, policies, capabilities, engine });
@@ -166,6 +168,17 @@ export function createPrinterIntegration(options = {}) {
     } catch (error) { return result({ status: "failed", eventId: trigger && trigger.id, error }); }
   }
 
+  async function canHandleQrAutoPrint() {
+    try {
+      if (state === STATUS.DESTROYED) return Object.freeze({ eligible: false, code: "PRINTER_INTEGRATION_DESTROYED" });
+      if (!environmentSupported) return Object.freeze({ eligible: false, code: "WEBUSB_UNSUPPORTED" });
+      const configModule = await importer("./printer-pos-config.js");
+      return configModule.inspectPosPrinterEligibility(importer, environment);
+    } catch (error) {
+      return Object.freeze({ eligible: false, code: String(error && error.code || "PRINTER_ELIGIBILITY_FAILED") });
+    }
+  }
+
   function destroy() {
     if (state === STATUS.DESTROYED) return false;
     state = STATUS.DESTROYED;
@@ -174,7 +187,7 @@ export function createPrinterIntegration(options = {}) {
     return true;
   }
 
-  return Object.freeze({ initialize, handle, getStatus, invalidateConfiguration, reloadConfiguration, destroy });
+  return Object.freeze({ initialize, handle, canHandleQrAutoPrint, getStatus, invalidateConfiguration, reloadConfiguration, destroy });
 }
 
 export const PrinterIntegration = createPrinterIntegration();

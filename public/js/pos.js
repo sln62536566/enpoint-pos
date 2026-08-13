@@ -6,6 +6,7 @@ import {
   update,
   remove,
   onValue,
+  runTransaction,
   getBusinessDate,
   createOrderNumber
 } from "./firebase.js";
@@ -55,6 +56,9 @@ function loadLegacyPrinterModules() {
 }
 
 let printerOrderBridgePromise = null;
+let qrPrinterOwnershipPromise = null;
+let qrPrinterSnapshotChain = Promise.resolve();
+const qrClaimRecoveryTimers = new Map();
 
 function isPrintingEnabled() {
   return getFeatureModuleSettings().print !== false;
@@ -63,6 +67,174 @@ function isPrintingEnabled() {
 function loadPrinterOrderBridge() {
   if (!printerOrderBridgePromise) printerOrderBridgePromise = import("./printer-order-bridge.js");
   return printerOrderBridgePromise;
+}
+
+function loadQrPrinterOwnership() {
+  if (!qrPrinterOwnershipPromise) {
+    qrPrinterOwnershipPromise = Promise.all([
+      import("./printer-order-transition.js"),
+      import("./printer-claim-store.js"),
+      import("./printer-host-identity.js")
+    ]).then(function(modules) {
+      return Object.freeze({
+        detector: modules[0].createQrOrderTransitionDetector(),
+        claimStore: modules[1].createPrinterClaimStore({ db: db, ref: ref, runTransaction: runTransaction }),
+        identity: modules[2].createPrinterHostIdentity()
+      });
+    });
+  }
+  return qrPrinterOwnershipPromise;
+}
+
+async function handleQrPrinterEvent(event, ownership) {
+  if (!isPrintingEnabled()) return { ok: true, status: "skipped", code: "PRINT_MODULE_DISABLED" };
+  const bridgeModule = await loadPrinterOrderBridge();
+  const bridge = bridgeModule && bridgeModule.PrinterOrderBridge;
+  if (!bridge || typeof bridge.canHandleQrAutoPrint !== "function" || typeof bridge.handle !== "function") throw Object.assign(new Error("QR printer bridge unavailable"), { code: "PRINTER_BRIDGE_UNAVAILABLE" });
+  const eligibility = await bridge.canHandleQrAutoPrint();
+  if (!eligibility || eligibility.eligible !== true) return { ok: true, status: "skipped", code: eligibility && eligibility.code || "PRINTER_HOST_INELIGIBLE" };
+  const acquired = await ownership.claimStore.claim(event, ownership.identity);
+  if (!acquired.acquired) {
+    scheduleQrClaimRecovery(event, ownership, acquired);
+    return acquired;
+  }
+  clearQrClaimRecovery(acquired.claimKey);
+  const printing = await ownership.claimStore.markPrinting(acquired.claimKey, ownership.identity.ownerId);
+  if (!printing.ok) return printing;
+  const printerEvent = Object.assign({}, event, {
+    eventId: acquired.claimKey,
+    metadata: {
+      claimKey: acquired.claimKey,
+      claimOwner: ownership.identity.ownerId,
+      claimAttempt: acquired.claim.attempt,
+      crossDeviceClaimed: true,
+      paymentStatus: event.order.paymentStatus,
+      isTestOrder: event.order.isTestOrder === true,
+      test: event.order.isTestOrder === true
+    }
+  });
+  const heartbeat = startQrClaimHeartbeat(acquired.claimKey, ownership);
+  const result = await bridge.handle(printerEvent);
+  const heartbeatState = await heartbeat.finish();
+  if (heartbeatState.ownershipLost || heartbeatState.uncertain) {
+    console.warn("QR printer ownership uncertain", { orderId: event.orderId, claimKey: acquired.claimKey, code: heartbeatState.code });
+    return { ok: false, status: "isolated", code: heartbeatState.code || "CLAIM_OWNERSHIP_UNCERTAIN" };
+  }
+  return finalizeQrPrinterClaim(event, ownership, acquired, result);
+}
+
+async function finalizeQrPrinterClaim(event, ownership, acquired, printResult, lifecycle) {
+  const helpers = lifecycle || {};
+  const clearRecovery = helpers.clearRecovery || clearQrClaimRecovery;
+  const scheduleRecovery = helpers.scheduleRecovery || scheduleQrClaimRecovery;
+  const warning = helpers.warning || function(details) { console.warn("QR printer claim finalization failed", details); };
+  const successfulPrint = Boolean(printResult && printResult.ok && !printResult.skipped);
+  const finalized = successfulPrint
+    ? await ownership.claimStore.complete(acquired.claimKey, ownership.identity.ownerId)
+    : await ownership.claimStore.fail(acquired.claimKey, ownership.identity.ownerId, { code: printResult && printResult.code || "PRINT_FAILED" });
+  if (!finalized || finalized.ok !== true) {
+    const code = finalized && finalized.code || (successfulPrint ? "CLAIM_COMPLETION_FAILED" : "CLAIM_FAILURE_WRITE_FAILED");
+    warning({ orderId: event.orderId, claimKey: acquired.claimKey, code: code });
+    scheduleRecovery(event, ownership, {
+      claimKey: acquired.claimKey,
+      claim: { status: "printing", leaseExpiresAt: Date.now() + ownership.claimStore.leaseMs }
+    });
+    return { ok: false, status: "isolated", code: code, eventId: acquired.claimKey };
+  }
+  clearRecovery(acquired.claimKey);
+  return printResult;
+}
+
+function clearQrClaimRecovery(claimKey) {
+  const timer = qrClaimRecoveryTimers.get(claimKey);
+  if (timer !== undefined) clearTimeout(timer);
+  qrClaimRecoveryTimers.delete(claimKey);
+}
+
+function scheduleQrClaimRecovery(event, ownership, claimResult) {
+  const claim = claimResult && claimResult.claim;
+  const claimKey = claimResult && claimResult.claimKey;
+  if (!claimKey || !claim || (claim.status !== "claimed" && claim.status !== "printing") || Number(claim.leaseExpiresAt) <= Date.now()) return false;
+  clearQrClaimRecovery(claimKey);
+  const delay = Math.max(250, Number(claim.leaseExpiresAt) - Date.now() + 50);
+  const timer = setTimeout(function() {
+    qrClaimRecoveryTimers.delete(claimKey);
+    handleQrPrinterEvent(event, ownership).catch(function(error) {
+      console.warn("QR printer lease recovery isolated", { orderId: event.orderId, code: error && error.code || "QR_PRINT_RECOVERY_FAILED" });
+    });
+  }, delay);
+  qrClaimRecoveryTimers.set(claimKey, timer);
+  return true;
+}
+
+function startQrClaimHeartbeat(claimKey, ownership) {
+  return createQrHeartbeatController({
+    renew: function() { return ownership.claimStore.renewLease(claimKey, ownership.identity.ownerId); },
+    intervalMs: ownership.claimStore.heartbeatMs,
+    warning: function(code) { console.warn("QR printer lease heartbeat failed", { claimKey: claimKey, code: code }); }
+  });
+}
+
+function createQrHeartbeatController(options) {
+  const state = { stopped: false, running: false, ownershipLost: false, uncertain: false, code: null };
+  const renew = options.renew;
+  const setIntervalFn = options.setIntervalFn || setInterval;
+  const clearIntervalFn = options.clearIntervalFn || clearInterval;
+  const warning = typeof options.warning === "function" ? options.warning : function() {};
+  let pending = Promise.resolve();
+
+  function snapshot() { return Object.freeze(Object.assign({}, state)); }
+  function applyResult(renewed) {
+    if (renewed && renewed.ok === true) {
+      if (!state.ownershipLost) { state.uncertain = false; state.code = null; }
+      return;
+    }
+    const code = renewed && renewed.code || "CLAIM_HEARTBEAT_FAILED";
+    state.code = code;
+    if (code === "CLAIM_OWNERSHIP_LOST") { state.ownershipLost = true; state.uncertain = false; }
+    else if (!state.ownershipLost) state.uncertain = true;
+    warning(code);
+  }
+  async function renewOnce() {
+    if (state.running) { await pending; return snapshot(); }
+    if (state.ownershipLost) return snapshot();
+    state.running = true;
+    pending = Promise.resolve().then(renew).then(applyResult).catch(function(error) {
+      applyResult({ ok: false, code: error && error.code || "CLAIM_HEARTBEAT_FAILED" });
+    }).finally(function() { state.running = false; });
+    await pending;
+    return snapshot();
+  }
+
+  const timer = setIntervalFn(function() { if (!state.stopped) void renewOnce(); }, options.intervalMs);
+  return Object.freeze({
+    tick: renewOnce,
+    getState: snapshot,
+    stop: async function() { state.stopped = true; clearIntervalFn(timer); await pending; return snapshot(); },
+    finish: async function() {
+      state.stopped = true;
+      clearIntervalFn(timer);
+      await pending;
+      if (!state.ownershipLost) await renewOnce();
+      return snapshot();
+    }
+  });
+}
+
+function processQrPrinterTransitions(nextOrdersData) {
+  qrPrinterSnapshotChain = qrPrinterSnapshotChain.then(async function() {
+    const ownership = await loadQrPrinterOwnership();
+    const events = ownership.detector.observe(nextOrdersData);
+    await Promise.all(events.map(function(event) {
+      return handleQrPrinterEvent(event, ownership).catch(function(error) {
+        console.warn("QR printer event isolated", { orderId: event.orderId, orderNumber: event.orderNumber, code: error && error.code || "QR_PRINT_FAILED" });
+        return null;
+      });
+    }));
+  }).catch(function(error) {
+    console.warn("QR printer snapshot isolated", { code: error && error.code || "QR_PRINT_SNAPSHOT_FAILED" });
+  });
+  return qrPrinterSnapshotChain;
 }
 
 function invalidatePrinterIntegrationConfiguration() {
@@ -422,6 +594,7 @@ onValue(customGroupsRef, snapshot => {
 onValue(ordersRef, snapshot => {
   const nextOrdersData = snapshot.exists() ? snapshot.val() : {};
   safePosInit("orders", function() {
+    void processQrPrinterTransitions(nextOrdersData);
     processOrderSoundTransitions(nextOrdersData);
     processNewQrOrderSound(nextOrdersData);
     ordersData = nextOrdersData;

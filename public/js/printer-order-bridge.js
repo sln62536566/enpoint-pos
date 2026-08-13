@@ -35,7 +35,14 @@ export function createPrinterOrderBridge(options = {}) {
       return controlled(target.invalidateConfiguration());
     }).catch(error => controlled({ status: "isolated", code: error && error.code || "CONFIGURATION_INVALIDATION_FAILED", error }));
   }
-  return Object.freeze({ handle, invalidateConfiguration });
+  function canHandleQrAutoPrint() {
+    return Promise.resolve().then(integration).then(module => {
+      const target = module.PrinterIntegration || module.default || module;
+      if (!target || typeof target.canHandleQrAutoPrint !== "function") return Object.freeze({ eligible: false, code: "PRINTER_ELIGIBILITY_UNAVAILABLE" });
+      return target.canHandleQrAutoPrint();
+    }).catch(() => Object.freeze({ eligible: false, code: "PRINTER_ELIGIBILITY_FAILED" }));
+  }
+  return Object.freeze({ handle, canHandleQrAutoPrint, invalidateConfiguration });
 }
 
 export const PrinterOrderBridge = createPrinterOrderBridge();

@@ -113,7 +113,7 @@ export function adaptPrinterEvent(input = {}, clock = Date.now) {
     timestamp: input.timestamp,
     policy: text(input.policy, "default"),
     payload: { order, orderId, orderNumber: text(input.orderNumber || order.orderNumber), ticketType, routeGroup, businessEventVersion: version, printerCapability: text(input.printerCapability, "default") },
-    metadata: Object.assign({}, clone(input.metadata || {}), { correlationId, idempotencyCandidate: id, routeGroup, ticketType, businessEventVersion: version, crossDeviceClaimed: false })
+    metadata: Object.assign({}, clone(input.metadata || {}), { correlationId, idempotencyCandidate: id, routeGroup, ticketType, businessEventVersion: version, crossDeviceClaimed: Boolean(input.metadata && input.metadata.crossDeviceClaimed === true) })
   }, clock);
 }
 
