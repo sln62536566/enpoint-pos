@@ -32,9 +32,27 @@ import {
   unlockSoundCenter
 } from "./sound-center.js?v=sound-phase-1";
 
-import { PrinterCenter } from "./printer-center.js";
-import { PrinterProfile } from "./printer-profile.js";
-import { PrintQueue } from "./print-queue.js";
+let legacyPrinterModulesPromise = null;
+
+function loadLegacyPrinterModules() {
+  if (!legacyPrinterModulesPromise) {
+    legacyPrinterModulesPromise = Promise.all([
+      import("./printer-center.js"),
+      import("./printer-profile.js"),
+      import("./print-queue.js")
+    ]).then(function(modules) {
+      var legacy = { PrinterCenter: modules[0].PrinterCenter, PrinterProfile: modules[1].PrinterProfile, PrintQueue: modules[2].PrintQueue };
+      legacy.PrinterCenter.init({
+        buildKitchen: buildKitchenTicketHtml,
+        buildCustomer: buildCustomerTicketHtml,
+        buildDocument: buildPrintWindowHtml,
+        resolveOrder: function(orderId) { return ordersData && ordersData[orderId] ? Object.assign({ id: orderId }, ordersData[orderId]) : null; }
+      });
+      return legacy;
+    });
+  }
+  return legacyPrinterModulesPromise;
+}
 
 
 /* =========================
@@ -1154,6 +1172,13 @@ function buildPrinterProfileCard(profileName, icon, title, reserved) {
 }
 
 function bindPrinterCenterControls() {
+  loadLegacyPrinterModules().then(bindLoadedPrinterCenterControls).catch(showPrinterError);
+}
+
+function bindLoadedPrinterCenterControls(legacy) {
+  var PrinterCenter = legacy.PrinterCenter;
+  var PrinterProfile = legacy.PrinterProfile;
+  var PrintQueue = legacy.PrintQueue;
   var profiles = PrinterProfile.load();
   var usbOptions = document.querySelectorAll('[data-profile-field="provider"] option[value="usb"]');
   for (var usbIndex = 0; usbIndex < usbOptions.length; usbIndex += 1) {
@@ -1161,23 +1186,24 @@ function bindPrinterCenterControls() {
     usbOptions[usbIndex].textContent = "USB";
   }
   var cards = document.querySelectorAll("[data-printer-profile]");
-  for (var i = 0; i < cards.length; i += 1) bindPrinterProfileCard(cards[i], profiles);
+  for (var i = 0; i < cards.length; i += 1) bindPrinterProfileCard(cards[i], profiles, legacy);
   var test = document.getElementById("printerTestBtn");
   var detect = document.getElementById("printerDetectBtn");
   var reprint = document.getElementById("printerReprintBtn");
   if (test) test.addEventListener("click", function() { PrinterCenter.testPrint().catch(showPrinterError); });
   if (detect) detect.addEventListener("click", function() { PrinterCenter.detectPrinter().then(function(devices) { alert(devices.length ? "找到印表機：" + devices[0].name : "未找到印表機"); }).catch(showPrinterError); });
   if (reprint) reprint.addEventListener("click", function() { PrinterCenter.reprint().catch(showPrinterError); });
-  bindUsbPrinterControls();
+  bindUsbPrinterControls(legacy);
   var resumeQueue = document.getElementById("printQueueResumeBtn");
   var clearQueue = document.getElementById("printQueueClearBtn");
   if (resumeQueue) resumeQueue.addEventListener("click", function() { PrintQueue.resume(); });
   if (clearQueue) clearQueue.addEventListener("click", function() { PrintQueue.clear(); });
-  PrintQueue.onStatusChanged(renderPrintQueueStatus);
-  renderPrintQueueStatus({ current: PrintQueue.getCurrent(), pending: PrintQueue.getPending().length, busy: PrintQueue.isBusy(), paused: PrintQueue.isPaused() });
+  PrintQueue.onStatusChanged(function(state) { renderPrintQueueStatus(state, legacy); });
+  renderPrintQueueStatus({ current: PrintQueue.getCurrent(), pending: PrintQueue.getPending().length, busy: PrintQueue.isBusy(), paused: PrintQueue.isPaused() }, legacy);
 }
 
-function bindUsbPrinterControls() {
+function bindUsbPrinterControls(legacy) {
+  var PrinterCenter = legacy.PrinterCenter;
   var detect = document.getElementById("usbDetectBtn");
   var request = document.getElementById("usbRequestBtn");
   var connect = document.getElementById("usbConnectBtn");
@@ -1236,7 +1262,10 @@ function formatUsbId(value) {
   return (Number(value) || 0).toString(16).toUpperCase().padStart(4, "0");
 }
 
-function renderPrintQueueStatus(state) {
+function renderPrintQueueStatus(state, legacy) {
+  if (!legacy) return;
+  var PrinterProfile = legacy.PrinterProfile;
+  var PrintQueue = legacy.PrintQueue;
   var current = document.getElementById("printQueueCurrent");
   var pending = document.getElementById("printQueuePending");
   var status = document.getElementById("printQueueStatus");
@@ -1253,7 +1282,8 @@ function renderPrintQueueStatus(state) {
   }
 }
 
-function bindPrinterProfileCard(card, profiles) {
+function bindPrinterProfileCard(card, profiles, legacy) {
+  var PrinterProfile = legacy.PrinterProfile;
   var profileName = card.getAttribute("data-printer-profile");
   var profile = profiles[profileName];
   var fields = card.querySelectorAll("[data-profile-field]");
@@ -2543,8 +2573,9 @@ function printOrderTicket(type, orderId, event) {
     return false;
   }
 
-  var printRequest = type === "customer" ? PrinterCenter.printCustomer(order) : PrinterCenter.printKitchen(order);
-  printRequest.catch(showPrinterError);
+  loadLegacyPrinterModules().then(function(legacy) {
+    return type === "customer" ? legacy.PrinterCenter.printCustomer(order) : legacy.PrinterCenter.printKitchen(order);
+  }).catch(showPrinterError);
   return false;
 }
 
@@ -5496,15 +5527,6 @@ watchBusinessDayClose();
 })();
 
 window.submitOrder = submitOrder;
-PrinterCenter.init({
-  buildKitchen: buildKitchenTicketHtml,
-  buildCustomer: buildCustomerTicketHtml,
-  buildDocument: buildPrintWindowHtml,
-  resolveOrder: function(orderId) {
-    return ordersData && ordersData[orderId] ? Object.assign({ id: orderId }, ordersData[orderId]) : null;
-  }
-});
-
 window.submitUnpaidOrder = submitUnpaidOrder;
 window.submitTestOrder = submitTestOrder;
 window.clearCart = clearCart;
