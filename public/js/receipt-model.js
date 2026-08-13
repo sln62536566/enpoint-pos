@@ -16,8 +16,9 @@ export function createReceiptModel(input = {}) {
   }) : [];
   return Object.freeze({
     store: text(input.store), orderNumber: text(input.orderNumber), table: text(input.table),
+    orderType: text(input.orderType === undefined ? input.type : input.orderType),
     items: Object.freeze(items), subtotal: money(input.subtotal), total: money(input.total),
     footer: text(input.footer), orderNote: text(input.orderNote === undefined ? input.note : input.orderNote),
-    paymentStatus: text(input.paymentStatus).toLowerCase(), isTestOrder: input.isTestOrder === true
+    paymentStatus: text(input.paymentStatus).toLowerCase(), orderLookupUrl: text(input.orderLookupUrl), isTestOrder: input.isTestOrder === true
   });
 }

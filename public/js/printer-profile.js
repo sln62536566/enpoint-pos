@@ -34,6 +34,15 @@ function resolveKey(idOrKey) {
   return PROFILE_KEYS.find(key => key.toLowerCase() === value || DEFAULT_PROFILES[key].id === value) || null;
 }
 
+function normalizeDeviceBinding(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value) || !value.bindingId) return null;
+  return {
+    bindingId: String(value.bindingId), vendorId: Number(value.vendorId) || 0, productId: Number(value.productId) || 0,
+    serialNumber: String(value.serialNumber || ""), productName: String(value.productName || ""), manufacturerName: String(value.manufacturerName || ""),
+    durable: value.durable !== false, sessionId: value.durable === false ? String(value.sessionId || "") : ""
+  };
+}
+
 function normalizeProfile(value, key) {
   const defaults = DEFAULT_PROFILES[key];
   const source = value && typeof value === "object" ? value : {};
@@ -47,7 +56,8 @@ function normalizeProfile(value, key) {
     paperSize: VALID_PAPER_SIZES.indexOf(paperSize) >= 0 ? paperSize : defaults.paperSize,
     copies: Math.min(3, Math.max(1, Number(source.copies) || defaults.copies)),
     autoPrint: typeof source.autoPrint === "boolean" ? source.autoPrint : defaults.autoPrint,
-    enabled: typeof source.enabled === "boolean" ? source.enabled : defaults.enabled
+    enabled: typeof source.enabled === "boolean" ? source.enabled : defaults.enabled,
+    deviceBinding: provider === "usb" ? normalizeDeviceBinding(source.deviceBinding) : null
   };
 }
 

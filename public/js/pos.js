@@ -56,6 +56,9 @@ function loadLegacyPrinterModules() {
 }
 
 let printerOrderBridgePromise = null;
+let manualPrinterProfilePromise = null;
+let manualPrintSequence = 0;
+let lastManualPrintRequest = null;
 let qrPrinterOwnershipPromise = null;
 let qrPrinterSnapshotChain = Promise.resolve();
 const qrClaimRecoveryTimers = new Map();
@@ -67,6 +70,87 @@ function isPrintingEnabled() {
 function loadPrinterOrderBridge() {
   if (!printerOrderBridgePromise) printerOrderBridgePromise = import("./printer-order-bridge.js");
   return printerOrderBridgePromise;
+}
+
+function loadManualPrinterProfile() {
+  if (!manualPrinterProfilePromise) {
+    manualPrinterProfilePromise = import("./printer-profile.js").catch(function(error) {
+      manualPrinterProfilePromise = null;
+      throw error;
+    });
+  }
+  return manualPrinterProfilePromise;
+}
+
+function createManualPrintEventId(orderId, ticketType) {
+  manualPrintSequence += 1;
+  var sessionPart = typeof crypto !== "undefined" && crypto && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : String(Date.now()) + "-" + String(manualPrintSequence);
+  return ["manual", orderId, ticketType, sessionPart, manualPrintSequence].join(":");
+}
+
+function handleManualPrintResult(result) {
+  if (result && result.ok && !result.skipped) {
+    alert("列印工作已完成。");
+    return result;
+  }
+  var code = result && result.code || "MANUAL_PRINT_FAILED";
+  alert("列印失敗 / 印表機不可用（" + code + "）");
+  return result;
+}
+
+function triggerManualOrderPrint(type, order) {
+  var ticketType = type === "customer" ? "customer" : "kitchen";
+  var routeGroup = ticketType === "customer" ? "Customer" : "Kitchen";
+  var eventId = createManualPrintEventId(order.id, ticketType);
+  var printerOrder = ticketType === "customer" ? Object.assign({}, order, { orderLookupUrl: getCustomerOrderUrl(order) }) : order;
+  var printerEvent = {
+    eventType: "ManualReprint",
+    eventId: eventId,
+    order: printerOrder,
+    orderId: order.id,
+    orderNumber: order.orderNumber,
+    source: "POS",
+    businessEventVersion: "manual:v1",
+    ticketType: ticketType,
+    routeGroup: routeGroup,
+    printerCapability: "manual-" + routeGroup.toLowerCase(),
+    policy: "manual-print",
+    metadata: { manual: true, reprint: true, requestedBy: "POS", requestedAt: Date.now(), originalOrderSource: order.orderSource || order.source || "" }
+  };
+  return Promise.resolve().then(loadPrinterOrderBridge).then(function(module) {
+    if (!module || !module.PrinterOrderBridge || typeof module.PrinterOrderBridge.handle !== "function") throw Object.assign(new Error("Printer order bridge unavailable"), { code: "PRINTER_BRIDGE_UNAVAILABLE" });
+    return module.PrinterOrderBridge.handle(printerEvent);
+  }).then(handleManualPrintResult).catch(function(error) {
+    return handleManualPrintResult({ ok: false, status: "isolated", code: error && error.code || "MANUAL_PRINT_FAILED" });
+  });
+}
+
+function executeManualOrderPrint(type, order) {
+  return loadManualPrinterProfile().then(function(profileModule) {
+    var profile = type === "customer" ? profileModule.PrinterProfile.getCustomer() : profileModule.PrinterProfile.getKitchen();
+    if (!profile || profile.enabled !== true) return handleManualPrintResult({ ok: false, status: "skipped", code: "PROFILE_DISABLED" });
+    lastManualPrintRequest = { type: type === "customer" ? "customer" : "kitchen", orderId: order.id };
+    if (profile.provider === "browser") {
+      return loadLegacyPrinterModules().then(function(legacy) {
+        return type === "customer" ? legacy.PrinterCenter.printCustomer(order) : legacy.PrinterCenter.printKitchen(order);
+      }).then(function(result) {
+        return handleManualPrintResult({ ok: true, status: "completed", code: "BROWSER_PRINT_COMPLETED", providerResult: result });
+      }).catch(function(error) {
+        return handleManualPrintResult({ ok: false, status: "isolated", code: error && error.code || "BROWSER_PRINT_FAILED" });
+      });
+    }
+    if (profile.provider !== "usb") return handleManualPrintResult({ ok: false, status: "skipped", code: "PROVIDER_UNSUPPORTED" });
+    return triggerManualOrderPrint(type, order);
+  }).catch(function(error) {
+    return handleManualPrintResult({ ok: false, status: "isolated", code: error && error.code || "MANUAL_PRINT_FAILED" });
+  });
+}
+
+function reprintLastManualOrder() {
+  if (!lastManualPrintRequest) return handleManualPrintResult({ ok: false, status: "skipped", code: "NO_MANUAL_PRINT_HISTORY" });
+  var order = ordersData && ordersData[lastManualPrintRequest.orderId] ? Object.assign({ id: lastManualPrintRequest.orderId }, ordersData[lastManualPrintRequest.orderId]) : null;
+  if (!order) return handleManualPrintResult({ ok: false, status: "skipped", code: "ORDER_NOT_FOUND" });
+  return executeManualOrderPrint(lastManualPrintRequest.type, order);
 }
 
 function loadQrPrinterOwnership() {
@@ -1389,6 +1473,7 @@ function buildPrinterProfileCard(profileName, icon, title, reserved) {
       '<label><span>列印方式</span><select class="settings-input" data-profile-field="provider"><option value="browser">瀏覽器列印</option><option value="usb" disabled>USB（Coming Soon）</option><option value="bluetooth" disabled>Bluetooth（Coming Soon）</option><option value="network" disabled>LAN（Coming Soon）</option></select></label>' +
       '<label><span>紙張尺寸</span><select class="settings-input" data-profile-field="paperSize"><option value="58">58mm</option><option value="80">80mm</option><option value="40x30">40×30 Label</option></select></label>' +
       '<label><span>列印份數</span><select class="settings-input" data-profile-field="copies"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></label>' +
+      '<label data-profile-binding-row><span>USB 實體印表機</span><select class="settings-input" data-profile-device-binding><option value="">請選擇已授權 USB 印表機</option></select></label>' +
       '<label class="printer-profile-toggle"><span>自動列印</span><input type="checkbox" data-profile-field="autoPrint"><b data-profile-auto-label>停用</b></label>' +
       '<label class="printer-profile-toggle"><span>啟用</span><input type="checkbox" data-profile-field="enabled"><b data-profile-enabled-label>停用</b></label>' +
     '</div><div class="printer-profile-status" data-profile-status><span>列印方式：-</span><span>紙張尺寸：-</span><span>列印份數：-</span><span>自動列印：-</span><span>Queue：待命</span></div></section>';
@@ -1410,12 +1495,13 @@ function bindLoadedPrinterCenterControls(legacy) {
   }
   var cards = document.querySelectorAll("[data-printer-profile]");
   for (var i = 0; i < cards.length; i += 1) bindPrinterProfileCard(cards[i], profiles, legacy);
+  void refreshPrinterProfileDeviceBindings(legacy);
   var test = document.getElementById("printerTestBtn");
   var detect = document.getElementById("printerDetectBtn");
   var reprint = document.getElementById("printerReprintBtn");
   if (test) test.addEventListener("click", function() { PrinterCenter.testPrint().catch(showPrinterError); });
   if (detect) detect.addEventListener("click", function() { PrinterCenter.detectPrinter().then(function(devices) { alert(devices.length ? "找到印表機：" + devices[0].name : "未找到印表機"); }).catch(showPrinterError); });
-  if (reprint) reprint.addEventListener("click", function() { PrinterCenter.reprint().catch(showPrinterError); });
+  if (reprint) reprint.addEventListener("click", function() { void reprintLastManualOrder(); });
   bindUsbPrinterControls(legacy);
   var resumeQueue = document.getElementById("printQueueResumeBtn");
   var clearQueue = document.getElementById("printQueueClearBtn");
@@ -1432,8 +1518,8 @@ function bindUsbPrinterControls(legacy) {
   var connect = document.getElementById("usbConnectBtn");
   var disconnect = document.getElementById("usbDisconnectBtn");
   var authorized = document.getElementById("usbAuthorizedDevices");
-  if (detect) detect.addEventListener("click", function() { PrinterCenter.detectUsbPrinter().then(function() { void invalidatePrinterIntegrationConfiguration(); renderUsbPrinterStatus(PrinterCenter.getUsbStatus()); }); });
-  if (request) request.addEventListener("click", function() { PrinterCenter.requestUsbPrinter([]).then(function() { void invalidatePrinterIntegrationConfiguration(); renderUsbPrinterStatus(PrinterCenter.getUsbStatus()); }); });
+  if (detect) detect.addEventListener("click", function() { PrinterCenter.detectUsbPrinter().then(function() { void invalidatePrinterIntegrationConfiguration(); renderUsbPrinterStatus(PrinterCenter.getUsbStatus()); void refreshPrinterProfileDeviceBindings(legacy); }); });
+  if (request) request.addEventListener("click", function() { PrinterCenter.requestUsbPrinter([]).then(function() { void invalidatePrinterIntegrationConfiguration(); renderUsbPrinterStatus(PrinterCenter.getUsbStatus()); void refreshPrinterProfileDeviceBindings(legacy); }); });
   if (connect) connect.addEventListener("click", function() { PrinterCenter.connectUsbPrinter().then(function(state) { void invalidatePrinterIntegrationConfiguration(); renderUsbPrinterStatus(state); }); });
   if (disconnect) disconnect.addEventListener("click", function() { PrinterCenter.disconnectUsbPrinter().then(function(state) { void invalidatePrinterIntegrationConfiguration(); renderUsbPrinterStatus(state); }); });
   if (authorized) authorized.addEventListener("change", function() { if (authorized.value) PrinterCenter.selectAuthorizedUsbPrinter(authorized.value).then(function(state) { void invalidatePrinterIntegrationConfiguration(); renderUsbPrinterStatus(state); }); });
@@ -1441,6 +1527,35 @@ function bindUsbPrinterControls(legacy) {
     PrinterCenter.onUsbStatusChanged(renderUsbPrinterStatus);
     renderUsbPrinterStatus(PrinterCenter.getUsbStatus());
   });
+}
+
+function refreshPrinterProfileDeviceBindings(legacy) {
+  return import("./printer-runtime-factory.js").then(function(module) { return module.listAuthorizedUsbBindings(); }).then(function(bindings) {
+    var cards = document.querySelectorAll("[data-printer-profile]");
+    for (var i = 0; i < cards.length; i += 1) bindPrinterProfileDeviceBinding(cards[i], bindings, legacy);
+  }).catch(function(error) { console.warn("USB profile binding refresh isolated", error); });
+}
+
+function bindPrinterProfileDeviceBinding(card, bindings, legacy) {
+  var select = card.querySelector("[data-profile-device-binding]");
+  var row = card.querySelector("[data-profile-binding-row]");
+  if (!select || !legacy) return;
+  var profileName = card.getAttribute("data-printer-profile");
+  var profile = legacy.PrinterProfile.get(profileName);
+  var currentId = profile && profile.deviceBinding && profile.deviceBinding.bindingId || "";
+  var values = Array.isArray(bindings) ? bindings : [];
+  select.innerHTML = '<option value="">請選擇已授權 USB 印表機</option>' + values.map(function(binding) {
+    var label = (binding.productName || "USB Printer") + " — VID:" + formatUsbId(binding.vendorId) + " PID:" + formatUsbId(binding.productId) + (binding.serialNumber ? " — S/N:" + binding.serialNumber : " — 僅限本次工作階段");
+    return '<option value="' + escapeHtml(binding.bindingId) + '"' + (binding.bindingId === currentId ? " selected" : "") + '>' + escapeHtml(label) + '</option>';
+  }).join("");
+  select.disabled = !profile || profile.provider !== "usb";
+  if (row) row.style.display = profile && profile.provider === "usb" ? "" : "none";
+  select.onchange = function() {
+    var selected = values.find(function(binding) { return binding.bindingId === select.value; }) || null;
+    var updated = legacy.PrinterProfile.update(profileName, { deviceBinding: selected });
+    void invalidatePrinterIntegrationConfiguration();
+    updatePrinterProfileCard(card, updated, legacy);
+  };
 }
 
 function renderUsbPrinterStatus(state) {
@@ -1521,6 +1636,7 @@ function bindPrinterProfileCard(card, profiles, legacy) {
         var updated = PrinterProfile.update(profileName, (function() { var change = {}; change[key] = value; return change; })());
         void invalidatePrinterIntegrationConfiguration();
         updatePrinterProfileCard(card, updated, legacy);
+        if (key === "provider") void refreshPrinterProfileDeviceBindings(legacy);
       });
     })(fields[i]);
   }
@@ -2797,9 +2913,7 @@ function printOrderTicket(type, orderId, event) {
     return false;
   }
 
-  loadLegacyPrinterModules().then(function(legacy) {
-    return type === "customer" ? legacy.PrinterCenter.printCustomer(order) : legacy.PrinterCenter.printKitchen(order);
-  }).catch(showPrinterError);
+  void executeManualOrderPrint(type, order);
   return false;
 }
 

@@ -42,3 +42,46 @@ export async function loadPosPrinterConfiguration(importer = specifier => import
     })
   });
 }
+
+export async function loadPrinterRuntimeConfiguration(importer = specifier => import(specifier), environment = globalThis) {
+  const profileModule = await importer("./printer-profile.js");
+  const profiles = { Kitchen: profileModule.PrinterProfile.getKitchen(), Customer: profileModule.PrinterProfile.getCustomer() };
+  const enabledUsb = Object.keys(profiles).filter(key => profiles[key] && profiles[key].enabled === true && profiles[key].provider === "usb");
+  if (enabledUsb.length) {
+    const legacyProviderModule = await importer("./printer-center.js");
+    const legacyDriver = await legacyProviderModule.initializeUsbProvider();
+    const legacyStatus = legacyDriver && typeof legacyDriver.getStatus === "function" ? legacyDriver.getStatus() : null;
+    if (legacyStatus && legacyStatus.connected && typeof legacyDriver.disconnect === "function") await legacyDriver.disconnect();
+  }
+  const candidates = enabledUsb.map(key => {
+    const profile = profiles[key];
+    const paperCapability = profile.paperSize === "80" ? "supportsPaper80" : "supportsPaper58";
+    return Object.freeze({
+      id: `pos-${key.toLowerCase()}-usb`, name: profile.name, group: key, provider: "usb", priority: 100, enabled: true,
+      deviceBinding: profile.deviceBinding,
+      capability: Object.freeze({ id: `pos-${key.toLowerCase()}-usb`, supportsEscPos: true, supportsReceipt: true, [paperCapability]: true })
+    });
+  });
+  const factoryModule = await importer("./printer-runtime-factory.js");
+  const runtimeFactory = factoryModule.createPrinterRuntimeFactory({ importer, environment });
+  const mappings = await runtimeFactory.createMappings(candidates);
+  const printers = mappings.printers.map(printer => Object.freeze({
+    id: printer.id, name: printer.name, group: printer.group, provider: printer.provider, priority: printer.priority, enabled: printer.enabled,
+    capability: printer.capability, metadata: Object.freeze({ physicalBindingId: printer.physicalBindingId })
+  }));
+  const kitchen = profiles.Kitchen;
+  const autoPrinter = printers.find(item => item.group === "Kitchen") || null;
+  const autoEnabled = Boolean(kitchen && kitchen.enabled === true && kitchen.autoPrint === true && kitchen.provider === "usb" && autoPrinter);
+  return Object.freeze({
+    enabled: autoEnabled,
+    code: autoEnabled ? "READY" : (!kitchen || kitchen.enabled !== true || kitchen.autoPrint !== true ? "AUTO_PRINT_DISABLED" : (kitchen.provider === "browser" ? "BROWSER_REQUIRES_USER_ACTION" : (autoPrinter ? "READY" : "PRINTER_NOT_READY"))),
+    profile: kitchen,
+    profiles: Object.freeze(profiles),
+    driver: null,
+    printer: autoPrinter,
+    printers: Object.freeze(printers),
+    transports: mappings.transports,
+    runtimeErrors: mappings.errors,
+    runtimeFactory
+  });
+}

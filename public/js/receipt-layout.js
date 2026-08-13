@@ -17,13 +17,18 @@ export function buildCustomerReceiptLayout(input) {
   const model = createReceiptModel(input);
   const nodes = [node("command", { name: "initialize" }), node("command", { name: "alignCenter" }), node("command", { name: "boldOn" }), node("line", { value: model.store }), node("command", { name: "boldOff" })];
   if (model.orderNumber) nodes.push(node("line", { value: `Order: ${model.orderNumber}` }));
+  if (model.orderType) nodes.push(node("line", { value: `Type: ${model.orderType}` }));
   if (model.table) nodes.push(node("line", { value: `Table: ${model.table}` }));
+  if (model.paymentStatus) nodes.push(node("line", { value: `Payment: ${model.paymentStatus}` }));
   nodes.push(node("command", { name: "alignLeft" }), node("separator"));
   model.items.forEach(item => {
     nodes.push(node("line", { value: `${item.name} x${item.quantity} ${item.total}` }));
+    item.details.forEach(detail => nodes.push(node("line", { value: `  ${detail}` })));
     if (item.note) nodes.push(node("line", { value: `  ${item.note}` }));
   });
   nodes.push(node("separator"), node("line", { value: `Subtotal: ${model.subtotal}` }), node("command", { name: "boldOn" }), node("line", { value: `Total: ${model.total}` }), node("command", { name: "boldOff" }));
+  if (model.orderNote) nodes.push(node("separator"), node("line", { value: `Note: ${model.orderNote}` }));
+  if (model.orderLookupUrl) nodes.push(node("command", { name: "alignCenter" }), node("line", { value: "Order lookup:" }), node("line", { value: model.orderLookupUrl }));
   if (model.footer) nodes.push(node("command", { name: "alignCenter" }), node("line", { value: model.footer }));
   nodes.push(node("feed", { lines: 2 }), node("command", { name: "cut" }));
   return createLayout("customer", nodes);

@@ -38,7 +38,7 @@ test("309 only ready USB configuration creates route", () => { assert.match(conf
 test("310 no printer configuration remains controlled", () => assert.match(config, /NO_PRINTER_CONFIGURED/));
 test("311 route failure remains engine controlled result", () => assert.match(integration, /const handled = await components\.engine\.handle\(trigger\)[\s\S]*?return result/));
 test("312 queue and pipeline remain commercial Core composition", () => { assert.match(integration, /createCommercialPrintQueue/); assert.match(integration, /createPrintPipeline/); });
-test("313 manual printing remains lazy legacy path", () => assert.match(pos, /function printOrderTicket[\s\S]*?loadLegacyPrinterModules\(\)[\s\S]*?legacy\.PrinterCenter/));
+test("313 manual Browser fallback remains lazy legacy path", () => assert.match(pos, /function executeManualOrderPrint[\s\S]*?profile\.provider === "browser"[\s\S]*?loadLegacyPrinterModules\(\)[\s\S]*?legacy\.PrinterCenter/));
 test("314 printer settings remain lazy legacy path", () => assert.match(pos, /function bindPrinterCenterControls\(\)[\s\S]*?loadLegacyPrinterModules\(\)/));
 test("315 POS has no static printer imports", () => { for (const name of ["printer-center", "printer-profile", "print-queue", "printer-order-bridge"]) assert.doesNotMatch(pos, new RegExp(`^import .*${name}`, "m")); });
 test("316 QR KDS and claims are absent from POS trigger", () => { const trigger = between(pos, "function triggerPosOrderPrint", "/* ========================="); for (const value of ["printClaims", "transaction(", "onChildAdded", "source: \"QR\""]) assert.equal(trigger.includes(value), false); });

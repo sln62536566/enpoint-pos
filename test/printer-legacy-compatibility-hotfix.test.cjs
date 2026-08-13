@@ -60,11 +60,11 @@ test("284 queue status forwards legacy to every profile status render", () => {
   assert.match(kitchen.status.innerHTML, /Queue/); assert.match(customer.status.innerHTML, /Queue/);
 });
 
-test("285 manual print remains on lazy legacy PrinterCenter path", () => {
-  assert.match(posSource, /function printOrderTicket[\s\S]*?loadLegacyPrinterModules\(\)\.then\(function\(legacy\)[\s\S]*?legacy\.PrinterCenter\.printCustomer[\s\S]*?legacy\.PrinterCenter\.printKitchen/);
+test("285 manual Browser fallback remains on lazy legacy PrinterCenter path", () => {
+  assert.match(posSource, /function executeManualOrderPrint[\s\S]*?profile\.provider === "browser"[\s\S]*?loadLegacyPrinterModules\(\)[\s\S]*?legacy\.PrinterCenter\.printCustomer[\s\S]*?legacy\.PrinterCenter\.printKitchen/);
   const start = posSource.indexOf("function printOrderTicket");
   const end = posSource.indexOf("function sendOrderToPrinterDevice", start);
-  assert.equal(posSource.slice(start, end).includes("PrinterOrderBridge"), false);
+  assert.match(posSource.slice(start, end), /executeManualOrderPrint/);
 });
 
 test("286 all legacy printer identifiers are scoped or explicitly qualified", () => {
