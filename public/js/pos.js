@@ -31,7 +31,7 @@ import {
   configureSoundCenter,
   getSoundCenterSettings,
   unlockSoundCenter
-} from "./sound-center.js?v=sound-phase-1";
+} from "./sound-center.js?v=sound-phase-2";
 
 let legacyPrinterModulesPromise = null;
 
@@ -1080,6 +1080,26 @@ function unlockPosOrderSound() {
   return unlockSoundCenter();
 }
 
+async function previewPosSound(eventName) {
+  try {
+    var success = await unlockPosOrderSound();
+    if (!success) {
+      showMenuStatusError("音效啟動失敗，請再試一次");
+      return false;
+    }
+    var played = playSound(eventName, { force: true, ignoreSilentHours: true });
+    if (!played) {
+      showMenuStatusError("音效啟動失敗，請再試一次");
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.warn("Sound preview failed", error);
+    showMenuStatusError("音效啟動失敗，請再試一次");
+    return false;
+  }
+}
+
 function initPosOrderSoundUnlock() {
   var unlocking = false;
   var lastTouchAt = 0;
@@ -1845,12 +1865,7 @@ function bindSoundCenterControls() {
       button.setAttribute("data-bound", "true");
       addLegacyTapListener(button, async function(event) {
         if (event && event.preventDefault) event.preventDefault();
-        var success = await unlockPosOrderSound();
-        if (!success) {
-          showMenuStatusError("音效啟動失敗，請再點一次");
-          return;
-        }
-        playSound(button.getAttribute("data-sound-test"), { force: true, ignoreSilentHours: true });
+        await previewPosSound(button.getAttribute("data-sound-test"));
       });
     })(testButtons[j]);
   }
@@ -2035,12 +2050,7 @@ function bindSoundCenterControlsV656() {
       button.setAttribute("data-bound", "true");
       addLegacyTapListener(button, async function(event) {
         if (event && event.preventDefault) event.preventDefault();
-        var success = await unlockPosOrderSound();
-        if (!success) {
-          showMenuStatusError("音效啟動失敗，請再點一次");
-          return;
-        }
-        playSound(button.getAttribute("data-sound-test"), { force: true, ignoreSilentHours: true });
+        await previewPosSound(button.getAttribute("data-sound-test"));
       });
     })(testButtons[j]);
   }
