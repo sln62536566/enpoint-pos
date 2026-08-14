@@ -31,7 +31,7 @@ import {
   configureSoundCenter,
   getSoundCenterSettings,
   unlockSoundCenter
-} from "./sound-center.js?v=sound-phase-2";
+} from "./sound-center.js?v=sound-phase-3";
 
 let legacyPrinterModulesPromise = null;
 

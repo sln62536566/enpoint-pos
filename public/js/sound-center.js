@@ -148,7 +148,9 @@ let unlockPromise = null;
 let safariAudioUnlocked = false;
 let playQueue = [];
 let queueBusy = false;
+let masterOutputNode = null;
 const QUEUE_GAP_MS = 120;
+const STORE_LOUDNESS_CURVE = Object.freeze([0, 0.2, 0.38, 0.55, 0.7, 0.82, 0.91, 0.97, 1]);
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -212,6 +214,48 @@ function getOrCreateAudioContext() {
   if (!AudioContextCtor) throw new Error("此瀏覽器不支援 Web Audio API");
   audioContext = new AudioContextCtor();
   return audioContext;
+}
+
+function getStoreLoudness(masterVolume) {
+  const bounded = Math.max(0, Math.min(200, Number(masterVolume) || 0));
+  const position = bounded / 25;
+  const lowerIndex = Math.floor(position);
+  const upperIndex = Math.min(STORE_LOUDNESS_CURVE.length - 1, Math.ceil(position));
+  const ratio = position - lowerIndex;
+  return STORE_LOUDNESS_CURVE[lowerIndex] + (STORE_LOUDNESS_CURVE[upperIndex] - STORE_LOUDNESS_CURVE[lowerIndex]) * ratio;
+}
+
+function getStoreDynamicsProfile() {
+  const thresholdDb = -2.5;
+  const kneeDb = 1;
+  return Object.freeze({
+    thresholdDb: thresholdDb,
+    kneeDb: kneeDb,
+    ratio: 12,
+    attack: 0.001,
+    release: 0.12,
+    normalStoreLevel: getStoreLoudness(100),
+    compressionStartsAt: Math.pow(10, (thresholdDb - kneeDb / 2) / 20),
+    maximumLevel: getStoreLoudness(200)
+  });
+}
+
+function getMasterOutput(context) {
+  if (masterOutputNode) return masterOutputNode;
+  if (typeof context.createDynamicsCompressor !== "function") {
+    masterOutputNode = context.destination;
+    return masterOutputNode;
+  }
+  const profile = getStoreDynamicsProfile();
+  const compressor = context.createDynamicsCompressor();
+  compressor.threshold.value = profile.thresholdDb;
+  compressor.knee.value = profile.kneeDb;
+  compressor.ratio.value = profile.ratio;
+  compressor.attack.value = profile.attack;
+  compressor.release.value = profile.release;
+  compressor.connect(context.destination);
+  masterOutputNode = compressor;
+  return masterOutputNode;
 }
 
 function unlockSafariAudio(context) {
@@ -297,13 +341,13 @@ function isInSilentHours(date) {
 function playTone(context, frequency, start, duration, volume) {
   const gain = context.createGain();
   const oscillator = context.createOscillator();
-  oscillator.type = "sine";
+  oscillator.type = "triangle";
   oscillator.frequency.setValueAtTime(frequency, start);
   gain.gain.setValueAtTime(0.0001, start);
   gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, volume), start + 0.02);
   gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
   oscillator.connect(gain);
-  gain.connect(context.destination);
+  gain.connect(getMasterOutput(context));
   oscillator.start(start);
   oscillator.stop(start + duration + 0.03);
 }
@@ -347,8 +391,7 @@ function play(eventName, options) {
   const eventKey = normalizeEventName(eventName);
   const pack = SOUND_PACKS[settings.theme] || SOUND_PACKS.classic;
   const pattern = pack.events[eventKey] || pack.events["new-order"];
-  const volumeMultiplier = Math.max(0, Math.min(2, Number(settings.masterVolume || 0) / 100));
-  const baseVolume = 0.46 * volumeMultiplier;
+  const baseVolume = getStoreLoudness(settings.masterVolume);
   if (baseVolume <= 0) return false;
 
   playQueue.push({ pattern: pattern, baseVolume: baseVolume });
@@ -421,5 +464,7 @@ export {
   configureSoundCenter,
   getSoundCenterSettings,
   getRepeatIntervalSeconds,
-  unlockSoundCenter
+  unlockSoundCenter,
+  getStoreLoudness,
+  getStoreDynamicsProfile
 };

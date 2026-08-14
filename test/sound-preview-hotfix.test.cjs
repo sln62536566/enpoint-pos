@@ -63,6 +63,6 @@ test("595 playback rejection is visible and controlled", async () => {
   assert.deepEqual(feedback, ["音效啟動失敗，請再試一次"]);
 });
 
-test("596 Sound Center cache key advances without changing its implementation", () => {
-  assert.match(posSource, /\.\/sound-center\.js\?v=sound-phase-2/);
+test("596 Sound Center hotfix cache key is current", () => {
+  assert.match(posSource, /\.\/sound-center\.js\?v=sound-phase-3/);
 });
