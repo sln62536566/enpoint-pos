@@ -67,8 +67,8 @@ test("491 pipeline contract remains unmodified and receives router as transport"
 test("492 configuration emits physicalBindingId metadata", () => assert.match(config, /metadata: Object\.freeze\(\{ physicalBindingId: printer\.physicalBindingId \}\)/));
 test("493 profile persists only normalized descriptor", () => { assert.match(profile, /function normalizeDeviceBinding/); for (const forbidden of ["USBDevice", "driver", "transport", "endpointNumber"]) assert.doesNotMatch(profile, new RegExp(forbidden)); });
 test("494 Browser profile clears USB binding", () => assert.match(profile, /deviceBinding: provider === "usb" \? normalizeDeviceBinding\(source\.deviceBinding\) : null/));
-test("495 settings exposes per-profile USB binding", () => { assert.match(pos, /data-profile-device-binding/); assert.match(pos, /PrinterProfile\.update\(profileName, \{ deviceBinding: selected \}\)/); });
-test("496 Settings binding change invalidates integration", () => assert.match(pos, /deviceBinding: selected[\s\S]*?invalidatePrinterIntegrationConfiguration/));
+test("495 settings exposes per-profile USB binding", () => { assert.match(pos, /data-profile-device-binding/); assert.match(pos, /applySavedPrinterConfiguration\(legacy, profileName, \{ deviceBinding: selected \}\)/); });
+test("496 Settings binding change uses the single apply-and-reload path", () => assert.match(pos, /deviceBinding: selected[\s\S]*?applySavedPrinterConfiguration/));
 test("497 global FIFO architecture remains single queue", () => assert.equal((integration.match(/createCommercialPrintQueue\(/g) || []).length, 1));
 test("498 prohibited Core contracts remain untouched by integration", () => { for (const value of ["commercial-print-queue", "print-pipeline", "print-transport", "printer-router", "print-scheduler"] ) assert.ok(integration.includes(value)); assert.doesNotMatch(integration, /USBDevice|endpointNumber|claimInterface/); });
 test("499 manual and automatic policies retain logical group routing", () => { assert.match(integration, /metadata: \{ group: "Kitchen"/); assert.match(integration, /metadata: \{ group, manual: true, reprint: true \}/); });

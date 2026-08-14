@@ -5191,6 +5191,30 @@ body.settings-center-open{
   white-space:nowrap;
 }
 
+.printer-binding-summary{
+  display:grid;
+  gap:7px;
+  margin-top:12px;
+  padding:12px;
+  border:1px solid #d9e1e8;
+  border-radius:10px;
+  background:#fff;
+  color:#475569;
+  overflow-wrap:anywhere;
+}
+.printer-binding-summary strong{font-size:15px;color:#172033;}
+.printer-binding-summary b{color:inherit;}
+.printer-binding-summary[data-binding-state="bound"] [data-binding-status]{color:#15803d;}
+.printer-binding-summary[data-binding-state="session"] [data-binding-status]{color:#b45309;}
+.printer-binding-summary[data-binding-state="unbound"] [data-binding-status]{color:#b42318;}
+.printer-binding-summary small{line-height:1.45;color:#667085;}
+.printer-profile-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px;}
+.printer-profile-actions button{min-height:46px;touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
+.printer-operator-feedback{margin:14px 0;padding:11px 13px;border-radius:10px;background:#f1f5f9;color:#475569;font-weight:800;}
+.printer-operator-feedback[data-state="loading"]{background:#fff7e6;color:#8a5400;}
+.printer-operator-feedback[data-state="success"]{background:#e6f4ea;color:#216e39;}
+.printer-operator-feedback[data-state="error"]{background:#fff1f2;color:#b42318;}
+
 @media (max-width:900px){
   .printer-profile-fields{
     grid-template-columns:repeat(2,minmax(0,1fr));
@@ -5209,6 +5233,8 @@ body.settings-center-open{
   .printer-profile-card{
     padding:13px;
   }
+
+  .printer-profile-actions{grid-template-columns:1fr;}
 
   .printer-profile-status{
     grid-template-columns:1fr;

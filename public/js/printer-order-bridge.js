@@ -35,6 +35,15 @@ export function createPrinterOrderBridge(options = {}) {
       return controlled(target.invalidateConfiguration());
     }).catch(error => controlled({ status: "isolated", code: error && error.code || "CONFIGURATION_INVALIDATION_FAILED", error }));
   }
+  function reloadConfiguration() {
+    return Promise.resolve().then(integration).then(async module => {
+      const target = module.PrinterIntegration || module.default || module;
+      if (!target || typeof target.reloadConfiguration !== "function") throw Object.assign(new Error("Printer configuration reload unavailable"), { code: "CONFIGURATION_RELOAD_FAILED" });
+      const result = await target.reloadConfiguration();
+      if (result && result.code && result.ok !== true) return controlled({ status: "isolated", code: result.code, error: result.error });
+      return controlled({ ok: true, status: "completed", code: "CONFIGURATION_RELOADED" });
+    }).catch(error => controlled({ status: "isolated", code: error && error.code || "CONFIGURATION_RELOAD_FAILED", error }));
+  }
   function canHandleQrAutoPrint() {
     return Promise.resolve().then(integration).then(module => {
       const target = module.PrinterIntegration || module.default || module;
@@ -42,7 +51,7 @@ export function createPrinterOrderBridge(options = {}) {
       return target.canHandleQrAutoPrint();
     }).catch(() => Object.freeze({ eligible: false, code: "PRINTER_ELIGIBILITY_FAILED" }));
   }
-  return Object.freeze({ handle, canHandleQrAutoPrint, invalidateConfiguration });
+  return Object.freeze({ handle, canHandleQrAutoPrint, invalidateConfiguration, reloadConfiguration });
 }
 
 export const PrinterOrderBridge = createPrinterOrderBridge();

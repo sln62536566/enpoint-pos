@@ -27,7 +27,15 @@ export async function listAuthorizedUsbBindings(environment = globalThis) {
   return Object.freeze((Array.isArray(devices) ? devices : []).map(createUsbDeviceBinding));
 }
 
-async function resolveDevice(binding, environment) {
+export async function requestUsbDeviceBinding(filters, environment = globalThis) {
+  const usb = environment && environment.navigator && environment.navigator.usb;
+  if (!usb || typeof usb.requestDevice !== "function") throw Object.assign(new Error("WebUSB unavailable"), { code: "NOT_SUPPORTED" });
+  const normalizedFilters = Array.isArray(filters) && filters.length ? filters : [{}];
+  const device = await usb.requestDevice({ filters: normalizedFilters });
+  return createUsbDeviceBinding(device);
+}
+
+export async function resolveUsbDeviceBinding(binding, environment = globalThis) {
   const usb = environment && environment.navigator && environment.navigator.usb;
   if (!usb || typeof usb.getDevices !== "function") throw Object.assign(new Error("WebUSB unavailable"), { code: "NOT_SUPPORTED" });
   if (!binding || !binding.bindingId) throw Object.assign(new Error("USB profile has no device binding"), { code: "PHYSICAL_TARGET_NOT_FOUND" });
@@ -119,7 +127,7 @@ export function createPrinterRuntimeFactory(options = {}) {
     if (!entry) {
       entry = { references: 0, promise: null };
       entry.promise = Promise.resolve().then(async () => {
-        const device = await resolveDevice(binding, environment);
+        const device = await resolveUsbDeviceBinding(binding, environment);
         const [providerModule, transportModule] = await Promise.all([importer("./usb-printer-provider.js"), importer("./print-transport.js")]);
         const driver = providerModule.createUsbPrinterProvider({ environment: scopedEnvironment(environment, device) });
         await driver.detect();

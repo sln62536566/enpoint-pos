@@ -165,6 +165,31 @@ function print(type, order) {
   }
 }
 
+function diagnosticError(code, message) {
+  return Object.assign(new Error(message), { code });
+}
+
+async function testProfile(type) {
+  const target = type === "kitchen" ? "kitchen" : "customer";
+  const profile = getProfile(target);
+  if (!profile || profile.enabled !== true) throw diagnosticError("PROFILE_DISABLED", "此印表機設定目前已停用");
+  if (profile.provider !== "usb" || !profile.deviceBinding) throw diagnosticError("BINDING_MISSING", "印表機未綁定");
+  const runtimeFactoryModule = await import("./printer-runtime-factory.js");
+  const runtimeFactory = runtimeFactoryModule.createPrinterRuntimeFactory({ environment: globalThis });
+  try {
+    const runtime = await runtimeFactory.runtimeFor(profile.deviceBinding);
+    const [commandsModule, encodingModule] = await Promise.all([import("./escpos-commands.js"), import("./printer-encoding.js")]);
+    const commands = commandsModule.ESCPOS_COMMANDS;
+    const label = target === "kitchen" ? "KITCHEN" : "CUSTOMER";
+    const content = encodingModule.UTF8_ENCODING.encode(`ENPOINT ${label} TEST\nPAPER ${profile.paperSize}mm / COPIES ${profile.copies}\nSETTINGS DIAGNOSTIC ONLY\n`);
+    const bytes = commandsModule.concatBytes([commands.initialize(), commands.alignCenter(), commands.boldOn(), content, commands.boldOff(), commands.feed(3), commands.cut()]);
+    const result = await runtime.transport.send(bytes, Object.freeze({ diagnostic: true, target, bindingId: profile.deviceBinding.bindingId }));
+    return Object.freeze({ ok: true, diagnostic: true, target, profileId: profile.id, bindingId: profile.deviceBinding.bindingId, bytesTransferred: result.bytesTransferred });
+  } finally {
+    await runtimeFactory.destroy();
+  }
+}
+
 export const PrinterCenter = {
   providers,
   init(options = {}) {
@@ -192,19 +217,7 @@ export const PrinterCenter = {
   printCustomer(order) {
     return print("customer", order);
   },
-  testPrint() {
-    const now = Date.now();
-    return this.printCustomer({
-      id: "TEST",
-      orderNumber: "TEST",
-      createdAt: now,
-      type: "測試列印",
-      items: [],
-      total: 0,
-      paymentStatus: "paid",
-      note: "Printer Center Browser Provider 測試"
-    });
-  },
+  testPrint(type = "customer") { return testProfile(type); },
   reprint(orderOrId) {
     let order = orderOrId;
     if (typeof orderOrId === "string" && typeof adapters.resolveOrder === "function") {

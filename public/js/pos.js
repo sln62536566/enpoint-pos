@@ -40,9 +40,10 @@ function loadLegacyPrinterModules() {
     legacyPrinterModulesPromise = Promise.all([
       import("./printer-center.js"),
       import("./printer-profile.js"),
-      import("./print-queue.js")
+      import("./print-queue.js"),
+      import("./printer-settings-operator.js")
     ]).then(function(modules) {
-      var legacy = { PrinterCenter: modules[0].PrinterCenter, PrinterProfile: modules[1].PrinterProfile, PrintQueue: modules[2].PrintQueue };
+      var legacy = { PrinterCenter: modules[0].PrinterCenter, PrinterProfile: modules[1].PrinterProfile, PrintQueue: modules[2].PrintQueue, PrinterSettingsOperator: modules[3].PrinterSettingsOperator };
       legacy.PrinterCenter.init({
         buildKitchen: buildKitchenTicketHtml,
         buildCustomer: buildCustomerTicketHtml,
@@ -1386,7 +1387,7 @@ function initSettingsCenter() {
     buildSettingsEntry("order", "🛒", "點餐流程", "出餐時間、測試單與點餐行為"),
     buildSettingsEntry("qr", "📱", "QR 點餐", "QR 有效時間與查詢時間"),
     buildSettingsEntry("sound", "🔔", "通知與音效", "音效中心與重複提醒"),
-    buildSettingsEntry("print", "🖨️", "印表機設定", "廚房、客人與貼紙印表機 Profile"),
+    buildSettingsEntry("print", "🖨️", "印表機設定", "廚房、客人與貼紙印表機設定"),
     buildSettingsEntry("modules", "🧩", "功能模組", "SaaS、會員、電子發票、外送平台"),
     buildSettingsEntry("system", "⚙️", "系統與裝置", "全螢幕、喇叭與裝置預留")
   ].join("");
@@ -1451,32 +1452,35 @@ function buildPrinterCenterPanel() {
       buildPrinterProfileCard("Customer", "🖨️", "客人印表機", false) +
       buildPrinterProfileCard("Label", "🖨️", "貼紙印表機", true) +
     '</div>' + buildUsbPrinterPanel() + buildPrintQueuePanel() +
-    '<div class="printer-center-actions"><button type="button" id="printerTestBtn" class="secondary-btn">測試列印</button><button type="button" id="printerDetectBtn" class="secondary-btn">重新搜尋印表機</button><button type="button" id="printerReprintBtn" class="primary-btn">重印最後一張</button></div>';
+    '<div id="printerReloadFeedback" class="printer-operator-feedback" role="status" aria-live="polite">設定變更後會在這裡顯示套用結果。</div>' +
+    '<div class="printer-center-actions"><button type="button" id="printerDetectBtn" class="secondary-btn">重新搜尋印表機</button><button type="button" id="printerReprintBtn" class="primary-btn">重印最後一張</button></div>';
   window.setTimeout(bindPrinterCenterControls, 0);
   return card;
 }
 
 function buildUsbPrinterPanel() {
-  return '<section class="usb-printer-panel" aria-labelledby="usbPrinterTitle"><div class="printer-profile-heading"><strong id="usbPrinterTitle">USB 印表機連線</strong><small id="usbPrinterCapability">檢查中</small></div><div class="usb-printer-details"><span id="usbPrinterDevice">尚未選擇裝置</span><span id="usbPrinterIds">VID: ---- PID: ----</span><span id="usbPrinterConnection">待命</span></div><label class="usb-device-picker"><span>已授權裝置</span><select id="usbAuthorizedDevices" class="settings-input"><option value="">尚無裝置</option></select></label><p id="usbPrinterMessage" class="usb-printer-message">USB 裝置只保留在目前執行階段。</p><div class="printer-center-actions"><button type="button" id="usbDetectBtn" class="secondary-btn">偵測已授權裝置</button><button type="button" id="usbRequestBtn" class="secondary-btn">選擇 USB 印表機</button><button type="button" id="usbConnectBtn" class="primary-btn">連線</button><button type="button" id="usbDisconnectBtn" class="secondary-btn">中斷連線</button></div></section>';
+  return '<section class="usb-printer-panel" aria-labelledby="usbPrinterTitle"><div class="printer-profile-heading"><strong id="usbPrinterTitle">USB 印表機管理</strong><small id="usbPrinterCapability">檢查中</small></div><div class="usb-printer-details"><span id="usbPrinterDevice">已授權裝置：0 台</span><span id="usbPrinterIds">請在各用途設定綁定裝置</span><span id="usbPrinterConnection">實體連線由列印時管理</span></div><label class="usb-device-picker"><span>已授權裝置</span><select id="usbAuthorizedDevices" class="settings-input" disabled><option value="">尚無裝置</option></select></label><p id="usbPrinterMessage" class="usb-printer-message">選擇裝置只取得瀏覽器權限，不會開啟或連線印表機。</p><div class="printer-center-actions"><button type="button" id="usbDetectBtn" class="secondary-btn">偵測已授權裝置</button><button type="button" id="usbRequestBtn" class="secondary-btn">選擇 USB 印表機</button></div></section>';
 }
 
 function buildPrintQueuePanel() {
   return '<section class="print-queue-panel"><div class="printer-profile-heading"><strong>🖨️ 列印佇列</strong><small id="printQueueState">待命</small></div>' +
-    '<div class="print-queue-stats"><div><span>目前列印</span><strong id="printQueueCurrent">無</strong></div><div><span>等待數量</span><strong id="printQueuePending">0</strong></div><div><span>Queue 狀態</span><strong id="printQueueStatus">待命</strong></div></div>' +
-    '<div class="print-queue-actions"><button type="button" id="printQueueResumeBtn" class="secondary-btn">重新開始 Queue</button><button type="button" id="printQueueClearBtn" class="secondary-btn">清空 Queue</button></div></section>';
+    '<div class="print-queue-stats"><div><span>目前列印</span><strong id="printQueueCurrent">無</strong></div><div><span>等待數量</span><strong id="printQueuePending">0</strong></div><div><span>佇列狀態</span><strong id="printQueueStatus">待命</strong></div></div>' +
+    '<div class="print-queue-actions"><button type="button" id="printQueueResumeBtn" class="secondary-btn">重新開始列印佇列</button><button type="button" id="printQueueClearBtn" class="secondary-btn">清空列印佇列</button></div></section>';
 }
 
 function buildPrinterProfileCard(profileName, icon, title, reserved) {
+  var operatorActions = reserved ? "" : '<div class="printer-profile-actions"><button type="button" class="secondary-btn" data-profile-unbind>解除綁定</button><button type="button" class="primary-btn" data-profile-test>測試' + (profileName === "Kitchen" ? "廚房印表機" : "客人單印表機") + '</button></div>';
   return '<section class="printer-profile-card" data-printer-profile="' + profileName + '">' +
     '<div class="printer-profile-heading"><strong>' + icon + ' ' + title + '</strong>' + (reserved ? '<small>（預留）</small>' : '') + '</div>' +
     '<div class="printer-profile-fields">' +
-      '<label><span>列印方式</span><select class="settings-input" data-profile-field="provider"><option value="browser">瀏覽器列印</option><option value="usb" disabled>USB（Coming Soon）</option><option value="bluetooth" disabled>Bluetooth（Coming Soon）</option><option value="network" disabled>LAN（Coming Soon）</option></select></label>' +
-      '<label><span>紙張尺寸</span><select class="settings-input" data-profile-field="paperSize"><option value="58">58mm</option><option value="80">80mm</option><option value="40x30">40×30 Label</option></select></label>' +
+      '<label><span>列印方式</span><select class="settings-input" data-profile-field="provider"><option value="browser">瀏覽器列印</option><option value="usb" disabled>USB（尚未開放）</option><option value="bluetooth" disabled>藍牙（尚未開放）</option><option value="network" disabled>LAN（尚未開放）</option></select></label>' +
+      '<label><span>紙張尺寸</span><select class="settings-input" data-profile-field="paperSize"><option value="58">58mm</option><option value="80">80mm</option><option value="40x30">40×30 貼紙</option></select></label>' +
       '<label><span>列印份數</span><select class="settings-input" data-profile-field="copies"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></label>' +
       '<label data-profile-binding-row><span>USB 實體印表機</span><select class="settings-input" data-profile-device-binding><option value="">請選擇已授權 USB 印表機</option></select></label>' +
       '<label class="printer-profile-toggle"><span>自動列印</span><input type="checkbox" data-profile-field="autoPrint"><b data-profile-auto-label>停用</b></label>' +
       '<label class="printer-profile-toggle"><span>啟用</span><input type="checkbox" data-profile-field="enabled"><b data-profile-enabled-label>停用</b></label>' +
-    '</div><div class="printer-profile-status" data-profile-status><span>列印方式：-</span><span>紙張尺寸：-</span><span>列印份數：-</span><span>自動列印：-</span><span>Queue：待命</span></div></section>';
+    '</div><div class="printer-binding-summary" data-profile-binding-summary><strong>綁定狀態：<b data-binding-status>未綁定</b></strong><span>裝置：<b data-binding-device>—</b></span><span>USB 裝置資訊：VID <b data-binding-vid>—</b> / PID <b data-binding-pid>—</b> / 序號（S/N）<b data-binding-serial>—</b></span><span>紙張：<b data-binding-paper>—</b>・份數：<b data-binding-copies>—</b>・自動列印：<b data-binding-auto>—</b></span><small data-binding-warning>請選擇印表機。</small></div>' +
+    '<div class="printer-profile-status" data-profile-status><span>列印方式：-</span><span>紙張尺寸：-</span><span>列印份數：-</span><span>自動列印：-</span><span>列印佇列：待命</span></div>' + operatorActions + '</section>';
 }
 
 function bindPrinterCenterControls() {
@@ -1496,13 +1500,12 @@ function bindLoadedPrinterCenterControls(legacy) {
   var cards = document.querySelectorAll("[data-printer-profile]");
   for (var i = 0; i < cards.length; i += 1) bindPrinterProfileCard(cards[i], profiles, legacy);
   void refreshPrinterProfileDeviceBindings(legacy);
-  var test = document.getElementById("printerTestBtn");
   var detect = document.getElementById("printerDetectBtn");
   var reprint = document.getElementById("printerReprintBtn");
-  if (test) test.addEventListener("click", function() { PrinterCenter.testPrint().catch(showPrinterError); });
   if (detect) detect.addEventListener("click", function() { PrinterCenter.detectPrinter().then(function(devices) { alert(devices.length ? "找到印表機：" + devices[0].name : "未找到印表機"); }).catch(showPrinterError); });
   if (reprint) reprint.addEventListener("click", function() { void reprintLastManualOrder(); });
   bindUsbPrinterControls(legacy);
+  bindPrinterOperatorControls(legacy);
   var resumeQueue = document.getElementById("printQueueResumeBtn");
   var clearQueue = document.getElementById("printQueueClearBtn");
   if (resumeQueue) resumeQueue.addEventListener("click", function() { PrintQueue.resume(); });
@@ -1512,27 +1515,78 @@ function bindLoadedPrinterCenterControls(legacy) {
 }
 
 function bindUsbPrinterControls(legacy) {
-  var PrinterCenter = legacy.PrinterCenter;
   var detect = document.getElementById("usbDetectBtn");
   var request = document.getElementById("usbRequestBtn");
-  var connect = document.getElementById("usbConnectBtn");
-  var disconnect = document.getElementById("usbDisconnectBtn");
-  var authorized = document.getElementById("usbAuthorizedDevices");
-  if (detect) detect.addEventListener("click", function() { PrinterCenter.detectUsbPrinter().then(function() { void invalidatePrinterIntegrationConfiguration(); renderUsbPrinterStatus(PrinterCenter.getUsbStatus()); void refreshPrinterProfileDeviceBindings(legacy); }); });
-  if (request) request.addEventListener("click", function() { PrinterCenter.requestUsbPrinter([]).then(function() { void invalidatePrinterIntegrationConfiguration(); renderUsbPrinterStatus(PrinterCenter.getUsbStatus()); void refreshPrinterProfileDeviceBindings(legacy); }); });
-  if (connect) connect.addEventListener("click", function() { PrinterCenter.connectUsbPrinter().then(function(state) { void invalidatePrinterIntegrationConfiguration(); renderUsbPrinterStatus(state); }); });
-  if (disconnect) disconnect.addEventListener("click", function() { PrinterCenter.disconnectUsbPrinter().then(function(state) { void invalidatePrinterIntegrationConfiguration(); renderUsbPrinterStatus(state); }); });
-  if (authorized) authorized.addEventListener("change", function() { if (authorized.value) PrinterCenter.selectAuthorizedUsbPrinter(authorized.value).then(function(state) { void invalidatePrinterIntegrationConfiguration(); renderUsbPrinterStatus(state); }); });
-  PrinterCenter.whenUsbReady().then(function() {
-    PrinterCenter.onUsbStatusChanged(renderUsbPrinterStatus);
-    renderUsbPrinterStatus(PrinterCenter.getUsbStatus());
+  if (detect) detect.addEventListener("click", function() { void refreshPrinterProfileDeviceBindings(legacy); });
+  if (request) request.addEventListener("click", function() {
+    request.disabled = true;
+    import("./printer-runtime-factory.js").then(function(module) { return module.requestUsbDeviceBinding(); }).then(function() {
+      return refreshPrinterProfileDeviceBindings(legacy, "USB 印表機權限已取得，請在廚房或客人單設定中選擇裝置。");
+    }).catch(function(error) {
+      var mapped = legacy.PrinterSettingsOperator.operatorPrinterError(error, "DEVICE_SELECTION_FAILED");
+      renderUsbBindingManagerStatus([], mapped.message);
+    }).finally(function() { request.disabled = false; });
   });
 }
 
-function refreshPrinterProfileDeviceBindings(legacy) {
+function renderPrinterReloadFeedback(value) {
+  var target = document.getElementById("printerReloadFeedback");
+  if (!target || !value) return;
+  target.setAttribute("data-state", value.state || "idle");
+  target.textContent = value.message || "";
+}
+
+function applySavedPrinterConfiguration(legacy, profileName, changes) {
+  var bridge = {
+    invalidateConfiguration: function() { return loadPrinterOrderBridge().then(function(module) { return module.PrinterOrderBridge.invalidateConfiguration(); }); },
+    reloadConfiguration: function() { return loadPrinterOrderBridge().then(function(module) { return module.PrinterOrderBridge.reloadConfiguration(); }); }
+  };
+  return legacy.PrinterSettingsOperator.savePrinterProfileAndApply(legacy.PrinterProfile, profileName, changes, bridge, renderPrinterReloadFeedback);
+}
+
+function bindPrinterOperatorControls(legacy) {
+  var cards = document.querySelectorAll('[data-printer-profile="Kitchen"], [data-printer-profile="Customer"]');
+  for (var i = 0; i < cards.length; i += 1) {
+    (function(card) {
+      var profileName = card.getAttribute("data-printer-profile");
+      var unbind = card.querySelector("[data-profile-unbind]");
+      var test = card.querySelector("[data-profile-test]");
+      addLegacyTapListener(unbind, function(event) {
+        if (event && event.preventDefault) event.preventDefault();
+        var purpose = profileName === "Kitchen" ? "廚房" : "客人單";
+        if (!window.confirm("確定解除這台" + purpose + "印表機的綁定嗎？\n解除後，USB 列印將暫時無法使用，直到重新選擇印表機。")) return;
+        var saved = applySavedPrinterConfiguration(legacy, profileName, { deviceBinding: null });
+        var updated = saved.profile;
+        var select = card.querySelector("[data-profile-device-binding]");
+        if (select) select.value = "";
+        updatePrinterProfileCard(card, updated, legacy);
+        void saved.completion;
+      });
+      addLegacyTapListener(test, function(event) {
+        if (event && event.preventDefault) event.preventDefault();
+        if (test.disabled) return;
+        test.disabled = true;
+        test.textContent = "正在測試…";
+        legacy.PrinterCenter.testPrint(profileName === "Kitchen" ? "kitchen" : "customer").then(function() {
+          alert((profileName === "Kitchen" ? "廚房" : "客人單") + "印表機測試已送出。");
+        }).catch(function(error) {
+          console.warn("Printer diagnostic test isolated", { profile: profileName, code: error && error.code || "TEST_PRINT_FAILED", error: error });
+          alert(legacy.PrinterSettingsOperator.operatorPrinterError(error, "TEST_PRINT_FAILED").message);
+        }).finally(function() {
+          test.disabled = false;
+          test.textContent = "測試" + (profileName === "Kitchen" ? "廚房印表機" : "客人單印表機");
+        });
+      });
+    })(cards[i]);
+  }
+}
+
+function refreshPrinterProfileDeviceBindings(legacy, message) {
   return import("./printer-runtime-factory.js").then(function(module) { return module.listAuthorizedUsbBindings(); }).then(function(bindings) {
     var cards = document.querySelectorAll("[data-printer-profile]");
     for (var i = 0; i < cards.length; i += 1) bindPrinterProfileDeviceBinding(cards[i], bindings, legacy);
+    renderUsbBindingManagerStatus(bindings, message);
+    return bindings;
   }).catch(function(error) { console.warn("USB profile binding refresh isolated", error); });
 }
 
@@ -1545,55 +1599,41 @@ function bindPrinterProfileDeviceBinding(card, bindings, legacy) {
   var currentId = profile && profile.deviceBinding && profile.deviceBinding.bindingId || "";
   var values = Array.isArray(bindings) ? bindings : [];
   select.innerHTML = '<option value="">請選擇已授權 USB 印表機</option>' + values.map(function(binding) {
-    var label = (binding.productName || "USB Printer") + " — VID:" + formatUsbId(binding.vendorId) + " PID:" + formatUsbId(binding.productId) + (binding.serialNumber ? " — S/N:" + binding.serialNumber : " — 僅限本次工作階段");
+    var label = (binding.productName || "USB 印表機") + " — VID:" + formatUsbId(binding.vendorId) + " PID:" + formatUsbId(binding.productId) + (binding.serialNumber ? " — 序號（S/N）:" + binding.serialNumber : " — 僅限本次工作階段");
     return '<option value="' + escapeHtml(binding.bindingId) + '"' + (binding.bindingId === currentId ? " selected" : "") + '>' + escapeHtml(label) + '</option>';
   }).join("");
   select.disabled = !profile || profile.provider !== "usb";
   if (row) row.style.display = profile && profile.provider === "usb" ? "" : "none";
   select.onchange = function() {
     var selected = values.find(function(binding) { return binding.bindingId === select.value; }) || null;
-    var updated = legacy.PrinterProfile.update(profileName, { deviceBinding: selected });
-    void invalidatePrinterIntegrationConfiguration();
+    var saved = applySavedPrinterConfiguration(legacy, profileName, { deviceBinding: selected });
+    var updated = saved.profile;
     updatePrinterProfileCard(card, updated, legacy);
+    void saved.completion;
   };
 }
 
-function renderUsbPrinterStatus(state) {
-  var metadata = state.selectedDevice;
-  var busy = ["detecting", "requesting_permission", "connecting", "disconnecting"].indexOf(state.status) >= 0;
-  var unsupported = state.status === "unsupported";
+function renderUsbBindingManagerStatus(bindings, message) {
+  var values = Array.isArray(bindings) ? bindings : [];
+  var supported = Boolean(typeof navigator !== "undefined" && navigator.usb);
   var capability = document.getElementById("usbPrinterCapability");
   var name = document.getElementById("usbPrinterDevice");
   var ids = document.getElementById("usbPrinterIds");
   var connection = document.getElementById("usbPrinterConnection");
-  var message = document.getElementById("usbPrinterMessage");
-  var detect = document.getElementById("usbDetectBtn");
-  var request = document.getElementById("usbRequestBtn");
-  var connect = document.getElementById("usbConnectBtn");
-  var disconnect = document.getElementById("usbDisconnectBtn");
+  var messageNode = document.getElementById("usbPrinterMessage");
   var authorized = document.getElementById("usbAuthorizedDevices");
-  if (capability) capability.textContent = unsupported ? "此瀏覽器不支援 WebUSB" : "WebUSB 可用";
-  if (name) name.textContent = metadata ? (metadata.productName || "USB 印表機") : "尚未選擇裝置";
-  if (ids) ids.textContent = metadata ? "VID:" + formatUsbId(metadata.vendorId) + " PID:" + formatUsbId(metadata.productId) : "VID: ---- PID: ----";
-  if (connection) connection.textContent = usbStatusText(state.status);
-  if (message) message.textContent = unsupported ? "請改用支援 WebUSB 的 Windows Chrome；iPad Safari 不支援 USB 印表機連線。" : state.message;
-  if (detect) detect.disabled = unsupported || busy;
-  if (request) request.disabled = unsupported || busy || state.connected;
-  if (connect) connect.disabled = unsupported || busy || !metadata || state.connected;
-  if (disconnect) disconnect.disabled = unsupported || busy || !state.connected;
+  if (capability) capability.textContent = supported ? "WebUSB 可用" : "此瀏覽器不支援 WebUSB";
+  if (name) name.textContent = "已授權裝置：" + values.length + " 台";
+  if (ids) ids.textContent = "請在各用途設定綁定裝置";
+  if (connection) connection.textContent = "實體連線由列印時管理";
+  if (messageNode) messageNode.textContent = message || (supported ? "選擇裝置只取得瀏覽器權限，不會開啟或連線印表機。" : "請改用支援 WebUSB 的 Windows Chrome；iPad Safari 不支援 USB 印表機。");
   if (authorized) {
-    var selectedKey = metadata && metadata.key || "";
-    authorized.innerHTML = state.devices && state.devices.length ? state.devices.map(function(device) {
-      var label = (device.productName || "USB 印表機") + (device.manufacturerName ? " — " + device.manufacturerName : "") + " — VID:" + formatUsbId(device.vendorId) + " PID:" + formatUsbId(device.productId) + (device.serialNumber ? " — S/N:" + device.serialNumber : "");
-      return '<option value="' + escapeHtml(device.key) + '"' + (device.key === selectedKey ? " selected" : "") + '>' + escapeHtml(label) + '</option>';
+    authorized.innerHTML = values.length ? values.map(function(binding) {
+      var label = (binding.productName || "USB 印表機") + " — VID:" + formatUsbId(binding.vendorId) + " PID:" + formatUsbId(binding.productId) + (binding.serialNumber ? " — 序號（S/N）:" + binding.serialNumber : " — 僅限本次工作階段");
+      return '<option>' + escapeHtml(label) + '</option>';
     }).join("") : '<option value="">尚無裝置</option>';
-    authorized.disabled = unsupported || busy || state.connected || !(state.devices && state.devices.length);
+    authorized.disabled = true;
   }
-}
-
-function usbStatusText(status) {
-  var labels = { unsupported:"此瀏覽器不支援", idle:"待命", detecting:"正在偵測", no_device:"找不到已授權裝置", device_available:"找到可用裝置", requesting_permission:"等待選擇裝置", selection_cancelled:"已取消選擇", selected:"已選擇裝置", connecting:"連線中", connected:"已連線", disconnecting:"正在中斷連線", disconnected:"已中斷連線", permission_denied:"USB 權限遭拒", device_not_found:"找不到所選裝置", device_disconnected:"裝置已拔除", connection_failed:"連線失敗", error:"USB 發生錯誤" };
-  return labels[status] || labels.error;
 }
 
 function formatUsbId(value) {
@@ -1633,9 +1673,10 @@ function bindPrinterProfileCard(card, profiles, legacy) {
       updatePrinterProfileCard(card, profile, legacy);
       field.addEventListener("change", function() {
         var value = key === "autoPrint" || key === "enabled" ? field.checked : field.value;
-        var updated = PrinterProfile.update(profileName, (function() { var change = {}; change[key] = value; return change; })());
-        void invalidatePrinterIntegrationConfiguration();
+        var saved = applySavedPrinterConfiguration(legacy, profileName, (function() { var change = {}; change[key] = value; return change; })());
+        var updated = saved.profile;
         updatePrinterProfileCard(card, updated, legacy);
+        void saved.completion;
         if (key === "provider") void refreshPrinterProfileDeviceBindings(legacy);
       });
     })(fields[i]);
@@ -1657,7 +1698,9 @@ function renderPrinterProfileStatus(card, profile, legacy) {
   if (!status || !profile) return;
   var current = legacy.PrintQueue.getCurrent();
   var queueText = current && current.profile && current.profile.id === profile.id ? "列印中" : "待命";
-  status.innerHTML = '<span>列印方式：' + (profile.provider === "browser" ? "瀏覽器列印" : profile.provider) + '</span><span>紙張尺寸：' + (profile.paperSize === "40x30" ? "40×30" : profile.paperSize + "mm") + '</span><span>列印份數：' + profile.copies + '</span><span>自動列印：' + (profile.autoPrint ? "啟用" : "停用") + '</span><span>Queue：' + queueText + '</span>';
+  var providerLabels = { browser: "瀏覽器列印", usb: "USB", bluetooth: "藍牙", network: "LAN" };
+  status.innerHTML = '<span>列印方式：' + (providerLabels[profile.provider] || "未支援") + '</span><span>紙張尺寸：' + (profile.paperSize === "40x30" ? "40×30" : profile.paperSize + "mm") + '</span><span>列印份數：' + profile.copies + '</span><span>自動列印：' + (profile.autoPrint ? "啟用" : "停用") + '</span><span>列印佇列：' + queueText + '</span>';
+  if (legacy.PrinterSettingsOperator) legacy.PrinterSettingsOperator.renderBindingSummary(card.querySelector("[data-profile-binding-summary]"), profile, card.getAttribute("data-printer-profile") === "Kitchen" ? "廚房印表機" : "客人單印表機");
 }
 
 function showPrinterError(error) {
@@ -1673,7 +1716,7 @@ function openSettingsSection(section) {
     order: ["點餐流程", "點餐流程"],
     qr: ["QR 點餐", "QR 點餐"],
     sound: ["通知與音效", "音效中心"],
-    print: ["印表機設定", "Printer Profile"],
+    print: ["印表機設定", "印表機設定"],
     modules: ["功能模組", "功能模組"],
     system: ["系統與裝置", "系統與裝置"]
   };

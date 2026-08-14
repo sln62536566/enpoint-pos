@@ -39,14 +39,14 @@ test("282 profile status reads queue through explicit legacy dependency", () => 
   const card = profileCard(), legacy = { PrintQueue: { getCurrent: () => null } };
   const helpers = loadProfileHelpers({ querySelectorAll: () => [] });
   assert.doesNotThrow(() => helpers.renderPrinterProfileStatus(card, { id: "kitchen", provider: "browser", paperSize: "58", copies: 1, autoPrint: true }, legacy));
-  assert.match(card.status.innerHTML, /Queue/);
+  assert.match(card.status.innerHTML, /列印佇列/);
 });
 
 test("283 profile update forwards legacy dependency without global PrintQueue", () => {
   const card = profileCard(), queue = { getCurrent: () => ({ profile: { id: "kitchen" } }) }, legacy = { PrintQueue: queue };
   const helpers = loadProfileHelpers({ querySelectorAll: () => [] });
   assert.doesNotThrow(() => helpers.updatePrinterProfileCard(card, { id: "kitchen", provider: "usb", paperSize: "80", copies: 2, autoPrint: false }, legacy));
-  assert.match(card.status.innerHTML, /Queue/);
+  assert.match(card.status.innerHTML, /列印佇列/);
 });
 
 test("284 queue status forwards legacy to every profile status render", () => {
@@ -57,7 +57,7 @@ test("284 queue status forwards legacy to every profile status render", () => {
   const legacy = { PrinterProfile: { get: name => profiles[name] }, PrintQueue: { getCurrent: () => ({ profile: { id: "kitchen" } }) } };
   const helpers = loadProfileHelpers(document);
   assert.doesNotThrow(() => helpers.renderPrintQueueStatus({ current: null, pending: 0, busy: false, paused: false }, legacy));
-  assert.match(kitchen.status.innerHTML, /Queue/); assert.match(customer.status.innerHTML, /Queue/);
+  assert.match(kitchen.status.innerHTML, /列印佇列/); assert.match(customer.status.innerHTML, /列印佇列/);
 });
 
 test("285 manual Browser fallback remains on lazy legacy PrinterCenter path", () => {
