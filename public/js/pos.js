@@ -27,6 +27,10 @@ import {
 } from "./order-option-display.js";
 
 import {
+  createCurrentReportsController
+} from "./statistics-current-reports.js";
+
+import {
   playSound,
   configureSoundCenter,
   getSoundCenterSettings,
@@ -449,12 +453,6 @@ const pendingOrderList = document.getElementById("pendingOrderList");
 const processingOrderList = document.getElementById("processingOrderList");
 const doneOrderList = document.getElementById("doneOrderList");
 const cancelledOrderList = document.getElementById("cancelledOrderList");
-
-const statTotalOrders = document.getElementById("statTotalOrders");
-const statUnpaidOrders = document.getElementById("statUnpaidOrders");
-const statProcessingOrders = document.getElementById("statProcessingOrders");
-const statDoneOrders = document.getElementById("statDoneOrders");
-const statTodayRevenue = document.getElementById("statTodayRevenue");
 
 const customModal = document.getElementById("customModal");
 const modalItemName = document.getElementById("modalItemName");
@@ -5138,164 +5136,22 @@ async function cancelOrder(orderId) {
    v56 Stats / Closing
 ========================= */
 
-const statCancelledOrders = document.getElementById("statCancelledOrders");
-const statAverageOrder = document.getElementById("statAverageOrder");
-
-const statRevenueLabel = document.getElementById("statRevenueLabel");
-const statTotalOrdersLabel = document.getElementById("statTotalOrdersLabel");
-
-const topItemsList = document.getElementById("topItemsList");
-
-const closingRevenue = document.getElementById("closingRevenue");
-const closingValidOrders = document.getElementById("closingValidOrders");
-const closingCancelledOrders = document.getElementById("closingCancelledOrders");
-
 const closingStatus = document.getElementById("closingStatus");
 const closingTime = document.getElementById("closingTime");
 const closeBusinessDayBtn = document.getElementById("closeBusinessDayBtn");
 
-const reportRangeButtons = document.querySelectorAll(".report-range-btn");
-
-let currentReportRange = "day";
-
-reportRangeButtons.forEach(button => {
-  button.addEventListener("click", () => {
-    currentReportRange = button.dataset.range;
-
-    reportRangeButtons.forEach(btn => btn.classList.remove("active"));
-    button.classList.add("active");
-
-    renderStats();
-  });
+const statisticsCurrentReports = createCurrentReportsController({
+  documentRef: document,
+  getOrders: () => ordersData,
+  now: () => Date.now(),
+  logger: console
 });
 
-function isThisWeek(timestamp) {
-  const date = new Date(timestamp);
-  const now = new Date();
-
-  const firstDay = new Date(now);
-  firstDay.setDate(now.getDate() - now.getDay());
-  firstDay.setHours(0, 0, 0, 0);
-
-  const lastDay = new Date(firstDay);
-  lastDay.setDate(firstDay.getDate() + 7);
-
-  return date >= firstDay && date < lastDay;
-}
-
-function isThisMonth(timestamp) {
-  const date = new Date(timestamp);
-  const now = new Date();
-
-  return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
-}
-
-function getOrdersByRange() {
-  const orders = Object.entries(ordersData).map(([id, order]) => ({ id, ...order }));
-
-  if (currentReportRange === "day") {
-    return orders.filter(order => isTodayOrder(order));
-  }
-
-  if (currentReportRange === "week") {
-    return orders.filter(order => isThisWeek(order.createdAt));
-  }
-
-  if (currentReportRange === "month") {
-    return orders.filter(order => isThisMonth(order.createdAt));
-  }
-
-  return orders;
-}
-
-function renderTopItems(orders) {
-  const counter = {};
-
-  orders.forEach(order => {
-    if (isRevenueExcluded(order)) return;
-
-    const items = normalizeOrderItems(order.items);
-
-    items.forEach(item => {
-      const name = itemDisplayName(item);
-      counter[name] = (counter[name] || 0) + itemQty(item);
-    });
-  });
-
-  const sorted = Object.entries(counter)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5);
-
-  if (sorted.length === 0) {
-    topItemsList.innerHTML = `<div class="empty">目前沒有銷售資料</div>`;
-    return;
-  }
-
-  topItemsList.innerHTML = sorted.map((item, index) => `
-    <div class="top-item-row">
-      <span>${index + 1}. ${item[0]}</span>
-      <strong>${item[1]} 份</strong>
-    </div>
-  `).join("");
-}
-
 function renderStats() {
-  const orders = getOrdersByRange();
-
-  const effectiveOrders = orders.filter(order => !isRevenueExcluded(order));
-
-  const unpaidOrders = effectiveOrders.filter(order => {
-    return !isPaid(order) && !isClosed(order);
-  });
-
-  const processingOrders = effectiveOrders.filter(order => {
-    return isPaid(order) && !isDone(order) && !isClosed(order);
-  });
-
-  const doneOrders = effectiveOrders.filter(order => {
-    return isDone(order) || isClosed(order);
-  });
-
-  const cancelledOrders = orders.filter(order => isCancelled(order));
-
-  const paidRevenueOrders = doneOrders.filter(order => isPaid(order));
-
-  const revenue = paidRevenueOrders.reduce((sum, order) => {
-    return sum + Number(order.total || 0);
-  }, 0);
-
-  const average = paidRevenueOrders.length > 0 ? revenue / paidRevenueOrders.length : 0;
-
-  if (currentReportRange === "day") {
-    statRevenueLabel.textContent = "今日營收";
-    statTotalOrdersLabel.textContent = "今日有效訂單";
-  }
-
-  if (currentReportRange === "week") {
-    statRevenueLabel.textContent = "本週營收";
-    statTotalOrdersLabel.textContent = "本週有效訂單";
-  }
-
-  if (currentReportRange === "month") {
-    statRevenueLabel.textContent = "本月營收";
-    statTotalOrdersLabel.textContent = "本月有效訂單";
-  }
-
-  statTotalOrders.textContent = effectiveOrders.length;
-  statUnpaidOrders.textContent = unpaidOrders.length;
-  statProcessingOrders.textContent = processingOrders.length;
-  statDoneOrders.textContent = doneOrders.length;
-  statCancelledOrders.textContent = cancelledOrders.length;
-
-  statTodayRevenue.textContent = money(revenue);
-  statAverageOrder.textContent = money(Math.round(average));
-
-  closingRevenue.textContent = money(revenue);
-  closingValidOrders.textContent = effectiveOrders.length;
-  closingCancelledOrders.textContent = cancelledOrders.length;
-
-  renderTopItems(orders);
+  return statisticsCurrentReports.refresh();
 }
+
+statisticsCurrentReports.initialize();
 
 function getTodayKey() {
   return getBusinessDate();

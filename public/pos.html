@@ -163,7 +163,7 @@
       <section id="statsTab" class="tab-panel">
         <div class="panel-title">
           <h2>營運統計</h2>
-          <p>v56 基礎報表：日 / 週 / 月統計、熱銷排行、每日收班預留</p>
+          <p>營運統計 v2：今日、本週、本月的訂單與營收</p>
         </div>
 
         <div class="report-range-tabs">
@@ -171,6 +171,12 @@
           <button class="report-range-btn" data-range="week">週</button>
           <button class="report-range-btn" data-range="month">月</button>
         </div>
+
+        <div class="panel-title statistics-period-heading">
+          <h2 id="statisticsPeriodTitle">今日</h2>
+          <p id="statisticsPeriodRange">-</p>
+        </div>
+        <div id="statisticsV2Error" class="closing-check-note" hidden></div>
 
         <div class="stats-grid">
           <div class="stat-card revenue">
@@ -184,8 +190,18 @@
           </div>
 
           <div class="stat-card">
+            <span>已付款訂單</span>
+            <strong id="statPaidOrders">0</strong>
+          </div>
+
+          <div class="stat-card">
             <span>未結帳</span>
             <strong id="statUnpaidOrders">0</strong>
+          </div>
+
+          <div class="stat-card">
+            <span>未收款金額</span>
+            <strong id="statOutstandingAmount">NT$ 0</strong>
           </div>
 
           <div class="stat-card">
@@ -204,6 +220,11 @@
           </div>
 
           <div class="stat-card">
+            <span>取消金額</span>
+            <strong id="statCancelledAmount">NT$ 0</strong>
+          </div>
+
+          <div class="stat-card">
             <span>平均客單價</span>
             <strong id="statAverageOrder">$0</strong>
           </div>
@@ -213,7 +234,7 @@
           <section class="stats-box">
             <div class="panel-title">
               <h2>熱銷餐點 TOP 5</h2>
-              <p id="topItemsSubText">依目前選擇時間範圍計算</p>
+              <p id="topItemsSubText">依已付款有效訂單的餐點數量計算</p>
             </div>
             <div id="topItemsList" class="top-items-list">
               <div class="empty">目前沒有銷售資料</div>
@@ -222,8 +243,8 @@
 
           <section class="stats-box">
             <div class="panel-title">
-              <h2>每日收班基礎版</h2>
-              <p>先做收班狀態與核對資料，正式現金/支付核對後續補上</p>
+              <h2>每日收班</h2>
+              <p>今日訂單統計</p>
             </div>
 
             <div class="closing-check-list">
@@ -596,6 +617,6 @@
       if (el) el.className += " hidden";
     }, false);
   </script>
-  <script type="module" src="./js/pos.js?v=sound-phase-1"></script>
+  <script type="module" src="./js/pos.js?v=statistics-s3"></script>
 </body>
 </html>
