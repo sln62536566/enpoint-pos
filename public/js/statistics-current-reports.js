@@ -216,6 +216,7 @@ function createCurrentReportsController(options = {}) {
   const getOrders = typeof options.getOrders === "function" ? options.getOrders : () => ({});
   const now = typeof options.now === "function" ? options.now : () => Date.now();
   const logger = options.logger || console;
+  const onPeriodSelected = typeof options.onPeriodSelected === "function" ? options.onPeriodSelected : () => {};
   let selectedPeriod = "day";
   let initialized = false;
 
@@ -244,6 +245,7 @@ function createCurrentReportsController(options = {}) {
   function setPeriod(period) {
     if (!PERIODS.includes(period)) return { ok: false, errorCode: "INVALID_CURRENT_PERIOD" };
     selectedPeriod = period;
+    onPeriodSelected(period);
     updateButtons();
     return refresh();
   }

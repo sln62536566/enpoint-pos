@@ -9,7 +9,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <title>恩點系統｜店員 POS</title>
   <link rel="manifest" href="./manifest.json" />
-  <link rel="stylesheet" href="./css/pos-v600.css?v=menu-hotfix-1-manual-fix-1" />
+  <link rel="stylesheet" href="./css/pos-v600.css?v=statistics-s4-1" />
 </head>
 
 <body>
@@ -163,15 +163,19 @@
       <section id="statsTab" class="tab-panel">
         <div class="panel-title">
           <h2>營運統計</h2>
-          <p>營運統計 v2：今日、本週、本月的訂單與營收</p>
+          <p>營運統計 v2：今日、本週、本月、年度、歷年與自訂報表</p>
         </div>
 
-        <div class="report-range-tabs">
+        <div class="report-range-tabs statistics-mode-tabs">
           <button class="report-range-btn active" data-range="day">日</button>
           <button class="report-range-btn" data-range="week">週</button>
           <button class="report-range-btn" data-range="month">月</button>
+          <button class="report-range-btn historical-mode-btn" data-historical-mode="year">年</button>
+          <button class="report-range-btn historical-mode-btn" data-historical-mode="history">歷年</button>
+          <button class="report-range-btn historical-mode-btn" data-historical-mode="custom">自訂</button>
         </div>
 
+        <div id="currentStatsContent">
         <div class="panel-title statistics-period-heading">
           <h2 id="statisticsPeriodTitle">今日</h2>
           <p id="statisticsPeriodRange">-</p>
@@ -283,6 +287,30 @@
             </div>
           </section>
         </div>
+        </div>
+
+        <section id="historicalStatsPanel" class="stats-box" hidden>
+          <div class="panel-title">
+            <h2 id="historicalBreadcrumb">歷史報表</h2>
+            <p>年、月、日與自訂日期範圍</p>
+          </div>
+          <div class="report-range-tabs historical-filter-controls">
+            <button id="historicalBackBtn" type="button">返回</button>
+            <select id="historicalYearSelect" class="settings-input" aria-label="歷史年份"></select>
+            <select id="historicalMonthSelect" class="settings-input" aria-label="歷史月份">
+              <option value="">全年</option>
+              <option value="1">1 月</option><option value="2">2 月</option><option value="3">3 月</option>
+              <option value="4">4 月</option><option value="5">5 月</option><option value="6">6 月</option>
+              <option value="7">7 月</option><option value="8">8 月</option><option value="9">9 月</option>
+              <option value="10">10 月</option><option value="11">11 月</option><option value="12">12 月</option>
+            </select>
+            <input id="historicalStartDate" class="settings-input" type="date" aria-label="自訂開始日期" />
+            <input id="historicalEndDate" class="settings-input" type="date" aria-label="自訂結束日期" />
+            <button id="historicalApplyRange" type="button" class="primary-btn">套用範圍</button>
+          </div>
+          <div id="historicalStatsError" class="closing-check-note" hidden></div>
+          <div id="historicalStatsContent"></div>
+        </section>
       </section>
 
       <section id="settingsTab" class="tab-panel">
@@ -617,6 +645,6 @@
       if (el) el.className += " hidden";
     }, false);
   </script>
-  <script type="module" src="./js/pos.js?v=statistics-s3"></script>
+  <script type="module" src="./js/pos.js?v=statistics-s4-1"></script>
 </body>
 </html>

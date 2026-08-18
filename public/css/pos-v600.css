@@ -500,6 +500,27 @@ button:disabled{
   color:#111;
 }
 
+#statsTab .statistics-mode-tabs,
+#statsTab .historical-filter-controls{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:10px;
+  max-width:100%;
+}
+
+#statsTab .statistics-mode-tabs .report-range-btn,
+#statsTab .historical-filter-controls button{
+  min-height:44px;
+}
+
+#statsTab .historical-filter-controls .settings-input{
+  flex:1 1 150px;
+  width:auto;
+  min-width:130px;
+  max-width:100%;
+}
+
 .stats-detail-layout{
   display:grid;
   grid-template-columns:1fr 1fr;

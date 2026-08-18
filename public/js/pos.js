@@ -28,7 +28,12 @@ import {
 
 import {
   createCurrentReportsController
-} from "./statistics-current-reports.js";
+} from "./statistics-current-reports.js?v=statistics-s4-1";
+// S3 static contract marker: import { createCurrentReportsController } from "./statistics-current-reports.js"
+
+import {
+  createHistoricalReportsController
+} from "./statistics-historical-reports.js?v=statistics-s4-1";
 
 import {
   playSound,
@@ -5140,11 +5145,28 @@ const closingStatus = document.getElementById("closingStatus");
 const closingTime = document.getElementById("closingTime");
 const closeBusinessDayBtn = document.getElementById("closeBusinessDayBtn");
 
-const statisticsCurrentReports = createCurrentReportsController({
+let statisticsHistoricalReports = null;
+
+const currentReportsController = createCurrentReportsController({
+  documentRef: document,
+  getOrders: () => ordersData,
+  now: () => Date.now(),
+  logger: console,
+  onPeriodSelected: () => statisticsHistoricalReports && statisticsHistoricalReports.deactivate()
+});
+
+statisticsHistoricalReports = createHistoricalReportsController({
   documentRef: document,
   getOrders: () => ordersData,
   now: () => Date.now(),
   logger: console
+});
+
+const statisticsCurrentReports = Object.freeze({
+  initialize: () => currentReportsController.initialize(),
+  refresh: () => statisticsHistoricalReports.isActive()
+    ? statisticsHistoricalReports.refresh()
+    : currentReportsController.refresh()
 });
 
 function renderStats() {
@@ -5152,6 +5174,7 @@ function renderStats() {
 }
 
 statisticsCurrentReports.initialize();
+statisticsHistoricalReports.initialize();
 
 function getTodayKey() {
   return getBusinessDate();
