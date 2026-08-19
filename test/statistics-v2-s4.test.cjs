@@ -203,10 +203,10 @@ test("S4.1 HTML and CSS provide matching active buttons and wrapping historical 
   assert.match(cssSource, /historical-filter-controls \.settings-input[\s\S]*min-width:130px[\s\S]*max-width:100%/);
 });
 
-test("S4.2 production Statistics assets share the S4 cache version", () => {
-  assert.match(htmlSource, /\.\/css\/pos-v600\.css\?v=statistics-s4-1/);
-  assert.match(htmlSource, /\.\/js\/pos\.js\?v=statistics-s4-1/);
+test("S4.2 production Statistics assets share the current cache version", () => {
+  assert.match(htmlSource, /\.\/css\/pos-v600\.css\?v=statistics-s5/);
+  assert.match(htmlSource, /\.\/js\/pos\.js\?v=statistics-s5/);
   assert.doesNotMatch(htmlSource, /\.\/js\/pos\.js\?v=statistics-s3/);
-  assert.match(posSource, /\.\/statistics-current-reports\.js\?v=statistics-s4-1/);
-  assert.match(posSource, /\.\/statistics-historical-reports\.js\?v=statistics-s4-1/);
+  assert.match(posSource, /\.\/statistics-current-reports\.js\?v=statistics-s5/);
+  assert.match(posSource, /\.\/statistics-historical-reports\.js\?v=statistics-s5/);
 });

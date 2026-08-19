@@ -27,13 +27,26 @@ import {
 } from "./order-option-display.js";
 
 import {
-  createCurrentReportsController
-} from "./statistics-current-reports.js?v=statistics-s4-1";
+  createCurrentReportsController,
+  configureStatisticsAnalytics
+} from "./statistics-current-reports.js?v=statistics-s5";
 // S3 static contract marker: import { createCurrentReportsController } from "./statistics-current-reports.js"
 
 import {
-  createHistoricalReportsController
-} from "./statistics-historical-reports.js?v=statistics-s4-1";
+  createHistoricalReportsController,
+  configureHistoricalStatisticsAnalytics
+} from "./statistics-historical-reports.js?v=statistics-s5";
+
+import {
+  buildStatisticsBreakdowns
+} from "./statistics-breakdowns.js?v=statistics-s5";
+
+import {
+  renderStatisticsAnalytics
+} from "./statistics-analytics-view.js?v=statistics-s5";
+
+configureStatisticsAnalytics({ buildStatisticsBreakdowns, renderStatisticsAnalytics });
+configureHistoricalStatisticsAnalytics({ buildStatisticsBreakdowns, renderStatisticsAnalytics });
 
 import {
   playSound,

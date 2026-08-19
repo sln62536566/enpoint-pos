@@ -8,6 +8,14 @@ import {
 import { resolveReportingStoreId } from "./statistics-store.js";
 import { calculateRevenueMetrics, isProductSalesOrder, isValidOrder } from "./statistics-policy.js";
 
+let buildStatisticsBreakdownsFn = null;
+let renderStatisticsAnalyticsFn = null;
+
+function configureStatisticsAnalytics(options = {}) {
+  if (typeof options.buildStatisticsBreakdowns === "function") buildStatisticsBreakdownsFn = options.buildStatisticsBreakdowns;
+  if (typeof options.renderStatisticsAnalytics === "function") renderStatisticsAnalyticsFn = options.renderStatisticsAnalytics;
+}
+
 const CURRENT_REPORT_STORE_ID = "defaultStore";
 const CURRENT_REPORT_ALIASES = Object.freeze({ mainStore: CURRENT_REPORT_STORE_ID });
 const PERIODS = Object.freeze(["day", "week", "month"]);
@@ -126,12 +134,17 @@ function buildCurrentStatisticsViewModel(orderData, options = {}) {
   const today = getTodayBusinessDate(options.now === undefined ? Date.now() : options.now);
   const buckets = selectCurrentOrderBuckets(orderData, range, today, aliases);
   const closingMetrics = calculateRevenueMetrics(buckets.todayOrders);
+  const analytics = buildStatisticsBreakdownsFn ? buildStatisticsBreakdownsFn(orderData, {
+    storeId: CURRENT_REPORT_STORE_ID, aliases,
+    startBusinessDate: range.startDate, endBusinessDate: range.endDate
+  }) : null;
   return {
     ...report,
     period,
     presentation: getPeriodPresentation(period, range),
     operational: buildOperationalMetrics(buckets.selectedRangeOrders),
-    topProducts: buildTopProducts(buckets.selectedRangeOrders, 5),
+    analytics,
+    topProducts: analytics ? analytics.productAnalytics.byQuantity.slice(0, 5) : buildTopProducts(buckets.selectedRangeOrders, 5),
     closingPreview: {
       salesRevenue: closingMetrics.salesRevenue,
       validOrders: closingMetrics.validOrders,
@@ -201,6 +214,9 @@ function renderCurrentStatistics(documentRef, viewModel) {
   setText(documentRef, "closingValidOrders", viewModel.closingPreview.validOrders);
   setText(documentRef, "closingCancelledOrders", viewModel.closingPreview.cancelledOrders);
   renderTopProducts(documentRef, viewModel.topProducts);
+  if (renderStatisticsAnalyticsFn && viewModel.analytics) {
+    renderStatisticsAnalyticsFn(documentRef, documentRef.getElementById("currentAnalyticsDetails"), viewModel.analytics, { includeQuantity: false });
+  }
   return true;
 }
 
@@ -271,6 +287,7 @@ export {
   selectCurrentOrderBuckets,
   buildOperationalMetrics,
   buildTopProducts,
+  configureStatisticsAnalytics,
   formatStatisticsCurrency,
   buildCurrentStatisticsViewModel,
   renderCurrentStatistics,

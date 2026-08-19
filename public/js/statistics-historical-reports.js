@@ -4,6 +4,14 @@ import { resolveReportingStoreId } from "./statistics-store.js";
 import { createMemoryStatisticsAdapter, createStatisticsQueryService } from "./statistics-query.js";
 import { formatStatisticsCurrency } from "./statistics-current-reports.js";
 
+let buildStatisticsBreakdownsFn = null;
+let renderStatisticsAnalyticsFn = null;
+
+function configureHistoricalStatisticsAnalytics(options = {}) {
+  if (typeof options.buildStatisticsBreakdowns === "function") buildStatisticsBreakdownsFn = options.buildStatisticsBreakdowns;
+  if (typeof options.renderStatisticsAnalytics === "function") renderStatisticsAnalyticsFn = options.renderStatisticsAnalytics;
+}
+
 const HISTORICAL_STORE_ID = "defaultStore";
 const HISTORICAL_ALIASES = Object.freeze({ mainStore: HISTORICAL_STORE_ID });
 const MAX_CUSTOM_RANGE_DAYS = 366;
@@ -190,6 +198,20 @@ function createHistoricalReportsController(options = {}) {
     return service[method]({ storeId: HISTORICAL_STORE_ID, aliases: HISTORICAL_ALIASES, ...values });
   }
 
+  function appendAnalytics(content, startBusinessDate, endBusinessDate) {
+    if (!buildStatisticsBreakdownsFn) return null;
+    const analytics = buildStatisticsBreakdownsFn(getOrders(), {
+      storeId: HISTORICAL_STORE_ID, aliases: HISTORICAL_ALIASES,
+      startBusinessDate, endBusinessDate
+    });
+    if (analytics.ok && content) {
+      const container = documentRef.createElement("div");
+      content.appendChild(container);
+      renderStatisticsAnalyticsFn(documentRef, container, analytics);
+    }
+    return analytics;
+  }
+
   async function renderYear() {
     const report = await query("getYear", { year: state.selectedYear });
     if (!report.ok) return report;
@@ -204,7 +226,9 @@ function createHistoricalReportsController(options = {}) {
       button.textContent = `${value.month} 月　${formatStatisticsCurrency(value.metrics.salesRevenue)}　${value.metrics.validOrders} 筆`;
       list.appendChild(button);
     });
-    content.appendChild(list); return report;
+    content.appendChild(list);
+    const analytics = appendAnalytics(content, `${state.selectedYear}-01-01`, `${state.selectedYear}-12-31`);
+    return { ...report, analytics };
   }
 
   async function renderHistory() {
@@ -224,7 +248,10 @@ function createHistoricalReportsController(options = {}) {
     clear(content); setBreadcrumb(["歷史報表", String(state.selectedYear), `${state.selectedMonth} 月`]); renderMetricSummary(documentRef, content, report.metrics);
     if (!report.daily.length) appendText(documentRef, content, "div", "此月份目前沒有營運資料", "empty");
     report.daily.forEach(day => { const button = documentRef.createElement("button"); button.type = "button"; button.className = "closing-check-item"; button.dataset.historicalDay = day.businessDate; button.textContent = `${day.businessDate.slice(5).replace("-", "/")}　${formatStatisticsCurrency(day.metrics.salesRevenue)}　${day.metrics.validOrders} 筆`; content.appendChild(button); });
-    return report;
+    const month = String(state.selectedMonth).padStart(2, "0");
+    const endDay = new Date(Date.UTC(state.selectedYear, state.selectedMonth, 0)).getUTCDate();
+    const analytics = appendAnalytics(content, `${state.selectedYear}-${month}-01`, `${state.selectedYear}-${month}-${String(endDay).padStart(2, "0")}`);
+    return { ...report, analytics };
   }
 
   async function renderDay() {
@@ -235,7 +262,8 @@ function createHistoricalReportsController(options = {}) {
     const rows = buildDayOrderRows(getOrders(), state.selectedDay);
     if (!rows.length) appendText(documentRef, content, "div", "此日期目前沒有訂單資料", "empty");
     rows.forEach(row => { const card = documentRef.createElement("div"); card.className = "closing-check-item"; appendText(documentRef, card, "strong", `#${row.orderNumber}　${formatStatisticsCurrency(row.total)}`); appendText(documentRef, card, "span", `${row.time}｜${row.source}｜${row.type}｜${row.table}｜${row.payment}｜${row.status}`); content.appendChild(card); });
-    return { ...report, orderRows: rows };
+    const analytics = appendAnalytics(content, state.selectedDay, state.selectedDay);
+    return { ...report, orderRows: rows, analytics };
   }
 
   async function renderCustom() {
@@ -244,7 +272,8 @@ function createHistoricalReportsController(options = {}) {
     const report = await query("getRange", { startBusinessDate: state.customStart, endBusinessDate: state.customEnd });
     if (!report.ok) return report;
     const content = elements().content; if (content) { clear(content); setBreadcrumb(["自訂範圍", `${state.customStart} ～ ${state.customEnd}`]); renderMetricSummary(documentRef, content, report.metrics); if (!report.daily.length) appendText(documentRef, content, "div", "此範圍沒有可顯示的資料", "empty"); }
-    return report;
+    const analytics = appendAnalytics(content, state.customStart, state.customEnd);
+    return { ...report, analytics };
   }
 
   async function refresh() {
@@ -304,6 +333,7 @@ function createHistoricalReportsController(options = {}) {
 
 export {
   HISTORICAL_STORE_ID, HISTORICAL_ALIASES, MAX_CUSTOM_RANGE_DAYS,
+  configureHistoricalStatisticsAnalytics,
   selectCanonicalHistoricalOrders, collectAvailableHistoricalYears, buildHistoricalYearSummaries,
   aggregateYearMonths, validateCustomRange, buildDayOrderRows, createHistoricalReportsController
 };
