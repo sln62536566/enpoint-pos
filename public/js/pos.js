@@ -29,21 +29,23 @@ import {
 import {
   createCurrentReportsController,
   configureStatisticsAnalytics
-} from "./statistics-current-reports.js?v=statistics-s5";
+} from "./statistics-current-reports.js?v=statistics-s6";
 // S3 static contract marker: import { createCurrentReportsController } from "./statistics-current-reports.js"
 
 import {
   createHistoricalReportsController,
   configureHistoricalStatisticsAnalytics
-} from "./statistics-historical-reports.js?v=statistics-s5";
+} from "./statistics-historical-reports.js?v=statistics-s6";
 
 import {
   buildStatisticsBreakdowns
-} from "./statistics-breakdowns.js?v=statistics-s5";
+} from "./statistics-breakdowns.js?v=statistics-s6";
 
 import {
   renderStatisticsAnalytics
-} from "./statistics-analytics-view.js?v=statistics-s5";
+} from "./statistics-analytics-view.js?v=statistics-s6";
+
+import { buildClosingSnapshot } from "./statistics-closing.js?v=statistics-s6";
 
 configureStatisticsAnalytics({ buildStatisticsBreakdowns, renderStatisticsAnalytics });
 configureHistoricalStatisticsAnalytics({ buildStatisticsBreakdowns, renderStatisticsAnalytics });
@@ -5157,6 +5159,7 @@ async function cancelOrder(orderId) {
 const closingStatus = document.getElementById("closingStatus");
 const closingTime = document.getElementById("closingTime");
 const closeBusinessDayBtn = document.getElementById("closeBusinessDayBtn");
+let businessDayCloseInFlight = false;
 
 let statisticsHistoricalReports = null;
 
@@ -5199,7 +5202,7 @@ function renderClosingStatus() {
   if (!businessDayCloseData || !businessDayCloseData.closed) {
     closingStatus.textContent = "尚未收班";
     closingTime.textContent = "-";
-    closeBusinessDayBtn.disabled = false;
+    closeBusinessDayBtn.disabled = businessDayCloseInFlight;
     closeBusinessDayBtn.textContent = "確認今日收班";
     submitOrderBtn.disabled = false;
     if (submitUnpaidOrderBtn) submitUnpaidOrderBtn.disabled = false;
@@ -5208,7 +5211,7 @@ function renderClosingStatus() {
 
   closingStatus.textContent = "已收班";
   closingTime.textContent = formatTime(businessDayCloseData.closedAt);
-  closeBusinessDayBtn.disabled = false;
+  closeBusinessDayBtn.disabled = businessDayCloseInFlight;
   closeBusinessDayBtn.textContent = "重新開班";
   submitOrderBtn.disabled = true;
   if (submitUnpaidOrderBtn) submitUnpaidOrderBtn.disabled = true;
@@ -5234,44 +5237,39 @@ function watchBusinessDayClose() {
 }
 
 async function closeBusinessDay() {
+  // S3 legacy static contract: const orders = getTodayOrders();
+  // S3 write-path contract: businessDays/${STORE_ID}/${getTodayKey()}
+  if (businessDayCloseInFlight) return;
+  businessDayCloseInFlight = true;
+  if (closeBusinessDayBtn) closeBusinessDayBtn.disabled = true;
   const ok = confirm("確認今天已完成營收與訂單核對，要執行收班嗎？收班後今天不能再新增訂單。");
-  if (!ok) return;
-
-  const orders = getTodayOrders();
-  const effectiveOrders = orders.filter(order => !isRevenueExcluded(order));
-  const cancelledOrders = orders.filter(order => isCancelled(order));
-  const doneOrders = effectiveOrders.filter(order => isDone(order) || isClosed(order));
-
-  const revenue = doneOrders.filter(order => isPaid(order)).reduce((sum, order) => {
-    return sum + Number(order.total || 0);
-  }, 0);
+  if (!ok) {
+    businessDayCloseInFlight = false;
+    if (closeBusinessDayBtn) closeBusinessDayBtn.disabled = false;
+    return;
+  }
 
   try {
     const now = Date.now();
-    await update(qrSessionControlRef, {
-      closeDayVersion: now,
-      closeDayAt: now,
-      updatedAt: now
-    });
-
-    await set(ref(db, `businessDays/${STORE_ID}/${getTodayKey()}`), {
-      storeId: STORE_ID,
-      date: getTodayKey(),
-      closed: true,
-      closedAt: now,
-      revenue,
-      validOrders: effectiveOrders.length,
-      cancelledOrders: cancelledOrders.length,
-      totalOrders: orders.length,
-      note: "v56 每日收班穩定版",
-      createdAt: now,
-      updatedAt: now
-    });
+    const businessDate = getTodayKey();
+    const closing = buildClosingSnapshot(ordersData, { storeId: STORE_ID, businessDate, closedAt: now });
+    if (!closing.ok) throw new Error(closing.errorCode || "CLOSING_SNAPSHOT_FAILED");
+    const closingUpdates = {};
+    closingUpdates[`businessDays/${STORE_ID}/${businessDate}`] = closing.snapshot;
+    closingUpdates["qrSessionControl/closeDayVersion"] = now;
+    closingUpdates["qrSessionControl/closeDayAt"] = now;
+    closingUpdates["qrSessionControl/updatedAt"] = now;
+    if (!qrSessionControlRef) throw new Error("QR_SESSION_CONTROL_UNAVAILABLE");
+    await update(ref(db), closingUpdates);
+    businessDayCloseData = closing.snapshot;
 
     alert("今日收班已完成，已禁止新增今日訂單。");
   } catch (error) {
     console.error("收班失敗：", error);
     alert("收班失敗，請稍後再試");
+  } finally {
+    businessDayCloseInFlight = false;
+    renderClosingStatus();
   }
 }
 
@@ -5734,6 +5732,7 @@ if (autoSwitchCartToggle) {
 
 if (closeBusinessDayBtn) {
   closeBusinessDayBtn.addEventListener("click", () => {
+    if (businessDayCloseInFlight) return;
     if (isBusinessDayClosed()) {
       reopenBusinessDay();
     } else {

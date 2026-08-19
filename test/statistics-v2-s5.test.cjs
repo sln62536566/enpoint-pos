@@ -140,12 +140,12 @@ test("S5 production assets, boundaries, and safe renderer are explicit", async (
     fs.readFile(path.join(root, "js", "statistics-historical-reports.js"), "utf8"),
     fs.readFile(path.join(root, "js", "statistics-current-reports.js"), "utf8")
   ]);
-  assert.match(html, /pos-v600\.css\?v=statistics-s5/);
-  assert.match(html, /pos\.js\?v=statistics-s5/);
-  assert.match(pos, /statistics-current-reports\.js\?v=statistics-s5/);
-  assert.match(pos, /statistics-historical-reports\.js\?v=statistics-s5/);
-  assert.match(pos, /statistics-breakdowns\.js\?v=statistics-s5/);
-  assert.match(pos, /statistics-analytics-view\.js\?v=statistics-s5/);
+  assert.match(html, /pos-v600\.css\?v=statistics-s6/);
+  assert.match(html, /pos\.js\?v=statistics-s6/);
+  assert.match(pos, /statistics-current-reports\.js\?v=statistics-s6/);
+  assert.match(pos, /statistics-historical-reports\.js\?v=statistics-s6/);
+  assert.match(pos, /statistics-breakdowns\.js\?v=statistics-s6/);
+  assert.match(pos, /statistics-analytics-view\.js\?v=statistics-s6/);
   assert.match(pos, /configureStatisticsAnalytics\(\{ buildStatisticsBreakdowns, renderStatisticsAnalytics \}\)/);
   assert.match(pos, /configureHistoricalStatisticsAnalytics\(\{ buildStatisticsBreakdowns, renderStatisticsAnalytics \}\)/);
   assert.match(view, /textContent/); assert.doesNotMatch(view, /innerHTML/);
